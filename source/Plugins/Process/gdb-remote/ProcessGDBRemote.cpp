@@ -1787,6 +1787,10 @@ ProcessGDBRemote::SetThreadStopInfo (StringExtractor& stop_packet)
             {
                 // Clear the stop info just in case we don't set it to anything
                 thread_sp->SetStopInfo (StopInfoSP());
+                // If there's a memory thread backed by this thread, we need to use it to calcualte StopInfo.
+                ThreadSP memory_thread_sp = m_thread_list.FindThreadByProtocolID(thread_sp->GetProtocolID());
+                if (memory_thread_sp)
+                    thread_sp = memory_thread_sp;
 
                 gdb_thread->SetThreadDispatchQAddr (thread_dispatch_qaddr);
                 gdb_thread->SetName (thread_name.empty() ? NULL : thread_name.c_str());
