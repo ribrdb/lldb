@@ -150,7 +150,14 @@ OperatingSystemGo::Init(ThreadList &threads)
     m_allg_sp = FindGlobal(target_sp, "runtime.allg");
     m_allglen_sp = FindGlobal(target_sp, "runtime.allglen");
 
-    if (!(m_allg_sp.get() && m_allglen_sp.get()))
+    if (m_allg_sp && !m_allglen_sp)
+    {
+        StreamSP error_sp = target_sp->GetDebugger().GetAsyncErrorStream ();
+        error_sp->Printf ("Unsupported Go runtime version detected.");
+        return false;
+    }
+    
+    if (!m_allg_sp)
         return false;
 
     RegisterContextSP real_registers_sp = threads.GetThreadAtIndex(0)->GetRegisterContext();
@@ -227,14 +234,15 @@ OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &rea
     new_thread_list = real_thread_list;
     Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
 
-    if (log)
-        log->Printf("OperatingSystemGo::UpdateThreadList(%d, %d, %d) fetching thread data from Go for pid %" PRIu64,
-                    old_thread_list.GetSize(false), real_thread_list.GetSize(false), new_thread_list.GetSize(0), m_process->GetID());
-    if (!(m_allg_sp.get() || Init(real_thread_list)))
+    if (!(m_allg_sp || Init(real_thread_list)) ||
+        (m_allg_sp && !m_allglen_sp))
     {
         return new_thread_list.GetSize(false) > 0;
     }
 
+    if (log)
+        log->Printf("OperatingSystemGo::UpdateThreadList(%d, %d, %d) fetching thread data from Go for pid %" PRIu64,
+                    old_thread_list.GetSize(false), real_thread_list.GetSize(false), new_thread_list.GetSize(0), m_process->GetID());
     uint64_t allglen = m_allglen_sp->GetValueAsUnsigned(0);
     if (allglen == 0)
     {
