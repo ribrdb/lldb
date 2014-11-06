@@ -1395,6 +1395,7 @@ RegisterContextLLDB::SavedLocationForRegister (uint32_t lldb_regnum, lldb_privat
 bool
 RegisterContextLLDB::TryFallbackUnwindPlan ()
 {
+    return false;
     UnwindPlan::Row::RegisterLocation unwindplan_regloc;
     if (m_fallback_unwind_plan_sp.get() == NULL)
         return false;
