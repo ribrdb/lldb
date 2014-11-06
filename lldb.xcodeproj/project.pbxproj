@@ -722,6 +722,8 @@
 		A36FF33C17D8E94600244D40 /* OptionParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A36FF33B17D8E94600244D40 /* OptionParser.cpp */; };
 		AE8F624919EF3E1E00326B21 /* OperatingSystemGo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */; };
 		AE8F624A19EF3E1E00326B21 /* OperatingSystemGo.h in Headers */ = {isa = PBXBuildFile; fileRef = AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */; };
+		AED2693C1A0AED90005CF9EC /* GoLanguageRuntime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AED2693A1A0AED90005CF9EC /* GoLanguageRuntime.cpp */; };
+		AED2693D1A0AED90005CF9EC /* GoLanguageRuntime.h in Headers */ = {isa = PBXBuildFile; fileRef = AED2693B1A0AED90005CF9EC /* GoLanguageRuntime.h */; };
 		AF061F87182C97ED00B6A19C /* RegisterContextHistory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */; };
 		AF061F88182C97ED00B6A19C /* RegisterContextHistory.h in Headers */ = {isa = PBXBuildFile; fileRef = AF061F86182C97ED00B6A19C /* RegisterContextHistory.h */; };
 		AF061F8B182C980000B6A19C /* HistoryThread.h in Headers */ = {isa = PBXBuildFile; fileRef = AF061F89182C980000B6A19C /* HistoryThread.h */; };
@@ -2149,6 +2151,8 @@
 		A36FF33D17D8E98800244D40 /* OptionParser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OptionParser.h; path = include/lldb/Host/OptionParser.h; sourceTree = "<group>"; };
 		AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = OperatingSystemGo.cpp; path = Go/OperatingSystemGo.cpp; sourceTree = "<group>"; };
 		AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OperatingSystemGo.h; path = Go/OperatingSystemGo.h; sourceTree = "<group>"; };
+		AED2693A1A0AED90005CF9EC /* GoLanguageRuntime.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoLanguageRuntime.cpp; path = Go/GoLanguageRuntime.cpp; sourceTree = "<group>"; };
+		AED2693B1A0AED90005CF9EC /* GoLanguageRuntime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GoLanguageRuntime.h; path = Go/GoLanguageRuntime.h; sourceTree = "<group>"; };
 		AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = RegisterContextHistory.cpp; path = Utility/RegisterContextHistory.cpp; sourceTree = "<group>"; };
 		AF061F86182C97ED00B6A19C /* RegisterContextHistory.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RegisterContextHistory.h; path = Utility/RegisterContextHistory.h; sourceTree = "<group>"; };
 		AF061F89182C980000B6A19C /* HistoryThread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = HistoryThread.h; path = Utility/HistoryThread.h; sourceTree = "<group>"; };
@@ -4166,6 +4170,7 @@
 		4CCA643A13B40B82003BDF98 /* LanguageRuntime */ = {
 			isa = PBXGroup;
 			children = (
+				AED269391A0AED67005CF9EC /* Go */,
 				4CCA643B13B40B82003BDF98 /* CPlusPlus */,
 				4CCA644013B40B82003BDF98 /* ObjC */,
 			);
@@ -4363,6 +4368,15 @@
 			name = Go;
 			sourceTree = "<group>";
 		};
+		AED269391A0AED67005CF9EC /* Go */ = {
+			isa = PBXGroup;
+			children = (
+				AED2693A1A0AED90005CF9EC /* GoLanguageRuntime.cpp */,
+				AED2693B1A0AED90005CF9EC /* GoLanguageRuntime.h */,
+			);
+			name = Go;
+			sourceTree = "<group>";
+		};
 		AF11CB34182CA85A00D9B618 /* SystemRuntime */ = {
 			isa = PBXGroup;
 			children = (
@@ -4506,6 +4520,7 @@
 				26474CCA18D0CB5B0073DEBA /* RegisterContextMemory.h in Headers */,
 				26474CA018D0CAEC0073DEBA /* RegisterContext_mips64.h in Headers */,
 				26BC17AE18C7F4CB00D2196D /* RegisterContextPOSIXCore_mips64.h in Headers */,
+				AED2693D1A0AED90005CF9EC /* GoLanguageRuntime.h in Headers */,
 				26FFC19A14FC072100087D58 /* AuxVector.h in Headers */,
 				AF25AB27188F685C0030DEC3 /* AppleGetQueuesHandler.h in Headers */,
 				26CA97A2172B1FD5005DC71B /* RegisterContextThreadMemory.h in Headers */,
@@ -5431,6 +5446,7 @@
 				260CC64D15D0440D002BF2E0 /* OptionValueEnumeration.cpp in Sources */,
 				260CC64E15D0440D002BF2E0 /* OptionValueFileSpec.cpp in Sources */,
 				AF2BCA6C18C7EFDE005B4526 /* JITLoaderGDB.cpp in Sources */,
+				AED2693C1A0AED90005CF9EC /* GoLanguageRuntime.cpp in Sources */,
 				260CC64F15D0440D002BF2E0 /* OptionValueFileSpecLIst.cpp in Sources */,
 				490A36C0180F0E6F00BA31F8 /* PlatformWindows.cpp in Sources */,
 				260CC65015D0440D002BF2E0 /* OptionValueFormat.cpp in Sources */,

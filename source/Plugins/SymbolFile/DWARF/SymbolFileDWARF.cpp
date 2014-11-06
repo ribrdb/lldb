@@ -5979,6 +5979,8 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                     // Set a bit that lets us know that we are currently parsing this
                     m_die_to_type[die] = DIE_IS_BEING_PARSED;
                     bool byte_size_valid = false;
+                    
+                    bool is_go_interface = false;
 
                     LanguageType class_language = eLanguageTypeUnknown;
                     bool is_complete_objc_class = false;
@@ -6039,6 +6041,13 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                                 case DW_AT_APPLE_objc_complete_type:
                                     is_complete_objc_class = form_value.Signed(); 
                                     break;
+
+                                case 0x2900 /* DW_AT_go_kind */:
+                                    class_language = eLanguageTypeGo;
+                                    if (22 == (form_value.Signed() & 31)) {
+                                        is_go_interface = true;
+                                    }
+                                        break;
 
                                 case DW_AT_allocated:
                                 case DW_AT_associated:
@@ -6233,7 +6242,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
 
                         ClangASTMetadata metadata;
                         metadata.SetUserID(MakeUserID(die->GetOffset()));
-                        metadata.SetIsDynamicCXXType(ClassOrStructIsVirtual (dwarf_cu, die));
+                        metadata.SetIsDynamicCXXType(is_go_interface || ClassOrStructIsVirtual (dwarf_cu, die));
 
                         if (type_name_cstr && strchr (type_name_cstr, '<'))
                         {
