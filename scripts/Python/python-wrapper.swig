@@ -91,7 +91,6 @@ ResolvePythonName(const char* name,
         pmodule = ResolvePythonName(piece.c_str(), main_dict);
         if (!pmodule)
             return NULL;
-        name = dot_pos+1;
         return ResolvePythonName(dot_pos+1,pmodule); // tail recursion.. should be optimized by the compiler
     }
 }
@@ -1048,6 +1047,44 @@ std::string& output)
         PyObject* session_dict = NULL;
         PyObject* pvalue = NULL;
         pvalue = pfunc(frame_sb, session_dict = FindSessionDictionary(session_dictionary_name));
+        
+        Py_XINCREF (session_dict);
+        
+        if (PyObjectToString(pvalue,output))
+            retval = true;
+        
+        Py_XDECREF(pvalue);
+    }
+    
+    return retval;
+}
+
+SWIGEXPORT bool
+LLDBSWIGPythonRunScriptKeywordValue
+(const char* python_function_name,
+const char* session_dictionary_name,
+lldb::ValueObjectSP& value,
+std::string& output)
+
+{
+    bool retval = false;
+
+    if (python_function_name == NULL || python_function_name[0] == '\0' || !session_dictionary_name)
+        return retval;
+
+    lldb::SBValue value_sb(value);
+    
+    {
+        PyErr_Cleaner py_err_cleaner(true);
+        
+        PyCallable pfunc = PyCallable::FindWithFunctionName(python_function_name,session_dictionary_name);
+        
+        if (!pfunc)
+            return retval;
+        
+        PyObject* session_dict = NULL;
+        PyObject* pvalue = NULL;
+        pvalue = pfunc(value_sb, session_dict = FindSessionDictionary(session_dictionary_name));
         
         Py_XINCREF (session_dict);
         

@@ -339,7 +339,11 @@ CommandInterpreter::Initialize ()
 #if defined (__arm__) || defined (__arm64__) || defined (__aarch64__)
         ProcessAliasOptionsArgs (cmd_obj_sp, "--", alias_arguments_vector_sp);
 #else
-        ProcessAliasOptionsArgs (cmd_obj_sp, "--shell=" LLDB_DEFAULT_SHELL " --", alias_arguments_vector_sp);
+        std::string shell_option;
+        shell_option.append("--shell=");
+        shell_option.append(HostInfo::GetDefaultShell().GetPath());
+        shell_option.append(" --");
+        ProcessAliasOptionsArgs (cmd_obj_sp, shell_option.c_str(), alias_arguments_vector_sp);
 #endif
         AddAlias ("r", cmd_obj_sp);
         AddAlias ("run", cmd_obj_sp);
@@ -3137,20 +3141,6 @@ CommandInterpreter::IOHandlerInputComplete (IOHandler &io_handler, std::string &
                     StopReason reason = thread_sp->GetStopReason();
                     if (reason == eStopReasonSignal || reason == eStopReasonException || reason == eStopReasonInstrumentation)
                     {
-                        // If we are printing results, we ought to show the resaon why we are stopping here:
-                        if (io_handler.GetFlags().Test(eHandleCommandFlagPrintResult))
-                        {
-                            if (!result.GetImmediateOutputStream())
-                            {
-                                const uint32_t start_frame = 0;
-                                const uint32_t num_frames = 1;
-                                const uint32_t num_frames_with_source = 1;
-                                thread_sp->GetStatus (*io_handler.GetOutputStreamFile().get(),
-                                                      start_frame,
-                                                      num_frames,
-                                                      num_frames_with_source);
-                            }
-                        }
                         should_stop = true;
                         break;
                     }

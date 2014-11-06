@@ -403,8 +403,7 @@ IRForTarget::DeclForGlobal (const GlobalValue *global_val, Module *module)
          node_index < num_nodes;
          ++node_index)
     {
-        MDNode *metadata_node = named_metadata->getOperand(node_index);
-
+        llvm::MDNode *metadata_node = dyn_cast<llvm::MDNode>(named_metadata->getOperand(node_index));
         if (!metadata_node)
             return NULL;
 
@@ -1210,7 +1209,7 @@ IRForTarget::RewritePersistentAlloc (llvm::Instruction *persistent_alloc)
 
     AllocaInst *alloc = dyn_cast<AllocaInst>(persistent_alloc);
 
-    MDNode *alloc_md = alloc->getMetadata("clang.decl.ptr");
+    MDNode *alloc_md = alloc->getMDNode("clang.decl.ptr");
 
     if (!alloc_md || !alloc_md->getNumOperands())
         return false;

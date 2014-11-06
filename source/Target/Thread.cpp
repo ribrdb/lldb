@@ -1690,7 +1690,7 @@ Thread::DumpThreadPlans (Stream *s,
                          bool include_internal,
                          bool ignore_boring_threads) const
 {
-    uint32_t stack_size = m_plan_stack.size();
+    uint32_t stack_size;
 
     if (ignore_boring_threads)
     {
@@ -1860,7 +1860,7 @@ Thread::ReturnFromFrame (lldb::StackFrameSP frame_sp, lldb::ValueObjectSP return
         
         // FIXME: ValueObject::Cast doesn't currently work correctly, at least not for scalars.
         // Turn that back on when that works.
-        if (0 && sc.function != NULL)
+        if (/* DISABLES CODE */ (0) && sc.function != NULL)
         {
             Type *function_type = sc.function->GetType();
             if (function_type)
@@ -2281,6 +2281,8 @@ Thread::GetUnwinder ()
             case llvm::Triple::aarch64:
             case llvm::Triple::thumb:
             case llvm::Triple::mips64:
+            case llvm::Triple::ppc:
+            case llvm::Triple::ppc64:
             case llvm::Triple::hexagon:
                 m_unwinder_ap.reset (new UnwindLLDB (*this));
                 break;

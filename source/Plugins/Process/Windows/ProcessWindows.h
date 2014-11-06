@@ -13,15 +13,23 @@
 // C Includes
 
 // C++ Includes
+#include <map>
 #include <queue>
 
 // Other libraries and framework includes
+#include "ForwardDecl.h"
+#include "IDebugDelegate.h"
+#include "lldb/Host/HostThread.h"
 #include "lldb/Target/Process.h"
 
 class ProcessMonitor;
 
-class ProcessWindows :
-    public lldb_private::Process
+namespace lldb_private
+{
+class HostProcess;
+}
+
+class ProcessWindows : public lldb_private::Process, public lldb_private::IDebugDelegate
 {
 public:
     //------------------------------------------------------------------
@@ -49,6 +57,8 @@ public:
     //------------------------------------------------------------------
     ProcessWindows(lldb_private::Target& target,
                    lldb_private::Listener &listener);
+
+    ~ProcessWindows();
 
     virtual lldb_private::Error
     DoDetach(bool keep_stopped);
@@ -99,11 +109,19 @@ public:
     virtual bool
     IsAlive ();
 
-    virtual size_t
-    DoReadMemory (lldb::addr_t vm_addr, 
-                  void *buf, 
-                  size_t size,
-                  lldb_private::Error &error);
+    virtual size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size, lldb_private::Error &error);
+
+    // IDebugDelegate overrides.
+    virtual void OnProcessLaunched(const lldb_private::ProcessMessageCreateProcess &message) override;
+    virtual void OnExitProcess(const lldb_private::ProcessMessageExitProcess &message) override;
+    virtual void OnDebuggerConnected(const lldb_private::ProcessMessageDebuggerConnected &message) override;
+    virtual void OnDebugException(const lldb_private::ProcessMessageException &message) override;
+    virtual void OnCreateThread(const lldb_private::ProcessMessageCreateThread &message) override;
+    virtual void OnExitThread(const lldb_private::ProcessMessageExitThread &message) override;
+    virtual void OnLoadDll(const lldb_private::ProcessMessageLoadDll &message) override;
+    virtual void OnUnloadDll(const lldb_private::ProcessMessageUnloadDll &message) override;
+    virtual void OnDebugString(const lldb_private::ProcessMessageDebugString &message) override;
+    virtual void OnDebuggerError(const lldb_private::ProcessMessageDebuggerError &message) override;
 };
 
 #endif  // liblldb_Plugins_Process_Windows_ProcessWindows_H_

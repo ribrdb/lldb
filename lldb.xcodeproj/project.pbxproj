@@ -121,7 +121,6 @@
 		26274FA714030F79006BA130 /* DynamicLoaderDarwinKernel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26274FA514030F79006BA130 /* DynamicLoaderDarwinKernel.cpp */; };
 		2628A4D513D4977900F5487A /* ThreadKDP.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2628A4D313D4977900F5487A /* ThreadKDP.cpp */; };
 		262CFC7711A4510000946C6C /* debugserver in Resources */ = {isa = PBXBuildFile; fileRef = 26CE05A0115C31E50022F371 /* debugserver */; };
-		262D24E613FB8710002D1960 /* RegisterContextMemory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 262D24E413FB8710002D1960 /* RegisterContextMemory.cpp */; };
 		262ED0051631FA2800879631 /* OptionGroupString.h in Headers */ = {isa = PBXBuildFile; fileRef = 262ED0041631FA2800879631 /* OptionGroupString.h */; };
 		262ED0081631FA3A00879631 /* OptionGroupString.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 262ED0071631FA3A00879631 /* OptionGroupString.cpp */; };
 		262F12B51835468600AEB384 /* SBPlatform.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 262F12B41835468600AEB384 /* SBPlatform.cpp */; };
@@ -647,6 +646,8 @@
 		941BCC8014E48C4000BB969C /* SBTypeFormat.h in Headers */ = {isa = PBXBuildFile; fileRef = 9461568714E355F2003A195C /* SBTypeFormat.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		941BCC8114E48C4000BB969C /* SBTypeSummary.h in Headers */ = {isa = PBXBuildFile; fileRef = 9461568814E355F2003A195C /* SBTypeSummary.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		941BCC8214E48C4000BB969C /* SBTypeSynthetic.h in Headers */ = {isa = PBXBuildFile; fileRef = 9461568914E355F2003A195C /* SBTypeSynthetic.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		942AFF0519F84ABF007B43B4 /* LibCxxVector.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942AFF0419F84ABF007B43B4 /* LibCxxVector.cpp */; };
+		942AFF0719F84C02007B43B4 /* LibCxxInitializerList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942AFF0619F84C02007B43B4 /* LibCxxInitializerList.cpp */; };
 		94380B8219940B0A00BFE4A8 /* StringLexer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94380B8119940B0A00BFE4A8 /* StringLexer.cpp */; };
 		9439FB1A19EF140C006FD6A4 /* NSIndexPath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9439FB1919EF140C006FD6A4 /* NSIndexPath.cpp */; };
 		944372DC171F6B4300E57C32 /* RegisterContextDummy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 944372DA171F6B4300E57C32 /* RegisterContextDummy.cpp */; };
@@ -698,6 +699,7 @@
 		94E829CA152D33C1006F96A3 /* lldb-platform in Resources */ = {isa = PBXBuildFile; fileRef = 26DC6A101337FE6900FF7998 /* lldb-platform */; };
 		94EA1D5C15E6C9B400D4171A /* PythonDataObjects.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94EA1D5B15E6C9B400D4171A /* PythonDataObjects.cpp */; };
 		94EA27CE17DE91750070F505 /* LibCxxUnorderedMap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94EA27CD17DE91750070F505 /* LibCxxUnorderedMap.cpp */; };
+		94F48F251A01C687005C0EC6 /* StringPrinter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94F48F241A01C687005C0EC6 /* StringPrinter.cpp */; };
 		94FA3DE01405D50400833217 /* ValueObjectConstResultChild.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94FA3DDF1405D50300833217 /* ValueObjectConstResultChild.cpp */; };
 		966C6B7918E6A56A0093F5EC /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 966C6B7818E6A56A0093F5EC /* libz.dylib */; };
 		966C6B7A18E6A56A0093F5EC /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 966C6B7818E6A56A0093F5EC /* libz.dylib */; };
@@ -751,6 +753,21 @@
 		AF37E10A17C861F20061E18E /* ProcessRunLock.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF37E10917C861F20061E18E /* ProcessRunLock.cpp */; };
 		AF45FDE518A1F3AC0007051C /* AppleGetThreadItemInfoHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF45FDE318A1F3AC0007051C /* AppleGetThreadItemInfoHandler.cpp */; };
 		AF45FDE618A1F3AC0007051C /* AppleGetThreadItemInfoHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = AF45FDE418A1F3AC0007051C /* AppleGetThreadItemInfoHandler.h */; };
+		AF77E08F1A033C700096C0EA /* ABISysV_ppc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E08D1A033C700096C0EA /* ABISysV_ppc.cpp */; };
+		AF77E0901A033C700096C0EA /* ABISysV_ppc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E08E1A033C700096C0EA /* ABISysV_ppc.h */; };
+		AF77E0931A033C7F0096C0EA /* ABISysV_ppc64.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E0911A033C7F0096C0EA /* ABISysV_ppc64.cpp */; };
+		AF77E0941A033C7F0096C0EA /* ABISysV_ppc64.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E0921A033C7F0096C0EA /* ABISysV_ppc64.h */; };
+		AF77E0971A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E0951A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.cpp */; };
+		AF77E0981A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E0961A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.h */; };
+		AF77E0A01A033D360096C0EA /* RegisterContext_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E0991A033D360096C0EA /* RegisterContext_powerpc.h */; };
+		AF77E0A11A033D360096C0EA /* RegisterContextFreeBSD_powerpc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E09A1A033D360096C0EA /* RegisterContextFreeBSD_powerpc.cpp */; };
+		AF77E0A21A033D360096C0EA /* RegisterContextFreeBSD_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E09B1A033D360096C0EA /* RegisterContextFreeBSD_powerpc.h */; };
+		AF77E0A31A033D360096C0EA /* RegisterContextMacOSXFrameBackchain.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E09C1A033D360096C0EA /* RegisterContextMacOSXFrameBackchain.cpp */; };
+		AF77E0A41A033D360096C0EA /* RegisterContextPOSIX_powerpc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E09D1A033D360096C0EA /* RegisterContextPOSIX_powerpc.cpp */; };
+		AF77E0A51A033D360096C0EA /* RegisterContextPOSIX_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E09E1A033D360096C0EA /* RegisterContextPOSIX_powerpc.h */; };
+		AF77E0A61A033D360096C0EA /* RegisterInfos_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E09F1A033D360096C0EA /* RegisterInfos_powerpc.h */; };
+		AF77E0A91A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E0A71A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.cpp */; };
+		AF77E0AA1A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E0A81A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.h */; };
 		AF81DEFA1828A23F0042CF19 /* SystemRuntime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF81DEF91828A23F0042CF19 /* SystemRuntime.cpp */; };
 		AF90106515AB7D3600FF120D /* lldb.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = AF90106315AB7C5700FF120D /* lldb.1 */; };
 		AF9107EE168570D200DBCD3C /* RegisterContextDarwin_arm64.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF9107EC168570D200DBCD3C /* RegisterContextDarwin_arm64.cpp */; };
@@ -1986,6 +2003,8 @@
 		940B02F519DC96E700AD0F52 /* SBExecutionContext.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SBExecutionContext.cpp; path = source/API/SBExecutionContext.cpp; sourceTree = "<group>"; };
 		940B02F719DC970900AD0F52 /* SBExecutionContext.i */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c.preprocessed; path = SBExecutionContext.i; sourceTree = "<group>"; };
 		94145430175D7FDE00284436 /* lldb-versioning.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "lldb-versioning.h"; path = "include/lldb/lldb-versioning.h"; sourceTree = "<group>"; };
+		942AFF0419F84ABF007B43B4 /* LibCxxVector.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = LibCxxVector.cpp; path = source/DataFormatters/LibCxxVector.cpp; sourceTree = "<group>"; };
+		942AFF0619F84C02007B43B4 /* LibCxxInitializerList.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = LibCxxInitializerList.cpp; path = source/DataFormatters/LibCxxInitializerList.cpp; sourceTree = "<group>"; };
 		94380B8019940B0300BFE4A8 /* StringLexer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = StringLexer.h; path = include/lldb/Utility/StringLexer.h; sourceTree = "<group>"; };
 		94380B8119940B0A00BFE4A8 /* StringLexer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = StringLexer.cpp; path = source/Utility/StringLexer.cpp; sourceTree = "<group>"; };
 		9439FB1919EF140C006FD6A4 /* NSIndexPath.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = NSIndexPath.cpp; path = source/DataFormatters/NSIndexPath.cpp; sourceTree = "<group>"; };
@@ -2076,6 +2095,8 @@
 		94EBAC8313D9EE26009BA64E /* PythonPointer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = PythonPointer.h; path = include/lldb/Utility/PythonPointer.h; sourceTree = "<group>"; };
 		94ED54A119C8A822007BE2EA /* ThreadSafeDenseMap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ThreadSafeDenseMap.h; path = include/lldb/Core/ThreadSafeDenseMap.h; sourceTree = "<group>"; };
 		94EE33F218643C6900CD703B /* FormattersContainer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = FormattersContainer.h; path = include/lldb/DataFormatters/FormattersContainer.h; sourceTree = "<group>"; };
+		94F48F231A01C679005C0EC6 /* StringPrinter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = StringPrinter.h; path = include/lldb/DataFormatters/StringPrinter.h; sourceTree = "<group>"; };
+		94F48F241A01C687005C0EC6 /* StringPrinter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = StringPrinter.cpp; path = source/DataFormatters/StringPrinter.cpp; sourceTree = "<group>"; };
 		94F6C4D119C264C70049D089 /* ProcessStructReader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ProcessStructReader.h; path = include/lldb/Utility/ProcessStructReader.h; sourceTree = "<group>"; };
 		94FA3DDD1405D4E500833217 /* ValueObjectConstResultChild.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ValueObjectConstResultChild.h; path = include/lldb/Core/ValueObjectConstResultChild.h; sourceTree = "<group>"; };
 		94FA3DDF1405D50300833217 /* ValueObjectConstResultChild.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ValueObjectConstResultChild.cpp; path = source/Core/ValueObjectConstResultChild.cpp; sourceTree = "<group>"; };
@@ -2185,6 +2206,21 @@
 		AF68D2551255416E002FF25B /* RegisterContextLLDB.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RegisterContextLLDB.h; path = Utility/RegisterContextLLDB.h; sourceTree = "<group>"; };
 		AF68D32F1255A110002FF25B /* UnwindLLDB.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = UnwindLLDB.cpp; path = Utility/UnwindLLDB.cpp; sourceTree = "<group>"; };
 		AF68D3301255A110002FF25B /* UnwindLLDB.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = UnwindLLDB.h; path = Utility/UnwindLLDB.h; sourceTree = "<group>"; };
+		AF77E08D1A033C700096C0EA /* ABISysV_ppc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ABISysV_ppc.cpp; path = "SysV-ppc/ABISysV_ppc.cpp"; sourceTree = "<group>"; };
+		AF77E08E1A033C700096C0EA /* ABISysV_ppc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ABISysV_ppc.h; path = "SysV-ppc/ABISysV_ppc.h"; sourceTree = "<group>"; };
+		AF77E0911A033C7F0096C0EA /* ABISysV_ppc64.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ABISysV_ppc64.cpp; path = "SysV-ppc64/ABISysV_ppc64.cpp"; sourceTree = "<group>"; };
+		AF77E0921A033C7F0096C0EA /* ABISysV_ppc64.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ABISysV_ppc64.h; path = "SysV-ppc64/ABISysV_ppc64.h"; sourceTree = "<group>"; };
+		AF77E0951A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = RegisterContextPOSIXProcessMonitor_powerpc.cpp; sourceTree = "<group>"; };
+		AF77E0961A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RegisterContextPOSIXProcessMonitor_powerpc.h; sourceTree = "<group>"; };
+		AF77E0991A033D360096C0EA /* RegisterContext_powerpc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RegisterContext_powerpc.h; path = Utility/RegisterContext_powerpc.h; sourceTree = "<group>"; };
+		AF77E09A1A033D360096C0EA /* RegisterContextFreeBSD_powerpc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = RegisterContextFreeBSD_powerpc.cpp; path = Utility/RegisterContextFreeBSD_powerpc.cpp; sourceTree = "<group>"; };
+		AF77E09B1A033D360096C0EA /* RegisterContextFreeBSD_powerpc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RegisterContextFreeBSD_powerpc.h; path = Utility/RegisterContextFreeBSD_powerpc.h; sourceTree = "<group>"; };
+		AF77E09C1A033D360096C0EA /* RegisterContextMacOSXFrameBackchain.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = RegisterContextMacOSXFrameBackchain.cpp; path = Utility/RegisterContextMacOSXFrameBackchain.cpp; sourceTree = "<group>"; };
+		AF77E09D1A033D360096C0EA /* RegisterContextPOSIX_powerpc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = RegisterContextPOSIX_powerpc.cpp; path = Utility/RegisterContextPOSIX_powerpc.cpp; sourceTree = "<group>"; };
+		AF77E09E1A033D360096C0EA /* RegisterContextPOSIX_powerpc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RegisterContextPOSIX_powerpc.h; path = Utility/RegisterContextPOSIX_powerpc.h; sourceTree = "<group>"; };
+		AF77E09F1A033D360096C0EA /* RegisterInfos_powerpc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RegisterInfos_powerpc.h; path = Utility/RegisterInfos_powerpc.h; sourceTree = "<group>"; };
+		AF77E0A71A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = RegisterContextPOSIXCore_powerpc.cpp; sourceTree = "<group>"; };
+		AF77E0A81A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RegisterContextPOSIXCore_powerpc.h; sourceTree = "<group>"; };
 		AF81DEF91828A23F0042CF19 /* SystemRuntime.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SystemRuntime.cpp; path = source/Target/SystemRuntime.cpp; sourceTree = "<group>"; };
 		AF90106315AB7C5700FF120D /* lldb.1 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.man; name = lldb.1; path = docs/lldb.1; sourceTree = "<group>"; };
 		AF9107E91685709A00DBCD3C /* ARM64_GCC_Registers.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ARM64_GCC_Registers.h; path = source/Utility/ARM64_GCC_Registers.h; sourceTree = "<group>"; };
@@ -3119,8 +3155,8 @@
 				AF23B4D919009C66003E2A58 /* FreeBSDSignals.cpp */,
 				AF23B4DA19009C66003E2A58 /* FreeBSDSignals.h */,
 				AF1729D4182C907200E0AB97 /* HistoryThread.cpp */,
-				AF1729D5182C907200E0AB97 /* HistoryUnwind.cpp */,
 				AF061F89182C980000B6A19C /* HistoryThread.h */,
+				AF1729D5182C907200E0AB97 /* HistoryUnwind.cpp */,
 				AF061F8A182C980000B6A19C /* HistoryUnwind.h */,
 				B28058A0139988B0002D96D0 /* InferiorCallPOSIX.cpp */,
 				B28058A2139988C6002D96D0 /* InferiorCallPOSIX.h */,
@@ -3129,6 +3165,7 @@
 				23059A0619532B96007B8189 /* LinuxSignals.h */,
 				23173F8B192BA93F005C708F /* lldb-x86-register-enums.h */,
 				26474C9E18D0CAEC0073DEBA /* RegisterContext_mips64.h */,
+				AF77E0991A033D360096C0EA /* RegisterContext_powerpc.h */,
 				26474C9F18D0CAEC0073DEBA /* RegisterContext_x86.h */,
 				26957D9213D381C900670048 /* RegisterContextDarwin_arm.cpp */,
 				26957D9313D381C900670048 /* RegisterContextDarwin_arm.h */,
@@ -3144,6 +3181,8 @@
 				26474CA318D0CB070073DEBA /* RegisterContextFreeBSD_i386.h */,
 				26474CA418D0CB070073DEBA /* RegisterContextFreeBSD_mips64.cpp */,
 				26474CA518D0CB070073DEBA /* RegisterContextFreeBSD_mips64.h */,
+				AF77E09A1A033D360096C0EA /* RegisterContextFreeBSD_powerpc.cpp */,
+				AF77E09B1A033D360096C0EA /* RegisterContextFreeBSD_powerpc.h */,
 				26474CA618D0CB070073DEBA /* RegisterContextFreeBSD_x86_64.cpp */,
 				26474CA718D0CB070073DEBA /* RegisterContextFreeBSD_x86_64.h */,
 				AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */,
@@ -3160,14 +3199,14 @@
 				26474CB918D0CB2D0073DEBA /* RegisterContextMach_i386.h */,
 				26474CBA18D0CB2D0073DEBA /* RegisterContextMach_x86_64.cpp */,
 				26474CBB18D0CB2D0073DEBA /* RegisterContextMach_x86_64.h */,
+				AF77E09C1A033D360096C0EA /* RegisterContextMacOSXFrameBackchain.cpp */,
+				26E3EEF811A994E800FBADB6 /* RegisterContextMacOSXFrameBackchain.h */,
 				262D24E413FB8710002D1960 /* RegisterContextMemory.cpp */,
 				262D24E513FB8710002D1960 /* RegisterContextMemory.h */,
-				26E3EEF711A994E800FBADB6 /* RegisterContextMacOSXFrameBackchain.cpp */,
-				26E3EEF811A994E800FBADB6 /* RegisterContextMacOSXFrameBackchain.h */,
-				26474CC218D0CB5B0073DEBA /* RegisterContextMemory.cpp */,
-				26474CC318D0CB5B0073DEBA /* RegisterContextMemory.h */,
 				26474CC418D0CB5B0073DEBA /* RegisterContextPOSIX_mips64.cpp */,
 				26474CC518D0CB5B0073DEBA /* RegisterContextPOSIX_mips64.h */,
+				AF77E09D1A033D360096C0EA /* RegisterContextPOSIX_powerpc.cpp */,
+				AF77E09E1A033D360096C0EA /* RegisterContextPOSIX_powerpc.h */,
 				26474CC618D0CB5B0073DEBA /* RegisterContextPOSIX_x86.cpp */,
 				26474CC718D0CB5B0073DEBA /* RegisterContextPOSIX_x86.h */,
 				26474CC818D0CB5B0073DEBA /* RegisterContextPOSIX.h */,
@@ -3176,15 +3215,19 @@
 				23EDE3371926AAD500F6A132 /* RegisterInfoInterface.h */,
 				26474CD018D0CB700073DEBA /* RegisterInfos_i386.h */,
 				26474CD118D0CB710073DEBA /* RegisterInfos_mips64.h */,
+				AF77E09F1A033D360096C0EA /* RegisterInfos_powerpc.h */,
 				26474CD218D0CB710073DEBA /* RegisterInfos_x86_64.h */,
-				2615DBC91208B5FC0021781D /* StopInfoMachException.h */,
 				2615DBC81208B5FC0021781D /* StopInfoMachException.cpp */,
+				2615DBC91208B5FC0021781D /* StopInfoMachException.h */,
 				26F4A21A13FBA31A0064B613 /* ThreadMemory.cpp */,
 				26F4A21B13FBA31A0064B613 /* ThreadMemory.h */,
 				AF68D32F1255A110002FF25B /* UnwindLLDB.cpp */,
 				AF68D3301255A110002FF25B /* UnwindLLDB.h */,
-				26E3EEE411A9901300FBADB6 /* UnwindMacOSXFrameBackchain.h */,
 				26E3EEE311A9901300FBADB6 /* UnwindMacOSXFrameBackchain.cpp */,
+				26E3EEE411A9901300FBADB6 /* UnwindMacOSXFrameBackchain.h */,
+				26E3EEF711A994E800FBADB6 /* RegisterContextMacOSXFrameBackchain.cpp */,
+				26474CC218D0CB5B0073DEBA /* RegisterContextMemory.cpp */,
+				26474CC318D0CB5B0073DEBA /* RegisterContextMemory.h */,
 			);
 			name = Utility;
 			sourceTree = "<group>";
@@ -3196,6 +3239,8 @@
 				26BC17A318C7F4CB00D2196D /* ProcessElfCore.h */,
 				26BC17A418C7F4CB00D2196D /* RegisterContextPOSIXCore_mips64.cpp */,
 				26BC17A518C7F4CB00D2196D /* RegisterContextPOSIXCore_mips64.h */,
+				AF77E0A71A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.cpp */,
+				AF77E0A81A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.h */,
 				26BC17A618C7F4CB00D2196D /* RegisterContextPOSIXCore_x86_64.cpp */,
 				26BC17A718C7F4CB00D2196D /* RegisterContextPOSIXCore_x86_64.h */,
 				26BC17A818C7F4CB00D2196D /* ThreadElfCore.cpp */,
@@ -3219,6 +3264,8 @@
 				26BC17BF18C7F4FA00D2196D /* ProcessPOSIXLog.h */,
 				26BC17D118C7F4FA00D2196D /* RegisterContextPOSIXProcessMonitor_mips64.cpp */,
 				26BC17D218C7F4FA00D2196D /* RegisterContextPOSIXProcessMonitor_mips64.h */,
+				AF77E0951A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.cpp */,
+				AF77E0961A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.h */,
 				26BC17D318C7F4FA00D2196D /* RegisterContextPOSIXProcessMonitor_x86.cpp */,
 				26BC17D418C7F4FA00D2196D /* RegisterContextPOSIXProcessMonitor_x86.h */,
 			);
@@ -3975,6 +4022,8 @@
 				26DB3E061379E7AD0080DC73 /* MacOSX-arm */,
 				26DB3E0A1379E7AD0080DC73 /* MacOSX-arm64 */,
 				26DB3E0E1379E7AD0080DC73 /* MacOSX-i386 */,
+				AF77E08B1A033C3E0096C0EA /* SysV-ppc */,
+				AF77E08C1A033C4B0096C0EA /* SysV-ppc64 */,
 				26DB3E121379E7AD0080DC73 /* SysV-x86_64 */,
 			);
 			path = ABI;
@@ -4328,14 +4377,18 @@
 				94CB255A16B069770059775D /* FormatManager.cpp */,
 				94EE33F218643C6900CD703B /* FormattersContainer.h */,
 				94D0B10A16D5535900EA9C70 /* LibCxx.cpp */,
+				942AFF0619F84C02007B43B4 /* LibCxxInitializerList.cpp */,
 				94CD704F16F8DF1C00CF1E42 /* LibCxxList.cpp */,
 				94CD705116F8F5BC00CF1E42 /* LibCxxMap.cpp */,
 				94EA27CD17DE91750070F505 /* LibCxxUnorderedMap.cpp */,
+				942AFF0419F84ABF007B43B4 /* LibCxxVector.cpp */,
 				94D0B10B16D5535900EA9C70 /* LibStdcpp.cpp */,
 				94D6A0A716CEB55F00833B6E /* NSArray.cpp */,
 				94D6A0A816CEB55F00833B6E /* NSDictionary.cpp */,
 				9439FB1919EF140C006FD6A4 /* NSIndexPath.cpp */,
 				94D6A0A916CEB55F00833B6E /* NSSet.cpp */,
+				94F48F231A01C679005C0EC6 /* StringPrinter.h */,
+				94F48F241A01C687005C0EC6 /* StringPrinter.cpp */,
 				94CB256816B096F90059775D /* TypeCategory.h */,
 				94CB256416B096F10059775D /* TypeCategory.cpp */,
 				94CB256916B096FA0059775D /* TypeCategoryMap.h */,
@@ -4403,6 +4456,24 @@
 				AF2BCA6918C7EFDE005B4526 /* JITLoaderGDB.cpp */,
 			);
 			path = GDB;
+			sourceTree = "<group>";
+		};
+		AF77E08B1A033C3E0096C0EA /* SysV-ppc */ = {
+			isa = PBXGroup;
+			children = (
+				AF77E08D1A033C700096C0EA /* ABISysV_ppc.cpp */,
+				AF77E08E1A033C700096C0EA /* ABISysV_ppc.h */,
+			);
+			name = "SysV-ppc";
+			sourceTree = "<group>";
+		};
+		AF77E08C1A033C4B0096C0EA /* SysV-ppc64 */ = {
+			isa = PBXGroup;
+			children = (
+				AF77E0911A033C7F0096C0EA /* ABISysV_ppc64.cpp */,
+				AF77E0921A033C7F0096C0EA /* ABISysV_ppc64.h */,
+			);
+			name = "SysV-ppc64";
 			sourceTree = "<group>";
 		};
 		EDC6D49114E5C15C001B75F8 /* launcherXPCService */ = {
@@ -4514,16 +4585,20 @@
 				26BC179D18C7F2CB00D2196D /* JITLoader.h in Headers */,
 				26FFC19C14FC072100087D58 /* DYLDRendezvous.h in Headers */,
 				AF1F7B08189C904B0087DB9C /* AppleGetPendingItemsHandler.h in Headers */,
+				AF77E0AA1A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.h in Headers */,
 				AF2BCA6D18C7EFDE005B4526 /* JITLoaderGDB.h in Headers */,
 				232CB61E191E00CD00EF39FC /* SoftwareBreakpoint.h in Headers */,
 				26BC17B218C7F4CB00D2196D /* ThreadElfCore.h in Headers */,
 				AE8F624A19EF3E1E00326B21 /* OperatingSystemGo.h in Headers */,
+				AF77E0A51A033D360096C0EA /* RegisterContextPOSIX_powerpc.h in Headers */,
+				AF77E0A61A033D360096C0EA /* RegisterInfos_powerpc.h in Headers */,
 				26FFC19E14FC072100087D58 /* DynamicLoaderPOSIXDYLD.h in Headers */,
 				AF254E32170CCC33007AE5C9 /* PlatformDarwinKernel.h in Headers */,
 				2694E99E14FC0BB30076DE67 /* PlatformFreeBSD.h in Headers */,
 				2694E9A514FC0BBD0076DE67 /* PlatformLinux.h in Headers */,
 				26AB54121832DC3400EADFF3 /* RegisterCheckpoint.h in Headers */,
 				26AB92131819D74600E63F3E /* DWARFDataExtractor.h in Headers */,
+				AF77E0941A033C7F0096C0EA /* ABISysV_ppc64.h in Headers */,
 				945759681534941F005A9070 /* PlatformPOSIX.h in Headers */,
 				26B1EFAF154638AF00E2DAC7 /* DWARFDeclContext.h in Headers */,
 				260CC62E15D04377002BF2E0 /* OptionValueArgs.h in Headers */,
@@ -4553,16 +4628,20 @@
 				490A36C2180F0E9300BA31F8 /* PlatformWindows.h in Headers */,
 				26EFC4CE18CFAF0D00865D87 /* ObjectFileJIT.h in Headers */,
 				260CC63615D04377002BF2E0 /* OptionValueFormat.h in Headers */,
+				AF77E0901A033C700096C0EA /* ABISysV_ppc.h in Headers */,
 				260A39A619647A3A004B4130 /* Pipe.h in Headers */,
 				26D1804516CEE12500EDFB5B /* KQueue.h in Headers */,
+				AF77E0A21A033D360096C0EA /* RegisterContextFreeBSD_powerpc.h in Headers */,
 				260CC63715D04377002BF2E0 /* OptionValueSInt64.h in Headers */,
 				AF061F8C182C980000B6A19C /* HistoryUnwind.h in Headers */,
 				260CC63815D04377002BF2E0 /* OptionValueString.h in Headers */,
 				260CC63915D04377002BF2E0 /* OptionValueUInt64.h in Headers */,
 				AF0F6E511739A76D009180FE /* RegisterContextKDP_arm64.h in Headers */,
+				AF77E0A01A033D360096C0EA /* RegisterContext_powerpc.h in Headers */,
 				260CC63A15D04377002BF2E0 /* OptionValueUUID.h in Headers */,
 				260A248E15D06C50009981B0 /* OptionValues.h in Headers */,
 				3FDFE53319A29304009756A7 /* HostInfoPosix.h in Headers */,
+				AF77E0981A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.h in Headers */,
 				AF061F88182C97ED00B6A19C /* RegisterContextHistory.h in Headers */,
 				26DAED6015D327A200E15819 /* OptionValuePathMappings.h in Headers */,
 				26ACEC2815E077AE00E94760 /* Property.h in Headers */,
@@ -4762,7 +4841,7 @@
 		08FB7793FE84155DC02AAC07 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0500;
+				LastUpgradeCheck = 0600;
 			};
 			buildConfigurationList = 1DEB91EF08733DB70010E9CD /* Build configuration list for PBXProject "lldb" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -4997,8 +5076,10 @@
 				26474CCD18D0CB5B0073DEBA /* RegisterContextPOSIX_x86.cpp in Sources */,
 				2689FFEF13353DB600698AC0 /* Breakpoint.cpp in Sources */,
 				2689FFF113353DB600698AC0 /* BreakpointID.cpp in Sources */,
+				AF77E0A91A033D740096C0EA /* RegisterContextPOSIXCore_powerpc.cpp in Sources */,
 				2689FFF313353DB600698AC0 /* BreakpointIDList.cpp in Sources */,
 				2689FFF513353DB600698AC0 /* BreakpointList.cpp in Sources */,
+				AF77E08F1A033C700096C0EA /* ABISysV_ppc.cpp in Sources */,
 				94CD704D16F8DDEA00CF1E42 /* CF.cpp in Sources */,
 				2689FFF713353DB600698AC0 /* BreakpointLocation.cpp in Sources */,
 				2689FFF913353DB600698AC0 /* BreakpointLocationCollection.cpp in Sources */,
@@ -5073,6 +5154,7 @@
 				236124A51986B4E2004EFC37 /* Socket.cpp in Sources */,
 				3FDFDDBF199D345E009756A7 /* FileCache.cpp in Sources */,
 				AF1729D7182C907200E0AB97 /* HistoryUnwind.cpp in Sources */,
+				AF77E0A11A033D360096C0EA /* RegisterContextFreeBSD_powerpc.cpp in Sources */,
 				2689003B13353E0400698AC0 /* EmulateInstruction.cpp in Sources */,
 				2689003C13353E0400698AC0 /* Error.cpp in Sources */,
 				2689003D13353E0400698AC0 /* Event.cpp in Sources */,
@@ -5121,6 +5203,7 @@
 				3FDFED0F19B7D269009756A7 /* ThisThread.cpp in Sources */,
 				2689005F13353E0E00698AC0 /* ClangFunction.cpp in Sources */,
 				2689006013353E0E00698AC0 /* ClangExpressionDeclMap.cpp in Sources */,
+				942AFF0719F84C02007B43B4 /* LibCxxInitializerList.cpp in Sources */,
 				2689006113353E0E00698AC0 /* ClangExpressionParser.cpp in Sources */,
 				2689006213353E0E00698AC0 /* ClangExpressionVariable.cpp in Sources */,
 				2689006313353E0E00698AC0 /* ClangPersistentVariables.cpp in Sources */,
@@ -5158,6 +5241,7 @@
 				2689007F13353E2200698AC0 /* CommandCompletions.cpp in Sources */,
 				26CEB5F218762056008F575A /* CommandObjectGUI.cpp in Sources */,
 				2689008013353E2200698AC0 /* CommandInterpreter.cpp in Sources */,
+				AF77E0A41A033D360096C0EA /* RegisterContextPOSIX_powerpc.cpp in Sources */,
 				AF9B8F33182DB52900DA866F /* SystemRuntimeMacOSX.cpp in Sources */,
 				2689008113353E2200698AC0 /* CommandObject.cpp in Sources */,
 				2689008313353E2200698AC0 /* CommandObjectMultiword.cpp in Sources */,
@@ -5266,6 +5350,7 @@
 				26BC17AD18C7F4CB00D2196D /* RegisterContextPOSIXCore_mips64.cpp in Sources */,
 				268900F113353E6F00698AC0 /* RegisterContext.cpp in Sources */,
 				268900F213353E6F00698AC0 /* SectionLoadList.cpp in Sources */,
+				942AFF0519F84ABF007B43B4 /* LibCxxVector.cpp in Sources */,
 				268900F313353E6F00698AC0 /* StackFrame.cpp in Sources */,
 				268900F413353E6F00698AC0 /* StackFrameList.cpp in Sources */,
 				268900F513353E6F00698AC0 /* StackID.cpp in Sources */,
@@ -5322,12 +5407,14 @@
 				4CD0BD0F134BFADF00CB44D4 /* ValueObjectDynamicValue.cpp in Sources */,
 				AF45FDE518A1F3AC0007051C /* AppleGetThreadItemInfoHandler.cpp in Sources */,
 				2377C2F819E613C100737875 /* PipePosix.cpp in Sources */,
+				AF77E0931A033C7F0096C0EA /* ABISysV_ppc64.cpp in Sources */,
 				26D5E15F135BAEA2006EA0A7 /* OptionGroupArchitecture.cpp in Sources */,
 				26D5E163135BB054006EA0A7 /* OptionGroupPlatform.cpp in Sources */,
 				94CD131A19BA33B400DB7BED /* TypeValidator.cpp in Sources */,
 				26BD407F135D2AE000237D80 /* FileLineResolver.cpp in Sources */,
 				26A7A035135E6E4200FB369E /* OptionValue.cpp in Sources */,
 				9A22A161135E30370024DDC3 /* EmulateInstructionARM.cpp in Sources */,
+				AF77E0971A033CC70096C0EA /* RegisterContextPOSIXProcessMonitor_powerpc.cpp in Sources */,
 				AFDFDFD119E34D3400EAE509 /* ConnectionFileDescriptorPosix.cpp in Sources */,
 				9A22A163135E30370024DDC3 /* EmulationStateARM.cpp in Sources */,
 				9A4F35101368A51A00823F52 /* StreamAsynchronousIO.cpp in Sources */,
@@ -5379,12 +5466,12 @@
 				94CD7D0919A3FBA300908B7C /* AppleObjCClassDescriptorV2.cpp in Sources */,
 				265205A813D3E3F700132FE2 /* RegisterContextKDP_arm.cpp in Sources */,
 				265205AA13D3E3F700132FE2 /* RegisterContextKDP_i386.cpp in Sources */,
+				AF77E0A31A033D360096C0EA /* RegisterContextMacOSXFrameBackchain.cpp in Sources */,
 				265205AC13D3E3F700132FE2 /* RegisterContextKDP_x86_64.cpp in Sources */,
 				2628A4D513D4977900F5487A /* ThreadKDP.cpp in Sources */,
 				26D7E45D13D5E30A007FD12B /* SocketAddress.cpp in Sources */,
 				94CD7D0C19A3FBCE00908B7C /* AppleObjCTypeEncodingParser.cpp in Sources */,
 				94B6E76213D88365005F417F /* ValueObjectSyntheticFilter.cpp in Sources */,
-				262D24E613FB8710002D1960 /* RegisterContextMemory.cpp in Sources */,
 				26F4A21C13FBA31A0064B613 /* ThreadMemory.cpp in Sources */,
 				94EA27CE17DE91750070F505 /* LibCxxUnorderedMap.cpp in Sources */,
 				266DFE9713FD656E00D0C574 /* OperatingSystem.cpp in Sources */,
@@ -5452,6 +5539,7 @@
 				2698699B15E6CBD0002415FF /* OperatingSystemPython.cpp in Sources */,
 				947A1D641616476B0017C8D1 /* CommandObjectPlugin.cpp in Sources */,
 				262ED0081631FA3A00879631 /* OptionGroupString.cpp in Sources */,
+				94F48F251A01C687005C0EC6 /* StringPrinter.cpp in Sources */,
 				94094C6B163B6F840083A547 /* ValueObjectCast.cpp in Sources */,
 				AF9107EF168570D200DBCD3C /* RegisterContextDarwin_arm64.cpp in Sources */,
 				94CB255B16B069770059775D /* CXXFormatterFunctions.cpp in Sources */,
@@ -5597,7 +5685,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(NATIVE_ARCH)";
 				"ARCHS[sdk=iphoneos*]" = (
 					arm64,
 					armv7,
@@ -5608,13 +5695,16 @@
 				);
 				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = c99;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -5630,6 +5720,7 @@
 					NO_XPC_SERVICES,
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				"GCC_WARN_64_TO_32_BIT_CONVERSION[arch=*64]" = NO;
 				GCC_WARN_ABOUT_MISSING_FIELD_INITIALIZERS = YES;
 				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
@@ -5639,7 +5730,9 @@
 				GCC_WARN_INITIALIZER_NOT_FULLY_BRACKETED = YES;
 				GCC_WARN_MISSING_PARENTHESES = YES;
 				GCC_WARN_NON_VIRTUAL_DESTRUCTOR = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_LABEL = YES;
 				GCC_WARN_UNUSED_VALUE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
@@ -5668,18 +5761,20 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(NATIVE_ARCH)";
 				"ARCHS[sdk=iphoneos*]" = arm64;
 				"ARCHS[sdk=macosx*]" = "$(ARCHS_STANDARD_64_BIT)";
 				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = c99;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					__STDC_CONSTANT_MACROS,
@@ -5694,6 +5789,7 @@
 					NO_XPC_SERVICES,
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				"GCC_WARN_64_TO_32_BIT_CONVERSION[arch=*64]" = NO;
 				GCC_WARN_ABOUT_MISSING_FIELD_INITIALIZERS = YES;
 				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
@@ -5703,7 +5799,9 @@
 				GCC_WARN_INITIALIZER_NOT_FULLY_BRACKETED = YES;
 				GCC_WARN_MISSING_PARENTHESES = YES;
 				GCC_WARN_NON_VIRTUAL_DESTRUCTOR = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_LABEL = YES;
 				GCC_WARN_UNUSED_VALUE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
@@ -5806,6 +5904,7 @@
 					"$(OTHER_CFLAGS)",
 				);
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config",
 					"-lpython2.7",
 					"-lllvmclang",
@@ -5821,6 +5920,7 @@
 					ApplicationServices,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-framework",
 					Foundation,
@@ -5870,6 +5970,7 @@
 					"$(OTHER_CFLAGS)",
 				);
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config",
 					"-lpython2.7",
 					"-lllvmclang",
@@ -5885,6 +5986,7 @@
 					ApplicationServices,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-framework",
 					Foundation,
@@ -5898,7 +6000,6 @@
 		2687EAC71508110B00DD8C2E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 330.99.0;
@@ -5923,7 +6024,6 @@
 		2687EAC81508110B00DD8C2E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
@@ -5940,7 +6040,6 @@
 		2687EAC91508110B00DD8C2E /* BuildAndIntegration */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
@@ -6066,7 +6165,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(NATIVE_ARCH)";
 				"ARCHS[sdk=iphoneos*]" = arm64;
 				"ARCHS[sdk=macosx*]" = (
 					x86_64,
@@ -6074,13 +6172,16 @@
 				);
 				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = c99;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					__STDC_CONSTANT_MACROS,
@@ -6095,6 +6196,7 @@
 					NO_XPC_SERVICES,
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				"GCC_WARN_64_TO_32_BIT_CONVERSION[arch=*64]" = NO;
 				GCC_WARN_ABOUT_MISSING_FIELD_INITIALIZERS = YES;
 				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
@@ -6104,7 +6206,9 @@
 				GCC_WARN_INITIALIZER_NOT_FULLY_BRACKETED = YES;
 				GCC_WARN_MISSING_PARENTHESES = YES;
 				GCC_WARN_NON_VIRTUAL_DESTRUCTOR = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_LABEL = YES;
 				GCC_WARN_UNUSED_VALUE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
@@ -6146,6 +6250,7 @@
 				INSTALL_PATH = "$(LLDB_TOOLS_INSTALL_DIR)";
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
 					"-sectcreate",
 					__TEXT,
 					__info_plist,
@@ -6153,6 +6258,7 @@
 					"-Wl,-rpath,@loader_path/../../../System/Library/PrivateFrameworks",
 				);
 				"OTHER_LDFLAGS[sdk=macosx*]" = (
+					"$(inherited)",
 					"-sectcreate",
 					__TEXT,
 					__info_plist,
@@ -6209,6 +6315,7 @@
 					"$(OTHER_CFLAGS)",
 				);
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config",
 					"-lpython2.7",
 					"-lllvmclang",
@@ -6224,6 +6331,7 @@
 					ApplicationServices,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-framework",
 					Foundation,
@@ -6626,16 +6734,19 @@
 				);
 				MACH_O_TYPE = mh_execute;
 				OTHER_CFLAGS = (
+					"$(inherited)",
 					"-I/System/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7",
 					"-flimit-debug-info",
 					"-Wparentheses",
 				);
 				"OTHER_CFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
 					"-flimit-debug-info",
 					"-Wparentheses",
 				);
 				"OTHER_CPLUSPLUSFLAGS[sdk=iphoneos*]" = "$(OTHER_CFLAGS)";
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config",
 					"-lpython2.7",
@@ -6650,6 +6761,7 @@
 					Security,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-lxml2",
 					"-framework",
@@ -6694,16 +6806,19 @@
 				);
 				MACH_O_TYPE = mh_execute;
 				OTHER_CFLAGS = (
+					"$(inherited)",
 					"-I/System/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7",
 					"-flimit-debug-info",
 					"-Wparentheses",
 				);
 				"OTHER_CFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
 					"-flimit-debug-info",
 					"-Wparentheses",
 				);
 				"OTHER_CPLUSPLUSFLAGS[sdk=iphoneos*]" = "$(OTHER_CFLAGS)";
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config",
 					"-lpython2.7",
@@ -6718,6 +6833,7 @@
 					Security,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-lxml2",
 					"-framework",
@@ -6762,16 +6878,19 @@
 				);
 				MACH_O_TYPE = mh_execute;
 				OTHER_CFLAGS = (
+					"$(inherited)",
 					"-I/System/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7",
 					"-flimit-debug-info",
 					"-Wparentheses",
 				);
 				"OTHER_CFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
 					"-flimit-debug-info",
 					"-Wparentheses",
 				);
 				"OTHER_CPLUSPLUSFLAGS[sdk=iphoneos*]" = "$(OTHER_CFLAGS)";
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config",
 					"-lpython2.7",
@@ -6786,6 +6905,7 @@
 					Security,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-lxml2",
 					"-framework",
@@ -6816,6 +6936,7 @@
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				LLVM_BUILD_DIR_ARCH = "$(OBJROOT)/llvm";
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-sectcreate",
 					__TEXT,
 					__info_plist,
@@ -6843,6 +6964,7 @@
 				INSTALL_PATH = "$(LLDB_TOOLS_INSTALL_DIR)";
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-sectcreate",
 					__TEXT,
 					__info_plist,
@@ -6859,7 +6981,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(NATIVE_ARCH)";
 				"ARCHS[sdk=iphoneos*]" = (
 					armv7,
 					arm64,
@@ -6870,13 +6991,16 @@
 				);
 				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = c99;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -6892,6 +7016,7 @@
 					NO_XPC_SERVICES,
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				"GCC_WARN_64_TO_32_BIT_CONVERSION[arch=*64]" = NO;
 				GCC_WARN_ABOUT_MISSING_FIELD_INITIALIZERS = YES;
 				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
@@ -6901,7 +7026,9 @@
 				GCC_WARN_INITIALIZER_NOT_FULLY_BRACKETED = YES;
 				GCC_WARN_MISSING_PARENTHESES = YES;
 				GCC_WARN_NON_VIRTUAL_DESTRUCTOR = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_LABEL = YES;
 				GCC_WARN_UNUSED_VALUE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
@@ -6969,6 +7096,7 @@
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				LLVM_BUILD_DIR_ARCH = "$(OBJROOT)/llvm";
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-sectcreate",
 					__TEXT,
 					__info_plist,
@@ -7020,6 +7148,7 @@
 					"$(OTHER_CFLAGS)",
 				);
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config",
 					"-lpython2.7",
 					"-lllvmclang",
@@ -7035,6 +7164,7 @@
 					ApplicationServices,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-framework",
 					Foundation,
@@ -7129,16 +7259,19 @@
 				);
 				MACH_O_TYPE = mh_execute;
 				OTHER_CFLAGS = (
+					"$(inherited)",
 					"-I/System/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7",
 					"-flimit-debug-info",
 					"-Wparentheses",
 				);
 				"OTHER_CFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
 					"-flimit-debug-info",
 					"-Wparentheses",
 				);
 				"OTHER_CPLUSPLUSFLAGS[sdk=iphoneos*]" = "$(OTHER_CFLAGS)";
 				OTHER_LDFLAGS = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-L/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config",
 					"-lpython2.7",
@@ -7153,6 +7286,7 @@
 					Security,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
+					"$(inherited)",
 					"-lllvmclang",
 					"-lxml2",
 					"-framework",
@@ -7234,7 +7368,6 @@
 		49BB8F3F1611172B00BDD462 /* DebugClang */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 330.99.0;

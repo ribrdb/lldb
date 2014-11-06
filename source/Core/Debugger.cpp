@@ -64,6 +64,7 @@ using namespace lldb_private;
 
 static uint32_t g_shared_debugger_refcount = 0;
 static lldb::user_id_t g_unique_id = 1;
+static size_t g_debugger_event_thread_stack_bytes = 8 * 1024 * 1024;
 
 #pragma mark Static Functions
 
@@ -124,8 +125,7 @@ g_language_enumerators[] =
     FILE_AND_LINE\
     "\\n"
 
-#define DEFAULT_DISASSEMBLY_FORMAT "${addr-file-or-load} <${function.name-without-args}${function.concrete-only-addr-offset-no-padding}>: "
-
+#define DEFAULT_DISASSEMBLY_FORMAT "${addr-file-or-load}{ <${function.name-without-args}${function.concrete-only-addr-offset-no-padding}>}: "
 
 static PropertyDefinition
 g_properties[] =
@@ -144,7 +144,8 @@ g_properties[] =
 {   "thread-format",            OptionValue::eTypeString , true, 0    , DEFAULT_THREAD_FORMAT, NULL, "The default thread format string to use when displaying thread information." },
 {   "use-external-editor",      OptionValue::eTypeBoolean, true, false, NULL, NULL, "Whether to use an external editor or not." },
 {   "use-color",                OptionValue::eTypeBoolean, true, true , NULL, NULL, "Whether to use Ansi color codes or not." },
-{   "auto-one-line-summaries",     OptionValue::eTypeBoolean, true, true, NULL, NULL, "If true, LLDB will automatically display small structs in one-liner format (default: true)." },
+{   "auto-one-line-summaries",  OptionValue::eTypeBoolean, true, true, NULL, NULL, "If true, LLDB will automatically display small structs in one-liner format (default: true)." },
+{   "escape-non-printables",    OptionValue::eTypeBoolean, true, true, NULL, NULL, "If true, LLDB will automatically escape non-printable and escape characters when formatting strings." },
 
     {   NULL,                       OptionValue::eTypeInvalid, true, 0    , NULL, NULL, NULL }
 };
@@ -165,7 +166,8 @@ enum
     ePropertyThreadFormat,
     ePropertyUseExternalEditor,
     ePropertyUseColor,
-    ePropertyAutoOneLineSummaries
+    ePropertyAutoOneLineSummaries,
+    ePropertyEscapeNonPrintables
 };
 
 Debugger::LoadPluginCallbackType Debugger::g_load_plugin_callback = NULL;
@@ -177,6 +179,7 @@ Debugger::SetPropertyValue (const ExecutionContext *exe_ctx,
                             const char *value)
 {
     bool is_load_script = strcmp(property_path,"target.load-script-from-symbol-file") == 0;
+    bool is_escape_non_printables = strcmp(property_path, "escape-non-printables") == 0;
     TargetSP target_sp;
     LoadScriptFromSymFile load_script_old_value;
     if (is_load_script && exe_ctx->GetTargetSP())
@@ -223,6 +226,10 @@ Debugger::SetPropertyValue (const ExecutionContext *exe_ctx,
                     }
                 }
             }
+        }
+        else if (is_escape_non_printables)
+        {
+            DataVisualization::ForceUpdate();
         }
     }
     return error;
@@ -366,7 +373,13 @@ Debugger::GetAutoOneLineSummaries () const
 {
     const uint32_t idx = ePropertyAutoOneLineSummaries;
     return m_collection_sp->GetPropertyAtIndexAsBoolean (NULL, idx, true);
+}
 
+bool
+Debugger::GetEscapeNonPrintables () const
+{
+    const uint32_t idx = ePropertyEscapeNonPrintables;
+    return m_collection_sp->GetPropertyAtIndexAsBoolean (NULL, idx, true);
 }
 
 #pragma mark Debugger
@@ -1734,6 +1747,15 @@ FormatPromptRecurse
                                     target = valobj;
                                     val_obj_display = ValueObject::eValueObjectRepresentationStyleValue;
                                 }
+                                else if (IsToken (var_name_begin, "var.script:"))
+                                {
+                                    var_name_begin += ::strlen("var.script:");
+                                    std::string script_name(var_name_begin,var_name_end);
+                                    ScriptInterpreter* script_interpreter = valobj->GetTargetSP()->GetDebugger().GetCommandInterpreter().GetScriptInterpreter();
+                                    if (RunScriptFormatKeyword (s, script_interpreter, valobj, script_name))
+                                        var_success = true;
+                                    break;
+                                }
                                 else if (IsToken (var_name_begin,"var%"))
                                 {
                                     was_var_format = true;
@@ -1802,6 +1824,7 @@ FormatPromptRecurse
                                             log->Printf("[Debugger::FormatPrompt] ALL RIGHT: unparsed portion = %s, why stopping = %d,"
                                                " final_value_type %d",
                                                first_unparsed, reason_to_stop, final_value_type);
+                                        target = target->GetQualifiedRepresentationIfAvailable(target->GetDynamicValueType(), true).get();
                                     }
                                 }
                                 else
@@ -1850,8 +1873,8 @@ FormatPromptRecurse
                                 
                                 // TODO use flags for these
                                 const uint32_t type_info_flags = target->GetClangType().GetTypeInfo(NULL);
-                                bool is_array = (type_info_flags & ClangASTType::eTypeIsArray) != 0;
-                                bool is_pointer = (type_info_flags & ClangASTType::eTypeIsPointer) != 0;
+                                bool is_array = (type_info_flags & eTypeIsArray) != 0;
+                                bool is_pointer = (type_info_flags & eTypeIsPointer) != 0;
                                 bool is_aggregate = target->GetClangType().IsAggregateType();
                                 
                                 if ((is_array || is_pointer) && (!is_array_range) && val_obj_display == ValueObject::eValueObjectRepresentationStyleValue) // this should be wrong, but there are some exceptions
@@ -2467,7 +2490,7 @@ FormatPromptRecurse
                                                                                               .SetHideItemNames(false)
                                                                                               .SetShowMembersOneLiner(true),
                                                                                               "");
-                                                            format.FormatObject(var_value_sp.get(), buffer);
+                                                            format.FormatObject(var_value_sp.get(), buffer, TypeSummaryOptions());
                                                             var_representation = buffer.c_str();
                                                         }
                                                         else
@@ -3097,6 +3120,7 @@ Debugger::GetProcessSTDERR (Process *process, Stream *stream)
     return total_bytes;
 }
 
+
 // This function handles events that were broadcast by the process.
 void
 Debugger::HandleProcessEvent (const EventSP &event_sp)
@@ -3104,7 +3128,7 @@ Debugger::HandleProcessEvent (const EventSP &event_sp)
     using namespace lldb;
     const uint32_t event_type = event_sp->GetType();
     ProcessSP process_sp = Process::ProcessEventData::GetProcessFromEvent(event_sp.get());
-    
+
     StreamString output_stream;
     StreamString error_stream;
     const bool gui_enabled = IsForwardingEvents();
@@ -3113,192 +3137,27 @@ Debugger::HandleProcessEvent (const EventSP &event_sp)
     {
         bool pop_process_io_handler = false;
         assert (process_sp);
-    
+
         if (event_type & Process::eBroadcastBitSTDOUT || event_type & Process::eBroadcastBitStateChanged)
         {
             GetProcessSTDOUT (process_sp.get(), &output_stream);
         }
-        
+
         if (event_type & Process::eBroadcastBitSTDERR || event_type & Process::eBroadcastBitStateChanged)
         {
             GetProcessSTDERR (process_sp.get(), &error_stream);
         }
-    
+
         if (event_type & Process::eBroadcastBitStateChanged)
         {
-
-            // Drain all stout and stderr so we don't see any output come after
-            // we print our prompts
-            // Something changed in the process;  get the event and report the process's current status and location to
-            // the user.
-            StateType event_state = Process::ProcessEventData::GetStateFromEvent (event_sp.get());
-            if (event_state == eStateInvalid)
-                return;
-            
-            switch (event_state)
-            {
-                case eStateInvalid:
-                case eStateUnloaded:
-                case eStateConnected:
-                case eStateAttaching:
-                case eStateLaunching:
-                case eStateStepping:
-                case eStateDetached:
-                    {
-                        output_stream.Printf("Process %" PRIu64 " %s\n",
-                                             process_sp->GetID(),
-                                             StateAsCString (event_state));
-                        
-                        if (event_state == eStateDetached)
-                            pop_process_io_handler = true;
-                    }
-                    break;
-                    
-                case eStateRunning:
-                    // Don't be chatty when we run...
-                    break;
-                    
-                case eStateExited:
-                    process_sp->GetStatus(output_stream);
-                    pop_process_io_handler = true;
-                    break;
-                    
-                case eStateStopped:
-                case eStateCrashed:
-                case eStateSuspended:
-                    // Make sure the program hasn't been auto-restarted:
-                    if (Process::ProcessEventData::GetRestartedFromEvent (event_sp.get()))
-                    {
-                        size_t num_reasons = Process::ProcessEventData::GetNumRestartedReasons(event_sp.get());
-                        if (num_reasons > 0)
-                        {
-                            // FIXME: Do we want to report this, or would that just be annoyingly chatty?
-                            if (num_reasons == 1)
-                            {
-                                const char *reason = Process::ProcessEventData::GetRestartedReasonAtIndex (event_sp.get(), 0);
-                                output_stream.Printf("Process %" PRIu64 " stopped and restarted: %s\n",
-                                                     process_sp->GetID(),
-                                                     reason ? reason : "<UNKNOWN REASON>");
-                            }
-                            else
-                            {
-                                output_stream.Printf("Process %" PRIu64 " stopped and restarted, reasons:\n",
-                                                     process_sp->GetID());
-                                
-
-                                for (size_t i = 0; i < num_reasons; i++)
-                                {
-                                    const char *reason = Process::ProcessEventData::GetRestartedReasonAtIndex (event_sp.get(), i);
-                                    output_stream.Printf("\t%s\n", reason ? reason : "<UNKNOWN REASON>");
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Lock the thread list so it doesn't change on us, this is the scope for the locker:
-                        {
-                            ThreadList &thread_list = process_sp->GetThreadList();
-                            Mutex::Locker locker (thread_list.GetMutex());
-                            
-                            ThreadSP curr_thread (thread_list.GetSelectedThread());
-                            ThreadSP thread;
-                            StopReason curr_thread_stop_reason = eStopReasonInvalid;
-                            if (curr_thread)
-                                curr_thread_stop_reason = curr_thread->GetStopReason();
-                            if (!curr_thread ||
-                                !curr_thread->IsValid() ||
-                                curr_thread_stop_reason == eStopReasonInvalid ||
-                                curr_thread_stop_reason == eStopReasonNone)
-                            {
-                                // Prefer a thread that has just completed its plan over another thread as current thread.
-                                ThreadSP plan_thread;
-                                ThreadSP other_thread;
-                                const size_t num_threads = thread_list.GetSize();
-                                size_t i;
-                                for (i = 0; i < num_threads; ++i)
-                                {
-                                    thread = thread_list.GetThreadAtIndex(i);
-                                    StopReason thread_stop_reason = thread->GetStopReason();
-                                    switch (thread_stop_reason)
-                                    {
-                                        case eStopReasonInvalid:
-                                        case eStopReasonNone:
-                                            break;
-                                            
-                                        case eStopReasonTrace:
-                                        case eStopReasonBreakpoint:
-                                        case eStopReasonWatchpoint:
-                                        case eStopReasonSignal:
-                                        case eStopReasonException:
-                                        case eStopReasonExec:
-                                        case eStopReasonThreadExiting:
-                                        case eStopReasonInstrumentation:
-                                            if (!other_thread)
-                                                other_thread = thread;
-                                            break;
-                                        case eStopReasonPlanComplete:
-                                            if (!plan_thread)
-                                                plan_thread = thread;
-                                            break;
-                                    }
-                                }
-                                if (plan_thread)
-                                    thread_list.SetSelectedThreadByID (plan_thread->GetID());
-                                else if (other_thread)
-                                    thread_list.SetSelectedThreadByID (other_thread->GetID());
-                                else
-                                {
-                                    if (curr_thread && curr_thread->IsValid())
-                                        thread = curr_thread;
-                                    else
-                                        thread = thread_list.GetThreadAtIndex(0);
-                                    
-                                    if (thread)
-                                        thread_list.SetSelectedThreadByID (thread->GetID());
-                                }
-                            }
-                        }
-                        // Drop the ThreadList mutex by here, since GetThreadStatus below might have to run code,
-                        // e.g. for Data formatters, and if we hold the ThreadList mutex, then the process is going to
-                        // have a hard time restarting the process.
-
-                        if (GetTargetList().GetSelectedTarget().get() == &process_sp->GetTarget())
-                        {
-                            const bool only_threads_with_stop_reason = true;
-                            const uint32_t start_frame = 0;
-                            const uint32_t num_frames = 1;
-                            const uint32_t num_frames_with_source = 1;
-                            process_sp->GetStatus(output_stream);
-                            process_sp->GetThreadStatus (output_stream,
-                                                         only_threads_with_stop_reason,
-                                                         start_frame,
-                                                         num_frames,
-                                                         num_frames_with_source);
-                        }
-                        else
-                        {
-                            uint32_t target_idx = GetTargetList().GetIndexOfTarget(process_sp->GetTarget().shared_from_this());
-                            if (target_idx != UINT32_MAX)
-                                output_stream.Printf ("Target %d: (", target_idx);
-                            else
-                                output_stream.Printf ("Target <unknown index>: (");
-                            process_sp->GetTarget().Dump (&output_stream, eDescriptionLevelBrief);
-                            output_stream.Printf (") stopped.\n");
-                        }
-                        
-                        // Pop the process IO handler
-                        pop_process_io_handler = true;
-                    }
-                    break;
-            }
+            Process::HandleProcessStateChangedEvent (event_sp, &output_stream, pop_process_io_handler);
         }
-    
+
         if (output_stream.GetSize() || error_stream.GetSize())
         {
             StreamFileSP error_stream_sp (GetOutputFile());
             bool top_io_handler_hid = false;
-            
+
             if (process_sp->ProcessIOHandlerIsActive() == false)
                 top_io_handler_hid = HideTopIOHandler();
 
@@ -3485,11 +3344,9 @@ Debugger::StartEventHandlerThread()
 {
     if (!m_event_handler_thread.IsJoinable())
     {
-        m_event_handler_thread = ThreadLauncher::LaunchThread ("lldb.debugger.event-handler",
-                                                               EventHandlerThread,
-                                                               this,
-                                                               NULL,
-                                                               8*1024*1024); // Use larger 8MB stack for this thread
+        // Use larger 8MB stack for this thread
+        m_event_handler_thread = ThreadLauncher::LaunchThread("lldb.debugger.event-handler", EventHandlerThread, this, NULL,
+                                                              g_debugger_event_thread_stack_bytes);
     }
     return m_event_handler_thread.IsJoinable();
 }
