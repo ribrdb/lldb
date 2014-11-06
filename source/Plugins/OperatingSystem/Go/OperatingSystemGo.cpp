@@ -119,7 +119,7 @@ OperatingSystemGo::CreateInstance(Process *process, bool force)
 ConstString
 OperatingSystemGo::GetPluginNameStatic()
 {
-    static ConstString g_name("Go");
+    static ConstString g_name("GoOS");
     return g_name;
 }
 
@@ -160,7 +160,7 @@ OperatingSystemGo::Init(ThreadList &threads)
     if (!m_allg_sp)
         return false;
 
-    RegisterContextSP real_registers_sp = threads.GetThreadAtIndex(0)->GetRegisterContext();
+    RegisterContextSP real_registers_sp = threads.GetThreadAtIndex(0, false)->GetRegisterContext();
 
     std::unordered_map<size_t, ConstString> register_sets;
     for (size_t set_idx = 0; set_idx < real_registers_sp->GetRegisterSetCount(); ++set_idx)
@@ -276,7 +276,7 @@ OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &rea
             continue;
         }
         ThreadSP memory_thread = old_thread_list.FindThreadByID(goroutine.m_goid, false);
-        if (memory_thread && IsOperatingSystemPluginThread(memory_thread))
+        if (memory_thread && IsOperatingSystemPluginThread(memory_thread) && memory_thread->IsValid())
         {
             memory_thread->ClearBackingThread();
         }
