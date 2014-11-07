@@ -608,7 +608,8 @@ public:
     
     Error
     Launch (Listener &listener,
-            ProcessLaunchInfo &launch_info);
+            ProcessLaunchInfo &launch_info,
+            Stream *stream); // Optional stream to receive first stop info
 
     //------------------------------------------------------------------
     // This part handles the breakpoints.
@@ -1132,6 +1133,9 @@ public:
     Error
     Install(ProcessLaunchInfo *launch_info);
     
+    bool
+    ResolveFileAddress (lldb::addr_t load_addr,
+                        Address &so_addr);
     
     bool
     ResolveLoadAddress (lldb::addr_t load_addr,

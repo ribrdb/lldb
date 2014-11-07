@@ -612,6 +612,14 @@ public:
     GetSummaryAsCString (TypeSummaryImpl* summary_ptr,
                          std::string& destination);
     
+    const char *
+    GetSummaryAsCString (const TypeSummaryOptions& options);
+    
+    bool
+    GetSummaryAsCString (TypeSummaryImpl* summary_ptr,
+                         std::string& destination,
+                         const TypeSummaryOptions& options);
+    
     std::pair<TypeValidatorResult, std::string>
     GetValidationStatus ();
     
@@ -812,7 +820,7 @@ public:
     IsCStringContainer (bool check_pointer = false);
     
     size_t
-    ReadPointedString (Stream& s,
+    ReadPointedString (lldb::DataBufferSP& buffer_sp,
                        Error& error,
                        uint32_t max_length = 0,
                        bool honor_array = true,
@@ -851,6 +859,10 @@ public:
             ClearUserVisibleData(eClearUserVisibleDataItemsValue);
         m_format = format;
     }
+    
+    
+    virtual lldb::LanguageType
+    GetPreferredDisplayLanguage ();
     
     lldb::TypeSummaryImplSP
     GetSummaryFormat()

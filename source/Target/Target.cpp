@@ -35,6 +35,7 @@
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Expression/ClangASTSource.h"
 #include "lldb/Expression/ClangUserExpression.h"
+#include "lldb/Host/FileSpec.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
@@ -2283,6 +2284,12 @@ Target::ResolveLoadAddress (addr_t load_addr, Address &so_addr, uint32_t stop_id
 }
 
 bool
+Target::ResolveFileAddress (lldb::addr_t file_addr, Address &resolved_addr)
+{
+    return m_images.ResolveFileAddress(file_addr, resolved_addr);
+}
+
+bool
 Target::SetSectionLoadAddress (const SectionSP &section_sp, addr_t new_section_load_addr, bool warn_multiple)
 {
     const addr_t old_section_load_addr = m_section_load_history.GetSectionLoadAddress (SectionLoadHistory::eStopIDNow, section_sp);
@@ -2333,7 +2340,7 @@ Target::ClearAllLoadedSections ()
 
 
 Error
-Target::Launch (Listener &listener, ProcessLaunchInfo &launch_info)
+Target::Launch (Listener &listener, ProcessLaunchInfo &launch_info, Stream *stream)
 {
     Error error;
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_TARGET));
@@ -2442,7 +2449,7 @@ Target::Launch (Listener &listener, ProcessLaunchInfo &launch_info)
         {
             ListenerSP hijack_listener_sp (launch_info.GetHijackListener());
 
-            StateType state = m_process_sp->WaitForProcessToStop (NULL, NULL, false, hijack_listener_sp.get());
+            StateType state = m_process_sp->WaitForProcessToStop (NULL, NULL, false, hijack_listener_sp.get(), NULL);
             
             if (state == eStateStopped)
             {
@@ -2460,7 +2467,7 @@ Target::Launch (Listener &listener, ProcessLaunchInfo &launch_info)
 
                     if (synchronous_execution)
                     {
-                        state = m_process_sp->WaitForProcessToStop (NULL, NULL, true, hijack_listener_sp.get());
+                        state = m_process_sp->WaitForProcessToStop (NULL, NULL, true, hijack_listener_sp.get(), stream);
                         const bool must_be_alive = false; // eStateExited is ok, so this must be false
                         if (!StateIsStoppedState(state, must_be_alive))
                         {
@@ -2477,7 +2484,7 @@ Target::Launch (Listener &listener, ProcessLaunchInfo &launch_info)
             }
             else if (state == eStateExited)
             {
-                bool with_shell = launch_info.GetShell();
+                bool with_shell = !!launch_info.GetShell();
                 const int exit_status = m_process_sp->GetExitStatus();
                 const char *exit_desc = m_process_sp->GetExitDescription();
 #define LAUNCH_SHELL_MESSAGE "\n'r' and 'run' are aliases that default to launching through a shell.\nTry launching without going through a shell by using 'process launch'."

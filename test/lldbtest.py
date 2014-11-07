@@ -137,6 +137,8 @@ VALID_SYMBOL = "Got a valid symbol"
 
 VALID_TARGET = "Got a valid target"
 
+VALID_PLATFORM = "Got a valid platform"
+
 VALID_TYPE = "Got a valid type"
 
 VALID_VARIABLE = "Got a valid variable"
@@ -450,51 +452,52 @@ def expectedFailure(expected_fn, bugnumber=None):
             if expected_fn(self):
                 raise case._UnexpectedSuccess(sys.exc_info(), bugnumber)
         return wrapper
-    if callable(bugnumber):
-        return expectedFailure_impl(bugnumber)
-    else:
-        return expectedFailure_impl
+    if bugnumber: 
+        if callable(bugnumber):
+            return expectedFailure_impl(bugnumber)
+        else:
+            return expectedFailure_impl
 
 def expectedFailureCompiler(compiler, compiler_version=None, bugnumber=None):
     if compiler_version is None:
         compiler_version=['=', None]
     def fn(self):
         return compiler in self.getCompiler() and self.expectedCompilerVersion(compiler_version)
-    return expectedFailure(fn, bugnumber)
+    if bugnumber: return expectedFailure(fn, bugnumber)
 
 def expectedFailureClang(bugnumber=None):
-    return expectedFailureCompiler('clang', None, bugnumber)
+    if bugnumber: return expectedFailureCompiler('clang', None, bugnumber)
 
 def expectedFailureGcc(bugnumber=None, compiler_version=None):
-    return expectedFailureCompiler('gcc', compiler_version, bugnumber)
+    if bugnumber: return expectedFailureCompiler('gcc', compiler_version, bugnumber)
 
 def expectedFailureIcc(bugnumber=None):
-    return expectedFailureCompiler('icc', None, bugnumber)
+    if bugnumber: return expectedFailureCompiler('icc', None, bugnumber)
 
 def expectedFailureArch(arch, bugnumber=None):
     def fn(self):
         return arch in self.getArchitecture()
-    return expectedFailure(fn, bugnumber)
+    if bugnumber: return expectedFailure(fn, bugnumber)
 
 def expectedFailurei386(bugnumber=None):
-    return expectedFailureArch('i386', bugnumber)
+    if bugnumber: return expectedFailureArch('i386', bugnumber)
 
 def expectedFailurex86_64(bugnumber=None):
-    return expectedFailureArch('x86_64', bugnumber)
+    if bugnumber: return expectedFailureArch('x86_64', bugnumber)
 
 def expectedFailureOS(os, bugnumber=None, compilers=None):
     def fn(self):
         return os in sys.platform and self.expectedCompiler(compilers)
-    return expectedFailure(fn, bugnumber)
+    if bugnumber: return expectedFailure(fn, bugnumber)
 
 def expectedFailureDarwin(bugnumber=None, compilers=None):
-    return expectedFailureOS('darwin', bugnumber, compilers)
+    if bugnumber: return expectedFailureOS('darwin', bugnumber, compilers)
 
 def expectedFailureFreeBSD(bugnumber=None, compilers=None):
-    return expectedFailureOS('freebsd', bugnumber, compilers)
+    if bugnumber: return expectedFailureOS('freebsd', bugnumber, compilers)
 
 def expectedFailureLinux(bugnumber=None, compilers=None):
-    return expectedFailureOS('linux', bugnumber, compilers)
+    if bugnumber: return expectedFailureOS('linux', bugnumber, compilers)
 
 def skipIfRemote(func):
     """Decorate the item to skip tests if testing remotely."""
@@ -562,8 +565,8 @@ def skipIfNoSBHeaders(func):
     def wrapper(*args, **kwargs):
         from unittest2 import case
         self = args[0]
+        header = os.path.join(self.lib_dir, 'LLDB.framework', 'Versions','Current','Headers','LLDB.h')
         platform = sys.platform
-        header = os.path.join(os.environ["LLDB_SRC"], "include", "lldb", "API", "LLDB.h")
         if not os.path.exists(header):
             self.skipTest("skip because LLDB.h header not found")
         else:
@@ -996,12 +999,10 @@ class Base(unittest2.TestCase):
             with recording(self, traceAlways) as sbuf:
                 print >> sbuf, "Adding tearDown hook:", getsource_if_available(hook)
             self.hooks.append(hook)
+        
+        return self
 
-    def tearDown(self):
-        """Fixture for unittest test case teardown."""
-        #import traceback
-        #traceback.print_stack()
-
+    def deletePexpectChild(self):
         # This is for the case of directly spawning 'lldb' and interacting with it
         # using pexpect.
         if self.child and self.child.isalive():
@@ -1015,18 +1016,32 @@ class Base(unittest2.TestCase):
                 self.child.sendline('settings set interpreter.prompt-on-quit false')
                 self.child.sendline('quit')
                 self.child.expect(pexpect.EOF)
-            except ValueError, ExceptionPexpect:
+            except (ValueError, pexpect.ExceptionPexpect):
                 # child is already terminated
                 pass
+            finally:
+                # Give it one final blow to make sure the child is terminated.
+                self.child.close()
 
-            # Give it one final blow to make sure the child is terminated.
-            self.child.close()
+    def tearDown(self):
+        """Fixture for unittest test case teardown."""
+        #import traceback
+        #traceback.print_stack()
+
+        self.deletePexpectChild()
 
         # Check and run any hook functions.
         for hook in reversed(self.hooks):
             with recording(self, traceAlways) as sbuf:
                 print >> sbuf, "Executing tearDown hook:", getsource_if_available(hook)
-            hook()
+            import inspect
+            hook_argc = len(inspect.getargspec(hook).args)
+            if hook_argc == 0:
+                hook()
+            elif hook_argc == 1:
+                hook(self)
+            else:
+                hook() # try the plain call and hope it works
 
         del self.hooks
 
