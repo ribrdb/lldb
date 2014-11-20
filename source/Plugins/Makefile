@@ -24,6 +24,7 @@ PARALLEL_DIRS := ABI/MacOSX-arm ABI/MacOSX-arm64 ABI/MacOSX-i386 ABI/SysV-x86_64
 	LanguageRuntime/ObjC/AppleObjCRuntime \
 	DynamicLoader/POSIX-DYLD \
 	DynamicLoader/Hexagon-DYLD \
+	OperatingSystem/Go \
 	OperatingSystem/Python \
 	SymbolVendor/ELF \
 	MemoryHistory/asan \
