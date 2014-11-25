@@ -1,4 +1,4 @@
-//===-- DebugOneProcessThread.h ---------------------------------*- C++ -*-===//
+//===-- DebuggerThread.h ----------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Plugins_Process_Windows_DebugOneProcessThread_H_
-#define liblldb_Plugins_Process_Windows_DebugOneProcessThread_H_
+#ifndef liblldb_Plugins_Process_Windows_DebuggerThread_H_
+#define liblldb_Plugins_Process_Windows_DebuggerThread_H_
 
 #include "ForwardDecl.h"
 #include "lldb/Host/HostProcess.h"
@@ -22,22 +22,35 @@ namespace lldb_private
 {
 
 //----------------------------------------------------------------------
-// DebugOneProcessThread
+// DebuggerThread
 //
-// Debugs a single process, notifying the process plugin and/or the debugger
-// driver thread as appropriate when interesting things occur.
+// Debugs a single process, notifying listeners as appropriate when interesting
+// things occur.
 //----------------------------------------------------------------------
-class DebugOneProcessThread : public std::enable_shared_from_this<DebugOneProcessThread>
+class DebuggerThread : public std::enable_shared_from_this<DebuggerThread>
 {
   public:
-    DebugOneProcessThread(HostThread driver_thread);
-    virtual ~DebugOneProcessThread();
+    DebuggerThread(DebugDelegateSP debug_delegate);
+    virtual ~DebuggerThread();
 
-    const DriverLaunchProcessMessageResult *DebugLaunch(const DriverLaunchProcessMessage *message);
+    Error DebugLaunch(const ProcessLaunchInfo &launch_info);
+
+    HostProcess
+    GetProcess() const
+    {
+        return m_process;
+    }
+    HostThread
+    GetMainThread() const
+    {
+        return m_main_thread;
+    }
+
+    void ContinueAsyncException(ExceptionResult result);
 
   private:
     void DebugLoop();
-    DWORD HandleExceptionEvent(const EXCEPTION_DEBUG_INFO &info, DWORD thread_id);
+    ExceptionResult HandleExceptionEvent(const EXCEPTION_DEBUG_INFO &info, DWORD thread_id);
     DWORD HandleCreateThreadEvent(const CREATE_THREAD_DEBUG_INFO &info, DWORD thread_id);
     DWORD HandleCreateProcessEvent(const CREATE_PROCESS_DEBUG_INFO &info, DWORD thread_id);
     DWORD HandleExitThreadEvent(const EXIT_THREAD_DEBUG_INFO &info, DWORD thread_id);
@@ -47,24 +60,18 @@ class DebugOneProcessThread : public std::enable_shared_from_this<DebugOneProces
     DWORD HandleODSEvent(const OUTPUT_DEBUG_STRING_INFO &info, DWORD thread_id);
     DWORD HandleRipEvent(const RIP_INFO &info, DWORD thread_id);
 
-    static void __stdcall NotifySlaveProcessExited(ULONG_PTR message);
-    static void __stdcall NotifySlaveRipEvent(ULONG_PTR message);
-
-    // The main debug driver thread which is controlling this slave.
-    HostThread m_driver_thread;
+    DebugDelegateSP m_debug_delegate;
 
     HostProcess m_process;    // The process being debugged.
     HostThread m_main_thread; // The main thread of the inferior.
     HANDLE m_image_file;      // The image file of the process being debugged.
 
-    // After we've called CreateProcess, this signals that we're still waiting for the system
-    // debug event telling us the process has been created.
-    const DriverLaunchProcessMessage *m_pending_create;
+    Predicate<ExceptionResult> m_exception; // A predicate which gets signalled when an exception
+                                            // is finished processing and the debug loop can be
+                                            // continued.
 
-    Predicate<const DriverLaunchProcessMessageResult *> m_launch_predicate;
-
-    static lldb::thread_result_t DebugLaunchThread(void *data);
-    lldb::thread_result_t DebugLaunchThread(const DriverLaunchProcessMessage *message);
+    static lldb::thread_result_t DebuggerThreadRoutine(void *data);
+    lldb::thread_result_t DebuggerThreadRoutine(const ProcessLaunchInfo &launch_info);
 };
 }
 

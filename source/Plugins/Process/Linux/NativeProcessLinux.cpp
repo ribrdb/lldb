@@ -18,7 +18,13 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <linux/unistd.h>
+#if defined(__ANDROID_NDK__) && defined (__arm__)
+#include <linux/personality.h>
+#include <linux/user.h>
+#else
 #include <sys/personality.h>
+#include <sys/user.h>
+#endif
 #ifndef __ANDROID__
 #include <sys/procfs.h>
 #endif
@@ -27,7 +33,6 @@
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
-#include <sys/user.h>
 #include <sys/wait.h>
 
 #if defined (__arm64__) || defined (__aarch64__)
@@ -43,6 +48,7 @@
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Error.h"
 #include "lldb/Core/Module.h"
+#include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/RegisterValue.h"
 #include "lldb/Core/Scalar.h"
 #include "lldb/Core/State.h"
@@ -153,10 +159,10 @@ namespace
 
         // Resolve the executable module.
         ModuleSP exe_module_sp;
+        ModuleSpec exe_module_spec(process_info.GetExecutableFile(), platform.GetSystemArchitecture ());
         FileSpecList executable_search_paths (Target::GetDefaultExecutableSearchPaths ());
         Error error = platform.ResolveExecutable(
-            process_info.GetExecutableFile (),
-            platform.GetSystemArchitecture (),
+            exe_module_spec,
             exe_module_sp,
             executable_search_paths.GetSize () ? &executable_search_paths : NULL);
 
@@ -1293,22 +1299,19 @@ NativeProcessLinux::AttachToProcess (
     if (!error.Success ())
         return error;
 
-    native_process_sp.reset (new NativeProcessLinux ());
+    std::shared_ptr<NativeProcessLinux> native_process_linux_sp (new NativeProcessLinux ());
 
-    if (!native_process_sp->RegisterNativeDelegate (native_delegate))
+    if (!native_process_linux_sp->RegisterNativeDelegate (native_delegate))
     {
-        native_process_sp.reset (new NativeProcessLinux ());
         error.SetErrorStringWithFormat ("failed to register the native delegate");
         return error;
     }
 
-    reinterpret_cast<NativeProcessLinux*> (native_process_sp.get ())->AttachToInferior (pid, error);
+    native_process_linux_sp->AttachToInferior (pid, error);
     if (!error.Success ())
-    {
-        native_process_sp.reset ();
         return error;
-    }
 
+    native_process_sp = native_process_linux_sp;
     return error;
 }
 
@@ -1423,17 +1426,24 @@ NativeProcessLinux::AttachToInferior (lldb::pid_t pid, lldb_private::Error &erro
         if (log)
             log->Printf ("NativeProcessLinux::%s (pid = %" PRIi64 "): no default platform set", __FUNCTION__, pid);
         error.SetErrorString ("no default platform available");
+        return;
     }
 
     // Gather info about the process.
     ProcessInstanceInfo process_info;
-    platform_sp->GetProcessInfo (pid, process_info);
+    if (!platform_sp->GetProcessInfo (pid, process_info))
+    {
+        if (log)
+            log->Printf ("NativeProcessLinux::%s (pid = %" PRIi64 "): failed to get process info", __FUNCTION__, pid);
+        error.SetErrorString ("failed to get process info");
+        return;
+    }
 
     // Resolve the executable module
     ModuleSP exe_module_sp;
     FileSpecList executable_search_paths (Target::GetDefaultExecutableSearchPaths());
-
-    error = platform_sp->ResolveExecutable(process_info.GetExecutableFile(), HostInfo::GetArchitecture(), exe_module_sp,
+    ModuleSpec exe_module_spec(process_info.GetExecutableFile(), HostInfo::GetArchitecture());
+    error = platform_sp->ResolveExecutable(exe_module_spec, exe_module_sp,
                                            executable_search_paths.GetSize() ? &executable_search_paths : NULL);
     if (!error.Success())
         return;

@@ -38,6 +38,12 @@ public:
     void
     SetExecutableFile (lldb::SBFileSpec exe_file, bool add_as_first_arg);
 
+    lldb::SBListener
+    GetListener ();
+
+    void
+    SetListener (lldb::SBListener &listener);
+
     uint32_t
     GetNumArguments ();
     
@@ -205,6 +211,12 @@ public:
     
     bool
     ParentProcessIDIsValid();
+
+    lldb::SBListener
+    GetListener ();
+
+    void
+    SetListener (lldb::SBListener &listener);
 };
     
     
@@ -856,16 +868,41 @@ public:
               
     lldb::SBValue
     CreateValueFromAddress (const char *name, lldb::SBAddress addr, lldb::SBType type);
-    
+
+    %feature("docstring", "
+    Disassemble a specified number of instructions starting at an address.
+    Parameters:
+       base_addr       -- the address to start disassembly from
+       count           -- the number of instructions to disassemble
+       flavor_string   -- may be 'intel' or 'att' on x86 targets to specify that style of disassembly
+    Returns an SBInstructionList.") 
+    ReadInstructions;
     lldb::SBInstructionList
     ReadInstructions (lldb::SBAddress base_addr, uint32_t count);    
 
     lldb::SBInstructionList
     ReadInstructions (lldb::SBAddress base_addr, uint32_t count, const char *flavor_string);
 
+    %feature("docstring", "
+    Disassemble the bytes in a buffer and return them in an SBInstructionList.
+    Parameters:
+       base_addr -- used for symbolicating the offsets in the byte stream when disassembling
+       buf       -- bytes to be disassembled
+       size      -- (C++) size of the buffer
+    Returns an SBInstructionList.") 
+    GetInstructions;
     lldb::SBInstructionList
     GetInstructions (lldb::SBAddress base_addr, const void *buf, size_t size);
-    
+
+    %feature("docstring", "
+    Disassemble the bytes in a buffer and return them in an SBInstructionList, with a supplied flavor.
+    Parameters:
+       base_addr -- used for symbolicating the offsets in the byte stream when disassembling
+       flavor    -- may be 'intel' or 'att' on x86 targets to specify that style of disassembly
+       buf       -- bytes to be disassembled
+       size      -- (C++) size of the buffer
+    Returns an SBInstructionList.") 
+    GetInstructionsWithFlavor;
     lldb::SBInstructionList
     GetInstructionsWithFlavor (lldb::SBAddress base_addr, const char *flavor_string, const void *buf, size_t size);
     
@@ -985,10 +1022,10 @@ public:
         if _newclass: triple = property(GetTriple, None, doc='''A read only property that returns the target triple (arch-vendor-os) for this target as a string.''')
 
         __swig_getmethods__["data_byte_size"] = GetDataByteSize
-        if _newclass: addr_size = property(GetDataByteSize, None, doc='''A read only property that returns the size in host bytes of a byte in the data address space for this target.''')
+        if _newclass: data_byte_size = property(GetDataByteSize, None, doc='''A read only property that returns the size in host bytes of a byte in the data address space for this target.''')
 
         __swig_getmethods__["code_byte_size"] = GetCodeByteSize
-        if _newclass: addr_size = property(GetCodeByteSize, None, doc='''A read only property that returns the size in host bytes of a byte in the code address space for this target.''')
+        if _newclass: code_byte_size = property(GetCodeByteSize, None, doc='''A read only property that returns the size in host bytes of a byte in the code address space for this target.''')
 
         __swig_getmethods__["platform"] = GetPlatform
         if _newclass: platform = property(GetPlatform, None, doc='''A read only property that returns the platform associated with with this target.''')

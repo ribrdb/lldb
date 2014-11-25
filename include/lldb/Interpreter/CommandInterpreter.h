@@ -173,11 +173,10 @@ public:
     {
         switch (flag)
         {
-            case eLazyBoolCalculate:
-            case eLazyBoolYes:
-                return true;
             case eLazyBoolNo:
                 return false;
+            default:
+                return true;
         }
     }
 
@@ -188,8 +187,7 @@ public:
         {
             case eLazyBoolYes:
                 return true;
-            case eLazyBoolCalculate:
-            case eLazyBoolNo:
+            default:
                 return false;
         }
     }
@@ -628,6 +626,9 @@ public:
     {
         return m_quit_requested;
     }
+
+    lldb::IOHandlerSP
+    GetIOHandler(bool force_create = false, CommandInterpreterRunOptions *options = NULL);
 
     bool
     GetStoppedForCrash () const

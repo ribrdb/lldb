@@ -30,7 +30,7 @@
 #endif
 
 #if defined (__linux__) || defined (__FreeBSD__) || defined (__FreeBSD_kernel__) || defined (__APPLE__) || defined(__NetBSD__)
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
 #include <spawn.h>
 #endif
 #include <sys/wait.h>
@@ -111,7 +111,7 @@ Host::StartMonitoringChildProcess(Host::MonitorChildProcessCallback callback, vo
     return ThreadLauncher::LaunchThread(thread_name, MonitorChildProcessThreadFunction, info_ptr, NULL);
 }
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
 //------------------------------------------------------------------
 // Scoped class that will disable thread canceling when it is
 // constructed, and exception safely restore the previous value it
@@ -126,7 +126,6 @@ public:
         int err = ::pthread_setcancelstate (PTHREAD_CANCEL_DISABLE, &m_old_state);
         if (err != 0)
             m_old_state = -1;
-
     }
 
     ~ScopedPThreadCancelDisabler()
@@ -139,7 +138,7 @@ public:
 private:
     int m_old_state;    // Save the old cancelability state.
 };
-#endif
+#endif // __ANDROID_NDK__
 
 static thread_result_t
 MonitorChildProcessThreadFunction (void *arg)
@@ -173,15 +172,14 @@ MonitorChildProcessThreadFunction (void *arg)
             log->Printf("%s ::wait_pid (pid = %" PRIi32 ", &status, options = %i)...", function, pid, options);
 
         // Wait for all child processes
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
         ::pthread_testcancel ();
 #endif
         // Get signals from all children with same process group of pid
         const ::pid_t wait_pid = ::waitpid (pid, &status, options);
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
         ::pthread_testcancel ();
 #endif
-
         if (wait_pid == -1)
         {
             if (errno == EINTR)
@@ -226,7 +224,7 @@ MonitorChildProcessThreadFunction (void *arg)
 
             // Scope for pthread_cancel_disabler
             {
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
                 ScopedPThreadCancelDisabler pthread_cancel_disabler;
 #endif
 
@@ -316,6 +314,8 @@ Host::GetCurrentThreadID()
     return thread_self;
 #elif defined(__FreeBSD__)
     return lldb::tid_t(pthread_getthreadid_np());
+#elif defined(__ANDROID_NDK__)
+    return lldb::tid_t(gettid());
 #elif defined(__linux__)
     return lldb::tid_t(syscall(SYS_gettid));
 #else
@@ -456,7 +456,7 @@ FileSpec
 Host::GetModuleFileSpecForHostAddress (const void *host_addr)
 {
     FileSpec module_filespec;
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
     Dl_info info;
     if (::dladdr (host_addr, &info))
     {
@@ -478,28 +478,6 @@ Host::FindProcessThreads (const lldb::pid_t pid, TidMap &tids_to_attach)
     return false;
 }
 #endif
-
-lldb::TargetSP
-Host::GetDummyTarget (lldb_private::Debugger &debugger)
-{
-    static TargetSP g_dummy_target_sp;
-
-    // FIXME: Maybe the dummy target should be per-Debugger
-    if (!g_dummy_target_sp || !g_dummy_target_sp->IsValid())
-    {
-        ArchSpec arch(Target::GetDefaultArchitecture());
-        if (!arch.IsValid())
-            arch = HostInfo::GetArchitecture();
-        Error err = debugger.GetTargetList().CreateTarget(debugger, 
-                                                          NULL,
-                                                          arch.GetTriple().getTriple().c_str(),
-                                                          false, 
-                                                          NULL, 
-                                                          g_dummy_target_sp);
-    }
-
-    return g_dummy_target_sp;
-}
 
 struct ShellInfo
 {
@@ -694,14 +672,13 @@ Host::RunShellCommand (const char *command,
 // systems
 
 #if defined (__APPLE__) || defined (__linux__) || defined (__FreeBSD__) || defined (__GLIBC__) || defined(__NetBSD__)
-
 // this method needs to be visible to macosx/Host.cpp and
 // common/Host.cpp.
 
 short
 Host::GetPosixspawnFlags(const ProcessLaunchInfo &launch_info)
 {
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
     short flags = POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK;
 
 #if defined (__APPLE__)
@@ -745,7 +722,7 @@ Host::GetPosixspawnFlags(const ProcessLaunchInfo &launch_info)
 #endif // #if defined (__APPLE__)
     return flags;
 #else
-    assert(false *&& "Host::GetPosixspawnFlags() not supported on Android");
+    assert(false && "Host::GetPosixspawnFlags() not supported on Android");
     return 0;
 #endif
 }
@@ -754,7 +731,7 @@ Error
 Host::LaunchProcessPosixSpawn(const char *exe_path, const ProcessLaunchInfo &launch_info, lldb::pid_t &pid)
 {
     Error error;
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_HOST | LIBLLDB_LOG_PROCESS));
 
     posix_spawnattr_t attr;
@@ -954,7 +931,7 @@ Host::LaunchProcessPosixSpawn(const char *exe_path, const ProcessLaunchInfo &lau
 bool
 Host::AddPosixSpawnFileAction(void *_file_actions, const FileAction *info, Log *log, Error &error)
 {
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
     if (info == NULL)
         return false;
 
@@ -1022,7 +999,6 @@ Host::AddPosixSpawnFileAction(void *_file_actions, const FileAction *info, Log *
     return false;
 #endif
 }
-
 #endif // LaunchProcedssPosixSpawn: Apple, Linux, FreeBSD and other GLIBC systems
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__GLIBC__) || defined(__NetBSD__) || defined(_WIN32)
@@ -1049,11 +1025,9 @@ Host::LaunchProcess (ProcessLaunchInfo &launch_info)
 
     return error;
 }
-
 #endif // defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 
 #ifndef _WIN32
-
 void
 Host::Kill(lldb::pid_t pid, int signo)
 {
