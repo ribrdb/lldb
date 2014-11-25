@@ -60,6 +60,7 @@
 #ifndef LLDB_DISABLE_PYTHON
 #include "Plugins/OperatingSystem/Python/OperatingSystemPython.h"
 #endif
+#include "Plugins/OperatingSystem/Go/OperatingSystemGo.h"
 #if defined (__APPLE__)
 #include "Plugins/DynamicLoader/MacOSX-DYLD/DynamicLoaderMacOSXDYLD.h"
 #include "Plugins/DynamicLoader/Darwin-Kernel/DynamicLoaderDarwinKernel.h"
@@ -158,6 +159,7 @@ lldb_private::Initialize ()
         ScriptInterpreterPython::InitializePrivate();
         OperatingSystemPython::Initialize();
 #endif
+        OperatingSystemGo::Initialize();
         JITLoaderGDB::Initialize();
         ProcessElfCore::Initialize();
         MemoryHistoryASan::Initialize();
@@ -252,6 +254,7 @@ lldb_private::Terminate ()
 #ifndef LLDB_DISABLE_PYTHON
     OperatingSystemPython::Terminate();
 #endif
+    OperatingSystemGo::Terminate();
     JITLoaderGDB::Terminate();
     ProcessElfCore::Terminate();
     MemoryHistoryASan::Terminate();
