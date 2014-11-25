@@ -6777,7 +6777,6 @@
 					Security,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
-					"$(inherited)",
 					"-lllvmclang",
 					"-lxml2",
 					"-framework",
@@ -6849,7 +6848,6 @@
 					Security,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
-					"$(inherited)",
 					"-lllvmclang",
 					"-lxml2",
 					"-framework",
@@ -6921,7 +6919,6 @@
 					Security,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
-					"$(inherited)",
 					"-lllvmclang",
 					"-lxml2",
 					"-framework",
@@ -7302,13 +7299,10 @@
 					Security,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*][arch=*]" = (
-					"$(inherited)",
 					"-lllvmclang",
 					"-lxml2",
 					"-framework",
 					Foundation,
-					"-framework",
-					UIKit,
 				);
 				PRODUCT_NAME = "lldb-platform";
 				SKIP_INSTALL = YES;

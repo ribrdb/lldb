@@ -19,61 +19,55 @@ LocalDebugDelegate::LocalDebugDelegate(ProcessSP process)
 }
 
 void
-LocalDebugDelegate::OnProcessLaunched(const ProcessMessageCreateProcess &message)
+LocalDebugDelegate::OnExitProcess(uint32_t exit_code)
 {
-    ((ProcessWindows &)*m_process).OnProcessLaunched(message);
+    ((ProcessWindows &)*m_process).OnExitProcess(exit_code);
 }
 
 void
-LocalDebugDelegate::OnExitProcess(const ProcessMessageExitProcess &message)
+LocalDebugDelegate::OnDebuggerConnected(lldb::addr_t image_base)
 {
-    ((ProcessWindows &)*m_process).OnExitProcess(message);
+    ((ProcessWindows &)*m_process).OnDebuggerConnected(image_base);
+}
+
+ExceptionResult
+LocalDebugDelegate::OnDebugException(bool first_chance, const ExceptionRecord &record)
+{
+    return ((ProcessWindows &)*m_process).OnDebugException(first_chance, record);
 }
 
 void
-LocalDebugDelegate::OnDebuggerConnected(const ProcessMessageDebuggerConnected &message)
+LocalDebugDelegate::OnCreateThread(const HostThread &thread)
 {
-    ((ProcessWindows &)*m_process).OnDebuggerConnected(message);
+    ((ProcessWindows &)*m_process).OnCreateThread(thread);
 }
 
 void
-LocalDebugDelegate::OnDebugException(const ProcessMessageException &message)
+LocalDebugDelegate::OnExitThread(const HostThread &thread)
 {
-    ((ProcessWindows &)*m_process).OnDebugException(message);
+    ((ProcessWindows &)*m_process).OnExitThread(thread);
 }
 
 void
-LocalDebugDelegate::OnCreateThread(const ProcessMessageCreateThread &message)
+LocalDebugDelegate::OnLoadDll(const lldb_private::ModuleSpec &module_spec, lldb::addr_t module_addr)
 {
-    ((ProcessWindows &)*m_process).OnCreateThread(message);
+    ((ProcessWindows &)*m_process).OnLoadDll(module_spec, module_addr);
 }
 
 void
-LocalDebugDelegate::OnExitThread(const ProcessMessageExitThread &message)
+LocalDebugDelegate::OnUnloadDll(lldb::addr_t module_addr)
 {
-    ((ProcessWindows &)*m_process).OnExitThread(message);
+    ((ProcessWindows &)*m_process).OnUnloadDll(module_addr);
 }
 
 void
-LocalDebugDelegate::OnLoadDll(const ProcessMessageLoadDll &message)
+LocalDebugDelegate::OnDebugString(const std::string &string)
 {
-    ((ProcessWindows &)*m_process).OnLoadDll(message);
+    ((ProcessWindows &)*m_process).OnDebugString(string);
 }
 
 void
-LocalDebugDelegate::OnUnloadDll(const ProcessMessageUnloadDll &message)
+LocalDebugDelegate::OnDebuggerError(const Error &error, uint32_t type)
 {
-    ((ProcessWindows &)*m_process).OnUnloadDll(message);
-}
-
-void
-LocalDebugDelegate::OnDebugString(const ProcessMessageDebugString &message)
-{
-    ((ProcessWindows &)*m_process).OnDebugString(message);
-}
-
-void
-LocalDebugDelegate::OnDebuggerError(const ProcessMessageDebuggerError &message)
-{
-    ((ProcessWindows &)*m_process).OnDebuggerError(message);
+    ((ProcessWindows &)*m_process).OnDebuggerError(error, type);
 }
