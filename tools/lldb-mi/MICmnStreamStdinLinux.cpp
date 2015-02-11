@@ -20,10 +20,10 @@
 //--
 
 // Third Party Headers:
-#if !defined(_MSC_VER)
+#ifndef _WIN32
 #include <sys/select.h>
-#include <termios.h>
-#endif              // !defined( _MSC_VER )
+#include <unistd.h> // For STDIN_FILENO
+#endif
 #include <string.h> // For std::strerror()
 
 // In-house headers:
@@ -43,6 +43,7 @@ CMICmnStreamStdinLinux::CMICmnStreamStdinLinux(void)
     : m_constBufferSize(1024)
     , m_pStdin(nullptr)
     , m_pCmdBuffer(nullptr)
+    , m_waitForInput(true)
 {
 }
 
@@ -153,31 +154,34 @@ CMICmnStreamStdinLinux::Shutdown(void)
 bool
 CMICmnStreamStdinLinux::InputAvailable(bool &vwbAvail)
 {
-    /* AD: Not used ATM but could come in handy just in case we need to do
-           this, poll for input
+#ifndef _WIN32
+    // Wait for the input using select API. Timeout is used so that we get an
+    // opportunity to check if m_waitForInput has been set to false by other thread.
+    fd_set setOfStdin;
+    struct timeval tv;
 
-            static const int STDIN = 0;
-        static bool bInitialized = false;
-
-        if( !bInitialized )
-            {
-            // Use termios to turn off line buffering
-            ::termios term;
-            ::tcgetattr( STDIN, &term );
-            ::term.c_lflag &= ~ICANON;
-            ::tcsetattr( STDIN, TCSANOW, &term );
-            ::setbuf( stdin, NULL );
-            bInitialized = true;
+    while (m_waitForInput)
+    {
+        FD_ZERO(&setOfStdin);
+        FD_SET(STDIN_FILENO, &setOfStdin);
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+        int ret = ::select(STDIN_FILENO + 1, &setOfStdin, nullptr, nullptr, &tv);
+        if (ret == 0) // Timeout. Loop back if m_waitForInput is true
+            continue;
+        else if (ret == -1) // Error condition. Return
+        {
+            vwbAvail = false;
+            return MIstatus::failure;
         }
-
-        int nBytesWaiting;
-        ::ioctl( STDIN, FIONREAD, &nBytesWaiting );
-        vwbAvail = (nBytesWaiting > 0);
-
+        else // Have some valid input
+        {
+            vwbAvail = true;
             return MIstatus::success;
-    */
-
-    return MIstatus::success;
+        }
+    }
+#endif
+    return MIstatus::failure;
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -212,4 +216,17 @@ CMICmnStreamStdinLinux::ReadLine(CMIUtilString &vwErrMsg)
     }
 
     return pText;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: Interrupt current and prevent new ReadLine operations.
+// Type:    Method.
+// Args:    None.
+// Return:  None.
+// Throws:  None.
+//--
+void
+CMICmnStreamStdinLinux::InterruptReadLine(void)
+{
+    m_waitForInput = false;
 }

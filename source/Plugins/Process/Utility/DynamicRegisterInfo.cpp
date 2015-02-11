@@ -15,7 +15,7 @@
 // C++ Includes
 // Other libraries and framework includes
 // Project includes
-#include "lldb/Interpreter/Args.h"
+#include "lldb/Host/StringConvert.h"
 #include "lldb/Core/RegularExpression.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/DataFormatters/FormatManager.h"
@@ -81,6 +81,7 @@ DynamicRegisterInfo::SetRegisterInfo (const lldb_private::PythonDictionary &dict
             else
             {
                 Clear();
+                printf("error: register sets must have valid names\n");
                 return 0;
             }
         }
@@ -121,6 +122,8 @@ DynamicRegisterInfo::SetRegisterInfo (const lldb_private::PythonDictionary &dict
                 if (reg_info.name == NULL)
                 {
                     Clear();
+                    printf("error: registers must have valid names\n");
+                    reg_info_dict.Dump();
                     return 0;
                 }
                     
@@ -155,8 +158,8 @@ DynamicRegisterInfo::SetRegisterInfo (const lldb_private::PythonDictionary &dict
                                 regex_match.GetMatchAtIndex(slice_cstr, 2, msbit_str) &&
                                 regex_match.GetMatchAtIndex(slice_cstr, 3, lsbit_str))
                             {
-                                const uint32_t msbit = Args::StringToUInt32(msbit_str.c_str(), UINT32_MAX);
-                                const uint32_t lsbit = Args::StringToUInt32(lsbit_str.c_str(), UINT32_MAX);
+                                const uint32_t msbit = StringConvert::ToUInt32(msbit_str.c_str(), UINT32_MAX);
+                                const uint32_t lsbit = StringConvert::ToUInt32(lsbit_str.c_str(), UINT32_MAX);
                                 if (msbit != UINT32_MAX && lsbit != UINT32_MAX)
                                 {
                                     if (msbit > lsbit)
@@ -290,6 +293,7 @@ DynamicRegisterInfo::SetRegisterInfo (const lldb_private::PythonDictionary &dict
                     if (!success)
                     {
                         Clear();
+                        reg_info_dict.Dump();
                         return 0;
                     }
                 }
@@ -297,6 +301,8 @@ DynamicRegisterInfo::SetRegisterInfo (const lldb_private::PythonDictionary &dict
                 if (bitsize == 0)
                 {
                     Clear();
+                    printf("error: invalid or missing 'bitsize' key/value pair in register dictionary\n");
+                    reg_info_dict.Dump();
                     return 0;
                 }
 
@@ -308,6 +314,8 @@ DynamicRegisterInfo::SetRegisterInfo (const lldb_private::PythonDictionary &dict
                     if (Args::StringToFormat(format_cstr, reg_info.format, NULL).Fail())
                     {
                         Clear();
+                        printf("error: invalid 'format' value in register dictionary\n");
+                        reg_info_dict.Dump();
                         return 0;
                     }
                 }
@@ -326,6 +334,8 @@ DynamicRegisterInfo::SetRegisterInfo (const lldb_private::PythonDictionary &dict
                 if (static_cast<size_t>(set) >= m_sets.size())
                 {
                     Clear();
+                    printf("error: invalid 'set' value in register dictionary, valid values are 0 - %i\n", (int)set);
+                    reg_info_dict.Dump();
                     return 0;
                 }
 
@@ -409,6 +419,8 @@ DynamicRegisterInfo::SetRegisterInfo (const lldb_private::PythonDictionary &dict
             else
             {
                 Clear();
+                printf("error: items in the 'registers' array must be dictionaries\n");
+                regs.Dump();
                 return 0;
             }
         }

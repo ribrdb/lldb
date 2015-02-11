@@ -334,11 +334,11 @@ ABIMacOSX_arm::GetArgumentValues (Thread &thread,
             size_t bit_width = 0;
             if (clang_type.IsIntegerType (is_signed))
             {
-                bit_width = clang_type.GetBitSize();
+                bit_width = clang_type.GetBitSize(nullptr);
             }
             else if (clang_type.IsPointerOrReferenceType ())
             {
-                bit_width = clang_type.GetBitSize();
+                bit_width = clang_type.GetBitSize(nullptr);
             }
             else
             {
@@ -437,7 +437,7 @@ ABIMacOSX_arm::GetReturnValueObjectImpl (Thread &thread,
     const RegisterInfo *r0_reg_info = reg_ctx->GetRegisterInfoByName("r0", 0);
     if (clang_type.IsIntegerType (is_signed))
     {
-        size_t bit_width = clang_type.GetBitSize();
+        size_t bit_width = clang_type.GetBitSize(nullptr);
         
         switch (bit_width)
         {
@@ -797,6 +797,36 @@ ABIMacOSX_arm::RegisterIsVolatile (const RegisterInfo *reg_info)
                 case '9':
                     return name[2] == '\0'; // s4 - s9 are volatile
 
+                default:
+                    break;
+            }
+        }
+        else if (name[0] == 'q')
+        {
+            switch (name[1])
+            {
+                case '1':
+                    switch (name[2])
+                    {
+                        case '\0':
+                            return true;  // q1 is volatile
+                        case '0':
+                        case '1':
+                        case '2':
+                        case '3':
+                        case '4':
+                        case '5':
+                            return true; // q10-q15 are volatile
+                        default:
+                            break;
+                    };
+                case '0': 
+                case '2': 
+                case '3': 
+                    return name[2] == '\0'; // q0-q3 are volatile
+                case '8':
+                case '9':
+                    return name[2] == '\0'; // q8-q9 are volatile
                 default:
                     break;
             }

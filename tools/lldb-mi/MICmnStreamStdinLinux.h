@@ -51,6 +51,7 @@ class CMICmnStreamStdinLinux : public CMICmnBase, public CMICmnStreamStdin::IOSS
     // From CMICmnStreamStdin::IOSpecificReadStreamStdin
     virtual bool InputAvailable(bool &vwbAvail);
     virtual const MIchar *ReadLine(CMIUtilString &vwErrMsg);
+    virtual void InterruptReadLine(void);
 
     // Methods:
   private:
@@ -68,4 +69,5 @@ class CMICmnStreamStdinLinux : public CMICmnBase, public CMICmnStreamStdin::IOSS
     const MIuint m_constBufferSize;
     FILE *m_pStdin;
     MIchar *m_pCmdBuffer;
+    bool m_waitForInput;
 };

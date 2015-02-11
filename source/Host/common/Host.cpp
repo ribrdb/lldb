@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 // C includes
 #include <errno.h>
 #include <limits.h>
@@ -44,23 +42,25 @@
 // C++ includes
 #include <limits>
 
+#include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Core/ArchSpec.h"
-#include "lldb/Core/Debugger.h"
 #include "lldb/Core/Error.h"
 #include "lldb/Core/Log.h"
-#include "lldb/Core/Module.h"
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Host/HostProcess.h"
 #include "lldb/Host/MonitoringProcessLauncher.h"
+#include "lldb/Host/Predicate.h"
 #include "lldb/Host/ProcessLauncher.h"
 #include "lldb/Host/ThreadLauncher.h"
 #include "lldb/lldb-private-forward.h"
+#include "llvm/Support/FileSystem.h"
 #include "lldb/Target/FileAction.h"
 #include "lldb/Target/ProcessLaunchInfo.h"
-#include "lldb/Target/TargetList.h"
+#include "lldb/Target/UnixSignals.h"
 #include "lldb/Utility/CleanUp.h"
+#include "llvm/ADT/SmallString.h"
 
 #if defined(_WIN32)
 #include "lldb/Host/windows/ProcessLauncherWindows.h"
@@ -169,7 +169,7 @@ MonitorChildProcessThreadFunction (void *arg)
     {
         log = lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_PROCESS);
         if (log)
-            log->Printf("%s ::wait_pid (pid = %" PRIi32 ", &status, options = %i)...", function, pid, options);
+            log->Printf("%s ::waitpid (pid = %" PRIi32 ", &status, options = %i)...", function, pid, options);
 
         // Wait for all child processes
 #if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
@@ -232,9 +232,9 @@ MonitorChildProcessThreadFunction (void *arg)
                 if (log)
                     log->Printf ("%s ::waitpid (pid = %" PRIi32 ", &status, options = %i) => pid = %" PRIi32 ", status = 0x%8.8x (%s), signal = %i, exit_state = %i",
                                  function,
-                                 wait_pid,
-                                 options,
                                  pid,
+                                 options,
+                                 wait_pid,
                                  status,
                                  status_cstr,
                                  signal,
@@ -532,6 +532,7 @@ Host::RunShellCommand (const char *command,
 {
     Error error;
     ProcessLaunchInfo launch_info;
+    launch_info.SetArchitecture(HostInfo::GetArchitecture());
     if (run_in_default_shell)
     {
         // Run the command in a shell
@@ -556,9 +557,8 @@ Host::RunShellCommand (const char *command,
     
     if (working_dir)
         launch_info.SetWorkingDirectory(working_dir);
-    char output_file_path_buffer[PATH_MAX];
-    const char *output_file_path = NULL;
-    
+    llvm::SmallString<PATH_MAX> output_file_path;
+
     if (command_output_ptr)
     {
         // Create a temporary file to get the stdout/stderr and redirect the
@@ -567,21 +567,19 @@ Host::RunShellCommand (const char *command,
         FileSpec tmpdir_file_spec;
         if (HostInfo::GetLLDBPath(ePathTypeLLDBTempSystemDir, tmpdir_file_spec))
         {
-            tmpdir_file_spec.AppendPathComponent("lldb-shell-output.XXXXXX");
-            strncpy(output_file_path_buffer, tmpdir_file_spec.GetPath().c_str(), sizeof(output_file_path_buffer));
+            tmpdir_file_spec.AppendPathComponent("lldb-shell-output.%%%%%%");
+            llvm::sys::fs::createUniqueFile(tmpdir_file_spec.GetPath().c_str(), output_file_path);
         }
         else
         {
-            strncpy(output_file_path_buffer, "/tmp/lldb-shell-output.XXXXXX", sizeof(output_file_path_buffer));
+            llvm::sys::fs::createTemporaryFile("lldb-shell-output.%%%%%%", "", output_file_path);
         }
-        
-        output_file_path = ::mktemp(output_file_path_buffer);
     }
     
     launch_info.AppendSuppressFileAction (STDIN_FILENO, true, false);
-    if (output_file_path)
+    if (!output_file_path.empty())
     {
-        launch_info.AppendOpenFileAction(STDOUT_FILENO, output_file_path, false, true);
+        launch_info.AppendOpenFileAction(STDOUT_FILENO, output_file_path.c_str(), false, true);
         launch_info.AppendDuplicateFileAction(STDOUT_FILENO, STDERR_FILENO);
     }
     else
@@ -640,7 +638,7 @@ Host::RunShellCommand (const char *command,
             if (command_output_ptr)
             {
                 command_output_ptr->clear();
-                FileSpec file_spec(output_file_path, File::eOpenOptionRead);
+                FileSpec file_spec(output_file_path.c_str(), File::eOpenOptionRead);
                 uint64_t file_size = file_spec.GetByteSize();
                 if (file_size > 0)
                 {
@@ -659,8 +657,9 @@ Host::RunShellCommand (const char *command,
         shell_info->can_delete.SetValue(true, eBroadcastAlways);
     }
 
-    if (output_file_path)
-        ::unlink (output_file_path);
+    FileSpec output_file_spec(output_file_path.c_str(), false);
+    if (FileSystem::GetFileExists(output_file_spec))
+        FileSystem::Unlink(output_file_path.c_str());
     // Handshake with the monitor thread, or just let it know in advance that
     // it can delete "shell_info" in case we timed out and were not able to kill
     // the process...
@@ -1053,15 +1052,9 @@ Host::SetCrashDescription (const char *description)
 {
 }
 
-lldb::pid_t
-Host::LaunchApplication (const FileSpec &app_file_spec)
-{
-    return LLDB_INVALID_PROCESS_ID;
-}
-
 #endif
 
-#if !defined (__linux__) && !defined (__FreeBSD__) && !defined (__NetBSD__)
+#if !defined (__linux__) && !defined (__FreeBSD__) && !defined(__FreeBSD_kernel__) && !defined (__NetBSD__)
 
 const lldb_private::UnixSignalsSP&
 Host::GetUnixSignals ()

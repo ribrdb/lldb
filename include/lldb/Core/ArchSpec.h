@@ -145,6 +145,8 @@ public:
         kCore_kalimba_last = eCore_kalimba5
     };
 
+    typedef void (* StopInfoOverrideCallbackType)(lldb_private::Thread &thread);
+
     //------------------------------------------------------------------
     /// Default constructor.
     ///
@@ -273,6 +275,21 @@ public:
     {
         return !m_triple.getOSName().empty();
     }
+
+    //------------------------------------------------------------------
+    /// Merges fields from another ArchSpec into this ArchSpec.
+    ///
+    /// This will use the supplied ArchSpec to fill in any fields of
+    /// the triple in this ArchSpec which were unspecified.  This can
+    /// be used to refine a generic ArchSpec with a more specific one.
+    /// For example, if this ArchSpec's triple is something like
+    /// i386-unknown-unknown-unknown, and we have a triple which is
+    /// x64-pc-windows-msvc, then merging that triple into this one
+    /// will result in the triple i386-pc-windows-msvc.
+    ///
+    //------------------------------------------------------------------
+    void
+    MergeFrom(const ArchSpec &other);
 
     //------------------------------------------------------------------
     /// Sets this ArchSpec according to the given architecture name.
@@ -457,6 +474,30 @@ public:
     //------------------------------------------------------------------
     bool
     IsCompatibleMatch (const ArchSpec& rhs) const;
+
+    //------------------------------------------------------------------
+    /// Get a stop info override callback for the current architecture.
+    ///
+    /// Most platform specific code should go in lldb_private::Platform,
+    /// but there are cases where no matter which platform you are on
+    /// certain things hold true.
+    ///
+    /// This callback is currently intended to handle cases where a
+    /// program stops at an instruction that won't get executed and it
+    /// allows the stop reasonm, like "breakpoint hit", to be replaced
+    /// with a different stop reason like "no stop reason".
+    ///
+    /// This is specifically used for ARM in Thumb code when we stop in
+    /// an IT instruction (if/then/else) where the instruction won't get
+    /// executed and therefore it wouldn't be correct to show the program
+    /// stopped at the current PC. The code is generic and applies to all
+    /// ARM CPUs.
+    ///
+    /// @return NULL or a valid stop info override callback for the
+    ///     current architecture.
+    //------------------------------------------------------------------
+    StopInfoOverrideCallbackType
+    GetStopInfoOverrideCallback () const;
 
 protected:
     bool
