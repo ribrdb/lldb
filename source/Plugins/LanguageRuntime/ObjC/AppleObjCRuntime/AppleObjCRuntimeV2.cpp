@@ -44,10 +44,11 @@
 #include "AppleObjCRuntimeV2.h"
 #include "AppleObjCClassDescriptorV2.h"
 #include "AppleObjCTypeEncodingParser.h"
-#include "AppleObjCTypeVendor.h"
+#include "AppleObjCDeclVendor.h"
 #include "AppleObjCTrampolineHandler.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/DeclObjC.h"
 
 #include <vector>
 
@@ -346,7 +347,7 @@ AppleObjCRuntimeV2::AppleObjCRuntimeV2 (Process *process,
     m_get_shared_cache_class_info_code(),
     m_get_shared_cache_class_info_args (LLDB_INVALID_ADDRESS),
     m_get_shared_cache_class_info_args_mutex (Mutex::eMutexTypeNormal),
-    m_type_vendor_ap (),
+    m_decl_vendor_ap (),
     m_isa_hash_table_ptr (LLDB_INVALID_ADDRESS),
     m_hash_signature (),
     m_has_object_getClass (false),
@@ -401,12 +402,12 @@ AppleObjCRuntimeV2::GetDynamicTypeAndAddress (ValueObject &in_value,
                 else
                 {
                     // try to go for a ClangASTType at least
-                    TypeVendor* vendor = GetTypeVendor();
+                    DeclVendor* vendor = GetDeclVendor();
                     if (vendor)
                     {
-                        std::vector<ClangASTType> types;
-                        if (vendor->FindTypes(class_name, false, 1, types) && types.size() && types.at(0).IsValid())
-                            class_type_or_name.SetClangASTType(types.at(0));
+                        std::vector<clang::NamedDecl*> decls;
+                        if (vendor->FindDecls(class_name, false, 1, decls) && decls.size())
+                            class_type_or_name.SetClangASTType(ClangASTContext::GetTypeForDecl(decls[0]));
                     }
                 }
             }
@@ -553,36 +554,52 @@ AppleObjCRuntimeV2::CreateObjectChecker(const char *name)
 size_t
 AppleObjCRuntimeV2::GetByteOffsetForIvar (ClangASTType &parent_ast_type, const char *ivar_name)
 {
+    uint32_t ivar_offset = LLDB_INVALID_IVAR_OFFSET;
+
     const char *class_name = parent_ast_type.GetConstTypeName().AsCString();
+    if (class_name && class_name[0] && ivar_name && ivar_name[0])
+    {
+        //----------------------------------------------------------------------
+        // Make the objective C V2 mangled name for the ivar offset from the
+        // class name and ivar name
+        //----------------------------------------------------------------------
+        std::string buffer("OBJC_IVAR_$_");
+        buffer.append (class_name);
+        buffer.push_back ('.');
+        buffer.append (ivar_name);
+        ConstString ivar_const_str (buffer.c_str());
+        
+        //----------------------------------------------------------------------
+        // Try to get the ivar offset address from the symbol table first using
+        // the name we created above
+        //----------------------------------------------------------------------
+        SymbolContextList sc_list;
+        Target &target = m_process->GetTarget();
+        target.GetImages().FindSymbolsWithNameAndType(ivar_const_str, eSymbolTypeObjCIVar, sc_list);
 
-    if (!class_name || *class_name == '\0' || !ivar_name || *ivar_name == '\0')
-        return LLDB_INVALID_IVAR_OFFSET;
-    
-    std::string buffer("OBJC_IVAR_$_");
-    buffer.append (class_name);
-    buffer.push_back ('.');
-    buffer.append (ivar_name);
-    ConstString ivar_const_str (buffer.c_str());
-    
-    SymbolContextList sc_list;
-    Target &target = m_process->GetTarget();
-    
-    target.GetImages().FindSymbolsWithNameAndType(ivar_const_str, eSymbolTypeObjCIVar, sc_list);
+        addr_t ivar_offset_address = LLDB_INVALID_ADDRESS;
 
-    SymbolContext ivar_offset_symbol;
-    if (sc_list.GetSize() != 1 
-        || !sc_list.GetContextAtIndex(0, ivar_offset_symbol) 
-        || ivar_offset_symbol.symbol == NULL)
-        return LLDB_INVALID_IVAR_OFFSET;
-    
-    addr_t ivar_offset_address = ivar_offset_symbol.symbol->GetAddress().GetLoadAddress (&target);
-    
-    Error error;
-    
-    uint32_t ivar_offset = m_process->ReadUnsignedIntegerFromMemory (ivar_offset_address, 
-                                                                     4, 
-                                                                     LLDB_INVALID_IVAR_OFFSET, 
-                                                                     error);
+        Error error;
+        SymbolContext ivar_offset_symbol;
+        if (sc_list.GetSize() == 1 && sc_list.GetContextAtIndex(0, ivar_offset_symbol))
+        {
+            if (ivar_offset_symbol.symbol)
+                ivar_offset_address = ivar_offset_symbol.symbol->GetAddress().GetLoadAddress (&target);
+        }
+
+        //----------------------------------------------------------------------
+        // If we didn't get the ivar offset address from the symbol table, fall
+        // back to getting it from the runtime
+        //----------------------------------------------------------------------
+        if (ivar_offset_address == LLDB_INVALID_ADDRESS)
+            ivar_offset_address = LookupRuntimeSymbol(ivar_const_str);
+
+        if (ivar_offset_address != LLDB_INVALID_ADDRESS)
+            ivar_offset = m_process->ReadUnsignedIntegerFromMemory (ivar_offset_address,
+                                                                    4,
+                                                                    LLDB_INVALID_IVAR_OFFSET,
+                                                                    error);
+    }
     return ivar_offset;
 }
 
@@ -1576,13 +1593,13 @@ AppleObjCRuntimeV2::GetActualTypeName(ObjCLanguageRuntime::ObjCISA isa)
     return ObjCLanguageRuntime::GetActualTypeName(isa);
 }
 
-TypeVendor *
-AppleObjCRuntimeV2::GetTypeVendor()
+DeclVendor *
+AppleObjCRuntimeV2::GetDeclVendor()
 {
-    if (!m_type_vendor_ap.get())
-        m_type_vendor_ap.reset(new AppleObjCTypeVendor(*this));
+    if (!m_decl_vendor_ap.get())
+        m_decl_vendor_ap.reset(new AppleObjCDeclVendor(*this));
     
-    return m_type_vendor_ap.get();
+    return m_decl_vendor_ap.get();
 }
 
 lldb::addr_t

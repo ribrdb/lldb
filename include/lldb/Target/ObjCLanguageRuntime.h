@@ -20,9 +20,10 @@
 // Project includes
 #include "lldb/lldb-private.h"
 #include "lldb/Core/PluginInterface.h"
+#include "lldb/Core/ThreadSafeDenseMap.h"
 #include "lldb/Symbol/ClangASTType.h"
+#include "lldb/Symbol/DeclVendor.h"
 #include "lldb/Symbol/Type.h"
-#include "lldb/Symbol/TypeVendor.h"
 #include "lldb/Target/LanguageRuntime.h"
 
 namespace lldb_private {
@@ -385,8 +386,8 @@ public:
     virtual ObjCISA
     GetParentClass(ObjCISA isa);
     
-    virtual TypeVendor *
-    GetTypeVendor()
+    virtual DeclVendor *
+    GetDeclVendor()
     {
         return NULL;
     }
@@ -514,6 +515,10 @@ public:
         m_negative_complete_class_cache.clear();
     }
     
+    virtual bool
+    GetTypeBitSize (const ClangASTType& clang_type,
+                    uint64_t &size);
+    
 protected:
     //------------------------------------------------------------------
     // Classes that inherit from ObjCLanguageRuntime can see and modify these
@@ -610,11 +615,13 @@ private:
     typedef std::multimap<uint32_t, ObjCISA> HashToISAMap;
     typedef ISAToDescriptorMap::iterator ISAToDescriptorIterator;
     typedef HashToISAMap::iterator HashToISAIterator;
+    typedef ThreadSafeDenseMap<void*, uint64_t> TypeSizeCache;
 
     MsgImplMap m_impl_cache;
     LazyBool m_has_new_literals_and_indexing;
     ISAToDescriptorMap m_isa_to_descriptor;
     HashToISAMap m_hash_to_isa_map;
+    TypeSizeCache m_type_size_cache;
 
 protected:
     uint32_t m_isa_to_descriptor_stop_id;

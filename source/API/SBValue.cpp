@@ -608,7 +608,8 @@ SBValue::GetValueDidChange ()
     lldb::ValueObjectSP value_sp(GetSP(locker));
     if (value_sp)
     {
-        result = value_sp->GetValueDidChange ();
+        if (value_sp->UpdateValueIfNeeded(false))
+            result = value_sp->GetValueDidChange ();
     }
     if (log)
         log->Printf ("SBValue(%p)::GetValueDidChange() => %i",
@@ -864,21 +865,11 @@ SBValue::CreateValueFromExpression (const char *name, const char *expression, SB
     if (value_sp)
     {
         ExecutionContext exe_ctx (value_sp->GetExecutionContextRef());
-        Target* target = exe_ctx.GetTargetPtr();
-        if (target)
-        {
-            options.ref().SetKeepInMemory(true);
-            target->EvaluateExpression (expression,
-                                        exe_ctx.GetFramePtr(),
-                                        new_value_sp,
-                                        options.ref());
-            if (new_value_sp)
-            {
-                new_value_sp->SetName(ConstString(name));
-                sb_value.SetSP(new_value_sp);
-            }
-        }
+        new_value_sp = ValueObject::CreateValueObjectFromExpression(name, expression, exe_ctx, options.ref());
+        if (new_value_sp)
+            new_value_sp->SetName(ConstString(name));
     }
+    sb_value.SetSP(new_value_sp);
     if (log)
     {
         if (new_value_sp)
@@ -902,30 +893,11 @@ SBValue::CreateValueFromAddress(const char* name, lldb::addr_t address, SBType s
     lldb::TypeImplSP type_impl_sp (sb_type.GetSP());
     if (value_sp && type_impl_sp)
     {
-        ClangASTType pointer_ast_type(type_impl_sp->GetClangASTType(false).GetPointerType ());
-        if (pointer_ast_type)
-        {
-            lldb::DataBufferSP buffer(new lldb_private::DataBufferHeap(&address,sizeof(lldb::addr_t)));
-
-            ExecutionContext exe_ctx (value_sp->GetExecutionContextRef());
-            ValueObjectSP ptr_result_valobj_sp(ValueObjectConstResult::Create (exe_ctx.GetBestExecutionContextScope(),
-                                                                               pointer_ast_type,
-                                                                               ConstString(name),
-                                                                               buffer,
-                                                                               exe_ctx.GetByteOrder(),
-                                                                               exe_ctx.GetAddressByteSize()));
-
-            if (ptr_result_valobj_sp)
-            {
-                ptr_result_valobj_sp->GetValue().SetValueType(Value::eValueTypeLoadAddress);
-                Error err;
-                new_value_sp = ptr_result_valobj_sp->Dereference(err);
-                if (new_value_sp)
-                    new_value_sp->SetName(ConstString(name));
-            }
-            sb_value.SetSP(new_value_sp);
-        }
+        ClangASTType ast_type(type_impl_sp->GetClangASTType(true));
+        ExecutionContext exe_ctx (value_sp->GetExecutionContextRef());
+        new_value_sp = ValueObject::CreateValueObjectFromAddress(name, address, exe_ctx, ast_type);
     }
+    sb_value.SetSP(new_value_sp);
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
     if (log)
     {
@@ -950,15 +922,10 @@ SBValue::CreateValueFromData (const char* name, SBData data, SBType type)
     if (value_sp)
     {
         ExecutionContext exe_ctx (value_sp->GetExecutionContextRef());
-
-        new_value_sp = ValueObjectConstResult::Create (exe_ctx.GetBestExecutionContextScope(),
-                                                       type.m_opaque_sp->GetClangASTType(false),
-                                                       ConstString(name),
-                                                       *data.m_opaque_sp,
-                                                       LLDB_INVALID_ADDRESS);
+        new_value_sp = ValueObject::CreateValueObjectFromData(name, **data, exe_ctx, type.GetSP()->GetClangASTType(true));
         new_value_sp->SetAddressTypeOfChildren(eAddressTypeLoad);
-        sb_value.SetSP(new_value_sp);
     }
+    sb_value.SetSP(new_value_sp);
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
     if (log)
     {
@@ -1275,6 +1242,22 @@ SBValue::MightHaveChildren ()
         log->Printf ("SBValue(%p)::MightHaveChildren() => %i",
                      static_cast<void*>(value_sp.get()), has_children);
     return has_children;
+}
+
+bool
+SBValue::IsRuntimeSupportValue ()
+{
+    Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
+    bool is_support = false;
+    ValueLocker locker;
+    lldb::ValueObjectSP value_sp(GetSP(locker));
+    if (value_sp)
+        is_support = value_sp->IsRuntimeSupportValue();
+    
+    if (log)
+        log->Printf ("SBValue(%p)::IsRuntimeSupportValue() => %i",
+                     static_cast<void*>(value_sp.get()), is_support);
+    return is_support;
 }
 
 uint32_t
@@ -1891,4 +1874,17 @@ SBValue::WatchPointee (bool resolve_location, bool read, bool write, SBError &er
     if (IsInScope() && GetType().IsPointerType())
         sb_watchpoint = Dereference().Watch (resolve_location, read, write, error);
     return sb_watchpoint;
+}
+
+lldb::SBValue
+SBValue::Persist ()
+{
+    ValueLocker locker;
+    lldb::ValueObjectSP value_sp(GetSP(locker));
+    SBValue persisted_sb;
+    if (value_sp)
+    {
+        persisted_sb.SetSP(value_sp->Persist());
+    }
+    return persisted_sb;
 }

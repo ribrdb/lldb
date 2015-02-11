@@ -231,10 +231,6 @@ OperatingSystemGo::GetPluginVersion()
 bool
 OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &real_thread_list, ThreadList &new_thread_list)
 {
-    for (uint32_t i = 0; i < old_thread_list.GetSize(false); ++i)
-    {
-        old_thread_list.GetThreadAtIndex(i, false)->ClearBackingThread();
-    }
     new_thread_list = real_thread_list;
     Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
 
@@ -275,16 +271,12 @@ OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &rea
     }
     for (const Goroutine &goroutine : goroutines)
     {
-        if (log)
-            log->Printf("OperatingSystemGo::UpdateThreadList Goroutine %d %" PRIu64 " %" PRIu64 " %" PRIu64,
-                        goroutine.m_status, goroutine.m_goid, goroutine.m_lostack, goroutine.m_histack);
-
         if (0 /* Gidle */ == goroutine.m_status || 6 /* Gdead */ == goroutine.m_status)
         {
             continue;
         }
         ThreadSP memory_thread = old_thread_list.FindThreadByID(goroutine.m_goid, false);
-        if (!(memory_thread && IsOperatingSystemPluginThread(memory_thread) && memory_thread->IsValid()))
+        if (memory_thread && IsOperatingSystemPluginThread(memory_thread) && memory_thread->IsValid())
         {
             memory_thread.reset(new ThreadMemory(*m_process, goroutine.m_goid, nullptr, nullptr, goroutine.m_gobuf));
         }

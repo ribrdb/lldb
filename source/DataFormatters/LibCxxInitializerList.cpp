@@ -89,7 +89,7 @@ lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::GetChildAtInde
     offset = offset + m_start->GetValueAsUnsigned(0);
     StreamString name;
     name.Printf("[%" PRIu64 "]", (uint64_t)idx);
-    ValueObjectSP child_sp = ValueObject::CreateValueObjectFromAddress(name.GetData(), offset, m_backend.GetExecutionContextRef(), m_element_type);
+    ValueObjectSP child_sp = CreateValueObjectFromAddress(name.GetData(), offset, m_backend.GetExecutionContextRef(), m_element_type);
     m_children[idx] = child_sp;
     return child_sp;
 }
@@ -107,7 +107,7 @@ lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::Update()
     if (kind != lldb::eTemplateArgumentKindType || false == m_element_type.IsValid())
         return false;
     
-    m_element_size = m_element_type.GetByteSize();
+    m_element_size = m_element_type.GetByteSize(nullptr);
     
     if (m_element_size > 0)
         m_start = m_backend.GetChildMemberWithName(g___begin_,true).get(); // store raw pointers or end up with a circular dependency

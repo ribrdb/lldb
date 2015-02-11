@@ -42,6 +42,7 @@
 #include "lldb/Core/Timer.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Host/HostThread.h"
+#include "lldb/Host/StringConvert.h"
 #include "lldb/Host/Symbols.h"
 #include "lldb/Host/ThreadLauncher.h"
 #include "lldb/Host/TimeValue.h"
@@ -267,7 +268,7 @@ ProcessGDBRemote::CanDebug (Target &target, bool plugin_specified_by_name)
 ProcessGDBRemote::ProcessGDBRemote(Target& target, Listener &listener) :
     Process (target, listener),
     m_flags (0),
-    m_gdb_comm(false),
+    m_gdb_comm (),
     m_debugserver_pid (LLDB_INVALID_PROCESS_ID),
     m_last_stop_packet (),
     m_last_stop_packet_mutex (Mutex::eMutexTypeNormal),
@@ -431,11 +432,11 @@ ProcessGDBRemote::BuildDynamicRegisterInfo (bool force)
                     }
                     else if (name.compare("bitsize") == 0)
                     {
-                        reg_info.byte_size = Args::StringToUInt32(value.c_str(), 0, 0) / CHAR_BIT;
+                        reg_info.byte_size = StringConvert::ToUInt32(value.c_str(), 0, 0) / CHAR_BIT;
                     }
                     else if (name.compare("offset") == 0)
                     {
-                        uint32_t offset = Args::StringToUInt32(value.c_str(), UINT32_MAX, 0);
+                        uint32_t offset = StringConvert::ToUInt32(value.c_str(), UINT32_MAX, 0);
                         if (reg_offset != offset)
                         {
                             reg_offset = offset;
@@ -483,11 +484,11 @@ ProcessGDBRemote::BuildDynamicRegisterInfo (bool force)
                     }
                     else if (name.compare("gcc") == 0)
                     {
-                        reg_info.kinds[eRegisterKindGCC] = Args::StringToUInt32(value.c_str(), LLDB_INVALID_REGNUM, 0);
+                        reg_info.kinds[eRegisterKindGCC] = StringConvert::ToUInt32(value.c_str(), LLDB_INVALID_REGNUM, 0);
                     }
                     else if (name.compare("dwarf") == 0)
                     {
-                        reg_info.kinds[eRegisterKindDWARF] = Args::StringToUInt32(value.c_str(), LLDB_INVALID_REGNUM, 0);
+                        reg_info.kinds[eRegisterKindDWARF] = StringConvert::ToUInt32(value.c_str(), LLDB_INVALID_REGNUM, 0);
                     }
                     else if (name.compare("generic") == 0)
                     {
@@ -502,7 +503,7 @@ ProcessGDBRemote::BuildDynamicRegisterInfo (bool force)
                             value_pair = value_pair.second.split(',');
                             if (!value_pair.first.empty())
                             {
-                                uint32_t reg = Args::StringToUInt32 (value_pair.first.str().c_str(), LLDB_INVALID_REGNUM, 16);
+                                uint32_t reg = StringConvert::ToUInt32 (value_pair.first.str().c_str(), LLDB_INVALID_REGNUM, 16);
                                 if (reg != LLDB_INVALID_REGNUM)
                                     value_regs.push_back (reg);
                             }
@@ -517,7 +518,7 @@ ProcessGDBRemote::BuildDynamicRegisterInfo (bool force)
                             value_pair = value_pair.second.split(',');
                             if (!value_pair.first.empty())
                             {
-                                uint32_t reg = Args::StringToUInt32 (value_pair.first.str().c_str(), LLDB_INVALID_REGNUM, 16);
+                                uint32_t reg = StringConvert::ToUInt32 (value_pair.first.str().c_str(), LLDB_INVALID_REGNUM, 16);
                                 if (reg != LLDB_INVALID_REGNUM)
                                     invalidate_regs.push_back (reg);
                             }
@@ -792,6 +793,18 @@ ProcessGDBRemote::DoLaunch (Module *exe_module, ProcessLaunchInfo &launch_info)
             log->Printf ("ProcessGDBRemote::%s no STDIO paths given via launch_info", __FUNCTION__);
     }
 
+    const bool disable_stdio = (launch_flags & eLaunchFlagDisableSTDIO) != 0;
+    if (stdin_path || disable_stdio)
+    {
+        // the inferior will be reading stdin from the specified file
+        // or stdio is completely disabled
+        m_stdin_forward = false;
+    }
+    else
+    {
+        m_stdin_forward = true;
+    }
+
     //  ::LogSetBitMask (GDBR_LOG_DEFAULT);
     //  ::LogSetOptions (LLDB_LOG_OPTION_THREADSAFE | LLDB_LOG_OPTION_PREPEND_TIMESTAMP | LLDB_LOG_OPTION_PREPEND_PROC_AND_THREAD);
     //  ::LogSetLogFile ("/dev/stdout");
@@ -810,13 +823,23 @@ ProcessGDBRemote::DoLaunch (Module *exe_module, ProcessLaunchInfo &launch_info)
             lldb_utility::PseudoTerminal pty;
             const bool disable_stdio = (launch_flags & eLaunchFlagDisableSTDIO) != 0;
 
-            // If the debugserver is local and we aren't disabling STDIO, lets use
-            // a pseudo terminal to instead of relying on the 'O' packets for stdio
-            // since 'O' packets can really slow down debugging if the inferior 
-            // does a lot of output.
             PlatformSP platform_sp (m_target.GetPlatform());
-            if (platform_sp && platform_sp->IsHost() && !disable_stdio)
+            if (disable_stdio)
             {
+                // set to /dev/null unless redirected to a file above
+                if (!stdin_path)
+                    stdin_path = "/dev/null";
+                if (!stdout_path)
+                    stdout_path = "/dev/null";
+                if (!stderr_path)
+                    stderr_path = "/dev/null";
+            }
+            else if (platform_sp && platform_sp->IsHost())
+            {
+                // If the debugserver is local and we aren't disabling STDIO, lets use
+                // a pseudo terminal to instead of relying on the 'O' packets for stdio
+                // since 'O' packets can really slow down debugging if the inferior
+                // does a lot of output.
                 const char *slave_name = NULL;
                 if (stdin_path == NULL || stdout_path == NULL || stderr_path == NULL)
                 {
@@ -839,21 +862,6 @@ ProcessGDBRemote::DoLaunch (Module *exe_module, ProcessLaunchInfo &launch_info)
                                  stdout_path ? stdout_path : "<null>",
                                  stderr_path ? stderr_path : "<null>");
             }
-
-            // Set STDIN to /dev/null if we want STDIO disabled or if either
-            // STDOUT or STDERR have been set to something and STDIN hasn't
-            if (disable_stdio || (stdin_path == NULL && (stdout_path || stderr_path)))
-                stdin_path = "/dev/null";
-            
-            // Set STDOUT to /dev/null if we want STDIO disabled or if either
-            // STDIN or STDERR have been set to something and STDOUT hasn't
-            if (disable_stdio || (stdout_path == NULL && (stdin_path || stderr_path)))
-                stdout_path = "/dev/null";
-            
-            // Set STDERR to /dev/null if we want STDIO disabled or if either
-            // STDIN or STDOUT have been set to something and STDERR hasn't
-            if (disable_stdio || (stderr_path == NULL && (stdin_path || stdout_path)))
-                stderr_path = "/dev/null";
 
             if (log)
                 log->Printf ("ProcessGDBRemote::%s final STDIO paths after all adjustments: stdin=%s, stdout=%s, stdout=%s",
@@ -972,9 +980,12 @@ ProcessGDBRemote::ConnectToDebugserver (const char *connect_url)
 {
     Error error;
     // Only connect if we have a valid connect URL
+    Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
     
     if (connect_url && connect_url[0])
     {
+        if (log)
+            log->Printf("ProcessGDBRemote::%s Connecting to %s", __FUNCTION__, connect_url);
         std::unique_ptr<ConnectionFileDescriptor> conn_ap(new ConnectionFileDescriptor());
         if (conn_ap.get())
         {
@@ -1656,17 +1667,17 @@ ProcessGDBRemote::SetThreadStopInfo (StringExtractor& stop_packet)
                 if (name.compare("metype") == 0)
                 {
                     // exception type in big endian hex
-                    exc_type = Args::StringToUInt32 (value.c_str(), 0, 16);
+                    exc_type = StringConvert::ToUInt32 (value.c_str(), 0, 16);
                 }
                 else if (name.compare("medata") == 0)
                 {
                     // exception data in big endian hex
-                    exc_data.push_back(Args::StringToUInt64 (value.c_str(), 0, 16));
+                    exc_data.push_back(StringConvert::ToUInt64 (value.c_str(), 0, 16));
                 }
                 else if (name.compare("thread") == 0)
                 {
                     // thread in big endian hex
-                    lldb::tid_t tid = Args::StringToUInt64 (value.c_str(), LLDB_INVALID_THREAD_ID, 16);
+                    lldb::tid_t tid = StringConvert::ToUInt64 (value.c_str(), LLDB_INVALID_THREAD_ID, 16);
                     // m_thread_list_real does have its own mutex, but we need to
                     // hold onto the mutex between the call to m_thread_list_real.FindThreadByID(...)
                     // and the m_thread_list_real.AddThread(...) so it doesn't change on us
@@ -1702,12 +1713,12 @@ ProcessGDBRemote::SetThreadStopInfo (StringExtractor& stop_packet)
                     {
                         value[comma_pos] = '\0';
                         // thread in big endian hex
-                        tid = Args::StringToUInt64 (value.c_str(), LLDB_INVALID_THREAD_ID, 16);
+                        tid = StringConvert::ToUInt64 (value.c_str(), LLDB_INVALID_THREAD_ID, 16);
                         if (tid != LLDB_INVALID_THREAD_ID)
                             m_thread_ids.push_back (tid);
                         value.erase(0, comma_pos + 1);
                     }
-                    tid = Args::StringToUInt64 (value.c_str(), LLDB_INVALID_THREAD_ID, 16);
+                    tid = StringConvert::ToUInt64 (value.c_str(), LLDB_INVALID_THREAD_ID, 16);
                     if (tid != LLDB_INVALID_THREAD_ID)
                         m_thread_ids.push_back (tid);
                 }
@@ -1726,7 +1737,7 @@ ProcessGDBRemote::SetThreadStopInfo (StringExtractor& stop_packet)
                 }
                 else if (name.compare("qaddr") == 0)
                 {
-                    thread_dispatch_qaddr = Args::StringToUInt64 (value.c_str(), 0, 16);
+                    thread_dispatch_qaddr = StringConvert::ToUInt64 (value.c_str(), 0, 16);
                 }
                 else if (name.compare("reason") == 0)
                 {
@@ -1738,7 +1749,8 @@ ProcessGDBRemote::SetThreadStopInfo (StringExtractor& stop_packet)
                     // Swap "value" over into "name_extractor"
                     desc_extractor.GetStringRef().swap(value);
                     // Now convert the HEX bytes into a string value
-                    desc_extractor.GetHexByteString (thread_name);
+                    desc_extractor.GetHexByteString (value);
+                    description.swap(value);
                 }
                 else if (name.size() == 2 && ::isxdigit(name[0]) && ::isxdigit(name[1]))
                 {
@@ -1747,7 +1759,7 @@ ProcessGDBRemote::SetThreadStopInfo (StringExtractor& stop_packet)
                     // so it won't have to go and read it.
                     if (gdb_thread)
                     {
-                        uint32_t reg = Args::StringToUInt32 (name.c_str(), UINT32_MAX, 16);
+                        uint32_t reg = StringConvert::ToUInt32 (name.c_str(), UINT32_MAX, 16);
 
                         if (reg != UINT32_MAX)
                         {
@@ -1787,6 +1799,10 @@ ProcessGDBRemote::SetThreadStopInfo (StringExtractor& stop_packet)
             {
                 // Clear the stop info just in case we don't set it to anything
                 thread_sp->SetStopInfo (StopInfoSP());
+                // If there's a memory thread backed by this thread, we need to use it to calcualte StopInfo.
+                ThreadSP memory_thread_sp = m_thread_list.FindThreadByProtocolID(thread_sp->GetProtocolID());
+                if (memory_thread_sp)
+                    thread_sp = memory_thread_sp;
 
                 gdb_thread->SetThreadDispatchQAddr (thread_dispatch_qaddr);
                 gdb_thread->SetName (thread_name.empty() ? NULL : thread_name.c_str());
@@ -1839,8 +1855,24 @@ ProcessGDBRemote::SetThreadStopInfo (StringExtractor& stop_packet)
                         }
                         else if (reason.compare("watchpoint") == 0)
                         {
-                            break_id_t watch_id = LLDB_INVALID_WATCH_ID;
-                            // TODO: locate the watchpoint somehow...
+                            StringExtractor desc_extractor(description.c_str());
+                            addr_t wp_addr = desc_extractor.GetU64(LLDB_INVALID_ADDRESS);
+                            uint32_t wp_index = desc_extractor.GetU32(LLDB_INVALID_INDEX32);
+                            watch_id_t watch_id = LLDB_INVALID_WATCH_ID;
+                            if (wp_addr != LLDB_INVALID_ADDRESS)
+                            {
+                                WatchpointSP wp_sp = GetTarget().GetWatchpointList().FindByAddress(wp_addr);
+                                if (wp_sp)
+                                {
+                                    wp_sp->SetHardwareIndex(wp_index);
+                                    watch_id = wp_sp->GetID();
+                                }
+                            }
+                            if (watch_id == LLDB_INVALID_WATCH_ID)
+                            {
+                                Log *log (ProcessGDBRemoteLog::GetLogIfAllCategoriesSet (GDBR_LOG_WATCHPOINTS));
+                                if (log) log->Printf ("failed to find watchpoint");
+                            }
                             thread_sp->SetStopInfo (StopInfo::CreateStopReasonWithWatchpointID (*thread_sp, watch_id));
                             handled = true;
                         }
@@ -2456,6 +2488,10 @@ ProcessGDBRemote::PutSTDIN (const char *src, size_t src_len, Error &error)
         ConnectionStatus status;
         m_stdio_communication.Write(src, src_len, status, NULL);
     }
+    else if (m_stdin_forward)
+    {
+        m_gdb_comm.SendStdinNotification(src, src_len);
+    }
     return 0;
 }
 
@@ -2760,6 +2796,10 @@ ProcessGDBRemote::LaunchAndConnectToDebugserver (const ProcessInfo &process_info
         static FileSpec g_debugserver_file_spec;
 
         ProcessLaunchInfo debugserver_launch_info;
+        // Make debugserver run in its own session so signals generated by
+        // special terminal key sequences (^C) don't affect debugserver.
+        debugserver_launch_info.SetLaunchInSeparateProcessGroup(true);
+
         debugserver_launch_info.SetMonitorProcessCallback (MonitorDebugserverProcess, this, false);
         debugserver_launch_info.SetUserID(process_info.GetUserID());
 

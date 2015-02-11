@@ -2,233 +2,106 @@
 Test that the lldb-mi driver understands an MI breakpoint command.
 """
 
-import os
-import unittest2
-import lldb
+import lldbmi_testcase
 from lldbtest import *
+import unittest2
 
-class MiBreakpointTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
-    myexe = "a.out"
-
-    @classmethod
-    def classCleanup(cls):
-        """Cleanup the test byproducts."""
-        try:
-            os.remove("child_send.txt")
-            os.remove("child_read.txt")
-            os.remove(cls.myexe)
-        except:
-            pass
+class MiBreakpointTestCase(lldbmi_testcase.MiTestCaseBase):
 
     @lldbmi_test
+    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
     def test_lldbmi_pendbreakonsym(self):
         """Test that 'lldb-mi --interpreter' works for pending symbol breakpoints."""
-        import pexpect
-        self.buildDefault()
 
-        # The default lldb-mi prompt (seriously?!).
-        prompt = "(gdb)"
+        self.spawnLldbMi(args = None)
 
-        # So that the child gets torn down after the test.
-        self.child = pexpect.spawn('%s --interpreter' % (self.lldbMiExec))
-        child = self.child
-        child.setecho(True)
-        # Turn on logging for input/output to/from the child.
-        with open('child_send.txt', 'w') as f_send:
-            with open('child_read.txt', 'w') as f_read:
-                child.logfile_send = f_send
-                child.logfile_read = f_read
+        self.runCmd("-file-exec-and-symbols %s" % self.myexe)
+        self.expect("\^done")
 
-                child.send("-file-exec-and-symbols " + self.myexe)
-                child.sendline('')
-                child.expect("\^done")
+        self.runCmd("-break-insert -f b_MyFunction")
+        self.expect("\^done,bkpt={number=\"1\"")
 
-                child.send("-break-insert -f a_MyFunction")
-                child.sendline('')
-                child.expect("\^done,bkpt={number=\"1\"")
+        self.runCmd("-exec-run")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
-                child.send("-exec-run")
-                child.sendline('') # FIXME: lldb-mi hangs here, so the extra return below is needed
-                child.send("")
-                child.sendline('')
-                child.expect("\^running")
-                child.expect("\*stopped,reason=\"breakpoint-hit\"")
-
-                child.send("-exec-continue")
-                child.sendline('')
-                child.expect("\^running")
-                child.expect("\*stopped,reason=\"exited-normally\"")
-                child.expect_exact(prompt)
-
-                child.send("quit")
-                child.sendline('')
-
-        # Now that the necessary logging is done, restore logfile to None to
-        # stop further logging.
-        child.logfile_send = None
-        child.logfile_read = None
-        
-        with open('child_send.txt', 'r') as fs:
-            if self.TraceOn():
-                print "\n\nContents of child_send.txt:"
-                print fs.read()
-        with open('child_read.txt', 'r') as fr:
-            from_child = fr.read()
-            if self.TraceOn():
-                print "\n\nContents of child_read.txt:"
-                print from_child
-
-            self.expect(from_child, exe=False,
-                substrs = ["breakpoint-hit"])
+        self.runCmd("-exec-continue")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"exited-normally\"")
 
     @lldbmi_test
+    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
     def test_lldbmi_pendbreakonsrc(self):
         """Test that 'lldb-mi --interpreter' works for pending source breakpoints."""
-        import pexpect
-        self.buildDefault()
 
-        # The default lldb-mi prompt (seriously?!).
-        prompt = "(gdb)"
+        self.spawnLldbMi(args = None)
 
-        # So that the child gets torn down after the test.
-        self.child = pexpect.spawn('%s --interpreter' % (self.lldbMiExec))
-        child = self.child
-        child.setecho(True)
-        # Turn on logging for input/output to/from the child.
-        with open('child_send.txt', 'w') as f_send:
-            with open('child_read.txt', 'w') as f_read:
-                child.logfile_send = f_send
-                child.logfile_read = f_read
+        self.runCmd("-file-exec-and-symbols %s" % self.myexe)
+        self.expect("\^done")
 
-                child.send("-file-exec-and-symbols " + self.myexe)
-                child.sendline('')
-                child.expect("\^done")
+        # Find the line number to break inside main() and set
+        # pending BP
+        line = line_number('main.c', '//BP_source')
+        self.runCmd("-break-insert -f main.c:%d" % line)
+        self.expect("\^done,bkpt={number=\"1\"")
 
-                child.send("-break-insert -f main.c:22")
-                child.sendline('')
-                child.expect("\^done,bkpt={number=\"1\"")
+        self.runCmd("-exec-run")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
-                child.send("-exec-run")
-                child.sendline('') # FIXME: lldb-mi hangs here, so the extra return below is needed
-                child.send("")
-                child.sendline('')
-                child.expect("\^running")
-                child.expect("\*stopped,reason=\"breakpoint-hit\"")
-
-                child.send("-exec-continue")
-                child.sendline('')
-                child.expect("\^running")
-                child.expect("\*stopped,reason=\"exited-normally\"")
-                child.expect_exact(prompt)
-
-                child.send("quit")
-                child.sendline('')
-
-        # Now that the necessary logging is done, restore logfile to None to
-        # stop further logging.
-        child.logfile_send = None
-        child.logfile_read = None
-        
-        with open('child_send.txt', 'r') as fs:
-            if self.TraceOn():
-                print "\n\nContents of child_send.txt:"
-                print fs.read()
-        with open('child_read.txt', 'r') as fr:
-            from_child = fr.read()
-            if self.TraceOn():
-                print "\n\nContents of child_read.txt:"
-                print from_child
-
-            self.expect(from_child, exe=False,
-                substrs = ["breakpoint-hit"])
+        self.runCmd("-exec-continue")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"exited-normally\"")
 
     @lldbmi_test
+    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
     def test_lldbmi_breakpoints(self):
         """Test that 'lldb-mi --interpreter' works for breakpoints."""
-        import pexpect
-        self.buildDefault()
 
-        # The default lldb-mi prompt (seriously?!).
-        prompt = "(gdb)"
+        self.spawnLldbMi(args = None)
 
-        # So that the child gets torn down after the test.
-        self.child = pexpect.spawn('%s --interpreter' % (self.lldbMiExec))
-        child = self.child
-        child.setecho(True)
-        # Turn on logging for input/output to/from the child.
-        with open('child_send.txt', 'w') as f_send:
-            with open('child_read.txt', 'w') as f_read:
-                child.logfile_send = f_send
-                child.logfile_read = f_read
+        self.runCmd("-file-exec-and-symbols %s" % self.myexe)
+        self.expect("\^done")
 
-                child.send("-file-exec-and-symbols " + self.myexe)
-                child.sendline('')
-                child.expect("\^done")
+        self.runCmd("-break-insert -f main")
+        self.expect("\^done,bkpt={number=\"1\"")
 
-                child.send("-break-insert -f main")
-                child.sendline('')
-                child.expect("\^done,bkpt={number=\"1\"")
+        self.runCmd("-exec-run")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
-                child.send("-exec-run")
-                child.sendline('') # FIXME: lldb-mi hangs here, so the extra return below is needed
-                child.send("")
-                child.sendline('')
-                child.expect("\^running")
-                child.expect("\*stopped,reason=\"breakpoint-hit\"")
+        # Break on symbol
+        self.runCmd("-break-insert b_MyFunction")
+        self.expect("\^done,bkpt={number=\"2\"")
 
-                #break on symbol
-                child.send("-break-insert a_MyFunction")
-                child.sendline('')
-                child.expect("\^done,bkpt={number=\"2\"")
+        self.runCmd("-exec-continue")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
-                child.send("-exec-continue")
-                child.sendline('')
-                child.expect("\^running")
-                child.expect("\*stopped,reason=\"breakpoint-hit\"")
+        # Break on source
+        line = line_number('main.c', '//BP_source')
+        self.runCmd("-break-insert main.c:%d" % line)
+        self.expect("\^done,bkpt={number=\"3\"")
 
-                #break on source
-                child.send("-break-insert main.c:29")
-                child.sendline('')
-                child.expect("\^done,bkpt={number=\"3\"")
+        # Check with full path. TODO, figure out why this commands fails
+        # if -f is not given
+        line = line_number('main.c', '// BP_doloop')
+        full_path = os.path.join(os.getcwd(), "main.c")
+        self.runCmd("-break-insert -f %s:%d" % (full_path, line))
+        self.expect("\^done,bkpt={number=\"4\"")
 
-                child.send("-exec-continue")
-                child.sendline('')
-                child.expect("\^running")
-                child.expect("\*stopped,reason=\"breakpoint-hit\"")
+        self.runCmd("-exec-continue")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
-                #run to exit
-                child.send("-exec-continue")
-                child.sendline('')
-                child.expect("\^running")
-                child.expect("\*stopped,reason=\"exited-normally\"")
-                child.expect_exact(prompt)
+        self.runCmd("-exec-continue")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
-                child.send("quit")
-                child.sendline('')
-
-        # Now that the necessary logging is done, restore logfile to None to
-        # stop further logging.
-        child.logfile_send = None
-        child.logfile_read = None
-        
-        with open('child_send.txt', 'r') as fs:
-            if self.TraceOn():
-                print "\n\nContents of child_send.txt:"
-                print fs.read()
-        with open('child_read.txt', 'r') as fr:
-            from_child = fr.read()
-            if self.TraceOn():
-                print "\n\nContents of child_read.txt:"
-                print from_child
-
-            self.expect(from_child, exe=False,
-                substrs = ["breakpoint-hit"])
-
+        # Run to exit
+        self.runCmd("-exec-continue")
+        self.expect("\^running")
+        self.expect("\*stopped,reason=\"exited-normally\"")
 
 if __name__ == '__main__':
-    import atexit
-    lldb.SBDebugger.Initialize()
-    atexit.register(lambda: lldb.SBDebugger.Terminate())
     unittest2.main()

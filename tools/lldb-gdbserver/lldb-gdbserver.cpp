@@ -31,12 +31,14 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Host/ConnectionFileDescriptor.h"
 #include "lldb/Host/HostThread.h"
+#include "lldb/Host/Pipe.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Host/Socket.h"
+#include "lldb/Host/StringConvert.h"
 #include "lldb/Host/ThreadLauncher.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
-#include "Plugins/Process/gdb-remote/GDBRemoteCommunicationServer.h"
+#include "Plugins/Process/gdb-remote/GDBRemoteCommunicationServerLLGS.h"
 #include "Plugins/Process/gdb-remote/ProcessGDBRemoteLog.h"
 
 #ifndef LLGS_PROGRAM_NAME
@@ -201,7 +203,7 @@ setup_platform (const std::string &platform_name)
 }
 
 void
-handle_attach_to_pid (GDBRemoteCommunicationServer &gdb_server, lldb::pid_t pid)
+handle_attach_to_pid (GDBRemoteCommunicationServerLLGS &gdb_server, lldb::pid_t pid)
 {
     Error error = gdb_server.AttachToProcess (pid);
     if (error.Fail ())
@@ -212,13 +214,13 @@ handle_attach_to_pid (GDBRemoteCommunicationServer &gdb_server, lldb::pid_t pid)
 }
 
 void
-handle_attach_to_process_name (GDBRemoteCommunicationServer &gdb_server, const std::string &process_name)
+handle_attach_to_process_name (GDBRemoteCommunicationServerLLGS &gdb_server, const std::string &process_name)
 {
     // FIXME implement.
 }
 
 void
-handle_attach (GDBRemoteCommunicationServer &gdb_server, const std::string &attach_target)
+handle_attach (GDBRemoteCommunicationServerLLGS &gdb_server, const std::string &attach_target)
 {
     assert (!attach_target.empty () && "attach_target cannot be empty");
 
@@ -234,7 +236,7 @@ handle_attach (GDBRemoteCommunicationServer &gdb_server, const std::string &atta
 }
 
 void
-handle_launch (GDBRemoteCommunicationServer &gdb_server, int argc, const char *const argv[])
+handle_launch (GDBRemoteCommunicationServerLLGS &gdb_server, int argc, const char *const argv[])
 {
     Error error;
     error = gdb_server.SetLaunchArguments (argv, argc);
@@ -306,8 +308,25 @@ JoinListenThread ()
     return true;
 }
 
+Error
+writePortToPipe (const char *const named_pipe_path, const uint16_t port)
+{
+    Pipe port_name_pipe;
+    // Wait for 10 seconds for pipe to be opened.
+    auto error = port_name_pipe.OpenAsWriterWithTimeout (named_pipe_path, false, std::chrono::microseconds (10 * 1000000));
+    if (error.Fail ())
+        return error;
+
+    char port_str[64];
+    const auto port_str_len = ::snprintf (port_str, sizeof (port_str), "%u", port);
+
+    size_t bytes_written = 0;
+    // Write the port number as a C string with the NULL terminator.
+    return port_name_pipe.Write (port_str, port_str_len + 1, bytes_written);
+}
+
 void
-ConnectToRemote (GDBRemoteCommunicationServer &gdb_server, bool reverse_connect, const char *const host_and_port, const char *const progname, const char *const named_pipe_path)
+ConnectToRemote (GDBRemoteCommunicationServerLLGS &gdb_server, bool reverse_connect, const char *const host_and_port, const char *const progname, const char *const named_pipe_path)
 {
     Error error;
 
@@ -329,7 +348,7 @@ ConnectToRemote (GDBRemoteCommunicationServer &gdb_server, bool reverse_connect,
         {
             connection_host = final_host_and_port.substr (0, colon_pos);
             connection_port = final_host_and_port.substr (colon_pos + 1);
-            connection_portno = Args::StringToUInt32 (connection_port.c_str (), 0);
+            connection_portno = StringConvert::ToUInt32 (connection_port.c_str (), 0);
         }
         else
         {
@@ -383,24 +402,18 @@ ConnectToRemote (GDBRemoteCommunicationServer &gdb_server, bool reverse_connect,
             // If we have a named pipe to write the port number back to, do that now.
             if (named_pipe_path && named_pipe_path[0] && connection_portno == 0)
             {
-                // FIXME use new generic named pipe support.
-                int fd = ::open(named_pipe_path, O_WRONLY);
-                const uint16_t bound_port = s_listen_connection_up->GetListeningPort(10);
-                if (fd > -1 && bound_port > 0)
+                const uint16_t bound_port = s_listen_connection_up->GetListeningPort (10);
+                if (bound_port > 0)
                 {
-
-                    char port_str[64];
-                    const ssize_t port_str_len = ::snprintf (port_str, sizeof(port_str), "%u", bound_port);
-                    // Write the port number as a C string with the NULL terminator.
-                    ::write (fd, port_str, port_str_len + 1);
-                    close (fd);
+                    error = writePortToPipe (named_pipe_path, bound_port);
+                    if (error.Fail ())
+                    {
+                        fprintf (stderr, "failed to write to the named pipe \'%s\': %s", named_pipe_path, error.AsCString());
+                    }
                 }
                 else
                 {
-                    if (fd < 0)
-                        fprintf (stderr, "failed to open named pipe '%s' for writing\n", named_pipe_path);
-                    else
-                        fprintf(stderr, "unable to get the bound port for the listening connection\n");
+                    fprintf (stderr, "unable to get the bound port for the listening connection\n");
                 }
             }
 
@@ -415,7 +428,7 @@ ConnectToRemote (GDBRemoteCommunicationServer &gdb_server, bool reverse_connect,
             // Ensure we connected.
             if (s_listen_connection_up)
             {
-                printf ("Connection established.\n");
+                printf ("Connection established '%s'\n", s_listen_connection_up->GetURI().c_str());
                 gdb_server.SetConnection (s_listen_connection_up.release());
             }
             else
@@ -627,6 +640,15 @@ main (int argc, char *argv[])
             log_args.AppendArgument("default");
         ProcessGDBRemoteLog::EnableLog (log_stream_sp, 0,log_args.GetConstArgumentVector(), log_stream_sp.get());
     }
+    Log *log(lldb_private::GetLogIfAnyCategoriesSet (GDBR_LOG_VERBOSE));
+    if (log)
+    {
+        log->Printf ("lldb-gdbserver launch");
+        for (int i = 0; i < argc; i++)
+        {
+            log->Printf ("argv[%i] = '%s'", i, argv[i]);
+        }
+    }
 
     // Skip any options we consumed with getopt_long_only.
     argc -= optind;
@@ -641,11 +663,10 @@ main (int argc, char *argv[])
     // Run any commands requested.
     run_lldb_commands (debugger_sp, lldb_commands);
 
-    // Setup the platform that GDBRemoteCommunicationServer will use.
+    // Setup the platform that GDBRemoteCommunicationServerLLGS will use.
     lldb::PlatformSP platform_sp = setup_platform (platform_name);
 
-    const bool is_platform = false;
-    GDBRemoteCommunicationServer gdb_server (is_platform, platform_sp, debugger_sp);
+    GDBRemoteCommunicationServerLLGS gdb_server (platform_sp, debugger_sp);
 
     const char *const host_and_port = argv[0];
     argc -= 1;
