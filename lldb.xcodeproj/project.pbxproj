@@ -843,7 +843,7 @@
 		9AC703B1117675490086C050 /* SBInstructionList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AC703B0117675490086C050 /* SBInstructionList.cpp */; };
 		A36FF33C17D8E94600244D40 /* OptionParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A36FF33B17D8E94600244D40 /* OptionParser.cpp */; };
 		AE8F624919EF3E1E00326B21 /* OperatingSystemGo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */; };
-		AE8F624A19EF3E1E00326B21 /* OperatingSystemGo.h in Headers */ = {isa = PBXBuildFile; fileRef = AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */; };
+		AEB74D931A8C1BE300FE1A4A /* OperatingSystemGo.h in Headers */ = {isa = PBXBuildFile; fileRef = AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */; };
 		AF061F87182C97ED00B6A19C /* RegisterContextHistory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */; };
 		AF061F88182C97ED00B6A19C /* RegisterContextHistory.h in Headers */ = {isa = PBXBuildFile; fileRef = AF061F86182C97ED00B6A19C /* RegisterContextHistory.h */; };
 		AF061F8B182C980000B6A19C /* HistoryThread.h in Headers */ = {isa = PBXBuildFile; fileRef = AF061F89182C980000B6A19C /* HistoryThread.h */; };
@@ -884,7 +884,6 @@
 		AF77E0A01A033D360096C0EA /* RegisterContext_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E0991A033D360096C0EA /* RegisterContext_powerpc.h */; };
 		AF77E0A11A033D360096C0EA /* RegisterContextFreeBSD_powerpc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E09A1A033D360096C0EA /* RegisterContextFreeBSD_powerpc.cpp */; };
 		AF77E0A21A033D360096C0EA /* RegisterContextFreeBSD_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E09B1A033D360096C0EA /* RegisterContextFreeBSD_powerpc.h */; };
-		AF77E0A31A033D360096C0EA /* RegisterContextMacOSXFrameBackchain.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E09C1A033D360096C0EA /* RegisterContextMacOSXFrameBackchain.cpp */; };
 		AF77E0A41A033D360096C0EA /* RegisterContextPOSIX_powerpc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF77E09D1A033D360096C0EA /* RegisterContextPOSIX_powerpc.cpp */; };
 		AF77E0A51A033D360096C0EA /* RegisterContextPOSIX_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E09E1A033D360096C0EA /* RegisterContextPOSIX_powerpc.h */; };
 		AF77E0A61A033D360096C0EA /* RegisterInfos_powerpc.h in Headers */ = {isa = PBXBuildFile; fileRef = AF77E09F1A033D360096C0EA /* RegisterInfos_powerpc.h */; };
@@ -911,8 +910,8 @@
 		B2A58724143119D50092BFBA /* SBWatchpoint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B2A58723143119D50092BFBA /* SBWatchpoint.cpp */; };
 		B2B7CCEB15D1BD6700EEFB57 /* CommandObjectWatchpointCommand.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B2B7CCEA15D1BD6600EEFB57 /* CommandObjectWatchpointCommand.cpp */; };
 		B2B7CCF015D1C20F00EEFB57 /* WatchpointOptions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B2B7CCEF15D1C20F00EEFB57 /* WatchpointOptions.cpp */; };
-		ED4AFF45199C2218004FFDC6 /* com.apple.lldb.launcherRootXPCService.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = EDE274EC14EDCE1F005B0F75 /* com.apple.lldb.launcherRootXPCService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		ED4AFF46199C2224004FFDC6 /* com.apple.lldb.launcherXPCService.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = EDC6D49914E5C19B001B75F8 /* com.apple.lldb.launcherXPCService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		ED4AFF45199C2218004FFDC6 /* com.apple.lldb.launcherRootXPCService.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = EDE274EC14EDCE1F005B0F75 /* com.apple.lldb.launcherRootXPCService.xpc */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		ED4AFF46199C2224004FFDC6 /* com.apple.lldb.launcherXPCService.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = EDC6D49914E5C19B001B75F8 /* com.apple.lldb.launcherXPCService.xpc */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		ED88244E15114A9200BC98B9 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EDB919B414F6F10D008FF64B /* Security.framework */; };
 		ED88245015114CA200BC98B9 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = ED88244F15114CA200BC98B9 /* main.mm */; };
 		ED88245115114CA200BC98B9 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = ED88244F15114CA200BC98B9 /* main.mm */; };
@@ -5217,10 +5216,9 @@
 				AF2BCA6D18C7EFDE005B4526 /* JITLoaderGDB.h in Headers */,
 				232CB61E191E00CD00EF39FC /* SoftwareBreakpoint.h in Headers */,
 				26BC17B218C7F4CB00D2196D /* ThreadElfCore.h in Headers */,
-				AE8F624A19EF3E1E00326B21 /* OperatingSystemGo.h in Headers */,
+				AEB74D931A8C1BE300FE1A4A /* OperatingSystemGo.h in Headers */,
 				AF77E0A51A033D360096C0EA /* RegisterContextPOSIX_powerpc.h in Headers */,
 				AF77E0A61A033D360096C0EA /* RegisterInfos_powerpc.h in Headers */,
-				AE8F624A19EF3E1E00326B21 /* OperatingSystemGo.h in Headers */,
 				26FFC19E14FC072100087D58 /* DynamicLoaderPOSIXDYLD.h in Headers */,
 				AF254E32170CCC33007AE5C9 /* PlatformDarwinKernel.h in Headers */,
 				2694E99E14FC0BB30076DE67 /* PlatformFreeBSD.h in Headers */,
@@ -6217,7 +6215,6 @@
 				94CD7D0919A3FBA300908B7C /* AppleObjCClassDescriptorV2.cpp in Sources */,
 				265205A813D3E3F700132FE2 /* RegisterContextKDP_arm.cpp in Sources */,
 				265205AA13D3E3F700132FE2 /* RegisterContextKDP_i386.cpp in Sources */,
-				AF77E0A31A033D360096C0EA /* RegisterContextMacOSXFrameBackchain.cpp in Sources */,
 				265205AC13D3E3F700132FE2 /* RegisterContextKDP_x86_64.cpp in Sources */,
 				2628A4D513D4977900F5487A /* ThreadKDP.cpp in Sources */,
 				26D7E45D13D5E30A007FD12B /* SocketAddress.cpp in Sources */,

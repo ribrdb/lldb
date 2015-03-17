@@ -203,7 +203,7 @@ OperatingSystemGo::Init(ThreadList &threads)
             std::string field_name;
             uint64_t bit_offset = 0;
             ClangASTType field_type = gobuf_type.GetFieldAtIndex(field_index, field_name, &bit_offset, nullptr, nullptr);
-            reg.byte_size = field_type.GetByteSize();
+            reg.byte_size = field_type.GetByteSize(nullptr);
             reg.byte_offset = bit_offset / 8;
         }
         ConstString name(reg.name);
@@ -278,6 +278,8 @@ OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &rea
         ThreadSP memory_thread = old_thread_list.FindThreadByID(goroutine.m_goid, false);
         if (memory_thread && IsOperatingSystemPluginThread(memory_thread) && memory_thread->IsValid())
         {
+            memory_thread->ClearBackingThread();
+        } else {
             memory_thread.reset(new ThreadMemory(*m_process, goroutine.m_goid, nullptr, nullptr, goroutine.m_gobuf));
         }
         // Search for the backing thread if the goroutine is running.
