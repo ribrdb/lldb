@@ -5,7 +5,10 @@ Test that the lldb driver's batch mode works correctly.
 import os, time
 import unittest2
 import lldb
-import pexpect
+try:
+    import pexpect
+except:
+    pexpect = None
 from lldbtest import *
 
 class DriverBatchModeTest (TestBase):
@@ -22,6 +25,7 @@ class DriverBatchModeTest (TestBase):
         self.batch_mode ()
 
     @unittest2.expectedFailure("<rdar://problem/18684124>, lldb doesn't reliably print the prompt when run under pexpect")
+    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
     @dwarf_test
     def test_driver_batch_mode_with_dwarf(self):
         """Test that the lldb driver's batch mode works correctly."""
@@ -50,7 +54,7 @@ class DriverBatchModeTest (TestBase):
         prompt = "(lldb) "
 
         # First time through, pass CRASH so the process will crash and stop in batch mode.
-        run_commands = ' -b -o "break set -n main" -o "run" -o "continue" '
+        run_commands = ' -b -o "break set -n main" -o "run" -o "continue" -k "frame var touch_me_not"'
         self.child = pexpect.spawn('%s %s %s %s -- CRASH' % (self.lldbHere, self.lldbOption, run_commands, exe))
         child = self.child
         # Turn on logging for what the child sends back.
@@ -63,6 +67,8 @@ class DriverBatchModeTest (TestBase):
         self.expect_string ("continue")
         # The App should have crashed:
         self.expect_string("About to crash")
+        # The -k option should have printed the frame variable once:
+        self.expect_string ('(char *) touch_me_not')
         # Then we should have a live prompt:
         self.expect_string (prompt)
         self.child.sendline("frame variable touch_me_not")

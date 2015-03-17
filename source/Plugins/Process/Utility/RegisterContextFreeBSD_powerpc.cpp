@@ -134,6 +134,45 @@ typedef struct _FPR
     uint64_t fpscr;
 } FPR;
 
+typedef struct _VMX
+{
+    uint32_t v0[4];
+    uint32_t v1[4];
+    uint32_t v2[4];
+    uint32_t v3[4];
+    uint32_t v4[4];
+    uint32_t v5[4];
+    uint32_t v6[4];
+    uint32_t v7[4];
+    uint32_t v8[4];
+    uint32_t v9[4];
+    uint32_t v10[4];
+    uint32_t v11[4];
+    uint32_t v12[4];
+    uint32_t v13[4];
+    uint32_t v14[4];
+    uint32_t v15[4];
+    uint32_t v16[4];
+    uint32_t v17[4];
+    uint32_t v18[4];
+    uint32_t v19[4];
+    uint32_t v20[4];
+    uint32_t v21[4];
+    uint32_t v22[4];
+    uint32_t v23[4];
+    uint32_t v24[4];
+    uint32_t v25[4];
+    uint32_t v26[4];
+    uint32_t v27[4];
+    uint32_t v28[4];
+    uint32_t v29[4];
+    uint32_t v30[4];
+    uint32_t v31[4];
+    uint32_t pad[2];
+    uint32_t vrsave;
+    uint32_t vscr;
+} VMX;
+
 //---------------------------------------------------------------------------
 // Include RegisterInfos_powerpc to declare our g_register_infos_powerpc structure.
 //---------------------------------------------------------------------------
@@ -153,7 +192,8 @@ RegisterContextFreeBSD_powerpc::~RegisterContextFreeBSD_powerpc()
 size_t
 RegisterContextFreeBSD_powerpc::GetGPRSize() const
 {
-    return sizeof(GPR64);
+    // This is an 'abstract' base, so no GPR struct.
+    return 0;
 }
 
 const RegisterInfo *
@@ -217,6 +257,8 @@ const RegisterInfo *
 RegisterContextFreeBSD_powerpc64::GetRegisterInfo() const
 {
     //assert (m_target_arch.GetCore() == ArchSpec::eCore_powerpc);
+    if (m_target_arch.GetMachine() == llvm::Triple::ppc)
+        return g_register_infos_powerpc64_32;
     return g_register_infos_powerpc64;
 }
 

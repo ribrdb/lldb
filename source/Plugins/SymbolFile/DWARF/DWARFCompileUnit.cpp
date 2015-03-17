@@ -13,6 +13,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/Stream.h"
 #include "lldb/Core/Timer.h"
+#include "lldb/Host/StringConvert.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/ObjectFile.h"
@@ -772,7 +773,7 @@ DWARFCompileUnit::Index (const uint32_t cu_idx,
                     
                 case DW_AT_specification:
                     if (attributes.ExtractFormValueAtIndex(m_dwarf2Data, i, form_value))
-                        specification_die_offset = form_value.Reference(this);
+                        specification_die_offset = form_value.Reference();
                     break;
                 }
             }
@@ -992,11 +993,11 @@ DWARFCompileUnit::ParseProducerInfo ()
                 {
                     std::string str;
                     if (regex_match.GetMatchAtIndex (producer_cstr, 1, str))
-                        m_producer_version_major = Args::StringToUInt32(str.c_str(), UINT32_MAX, 10);
+                        m_producer_version_major = StringConvert::ToUInt32(str.c_str(), UINT32_MAX, 10);
                     if (regex_match.GetMatchAtIndex (producer_cstr, 2, str))
-                        m_producer_version_minor = Args::StringToUInt32(str.c_str(), UINT32_MAX, 10);
+                        m_producer_version_minor = StringConvert::ToUInt32(str.c_str(), UINT32_MAX, 10);
                     if (regex_match.GetMatchAtIndex (producer_cstr, 3, str))
-                        m_producer_version_update = Args::StringToUInt32(str.c_str(), UINT32_MAX, 10);
+                        m_producer_version_update = StringConvert::ToUInt32(str.c_str(), UINT32_MAX, 10);
                 }
                 m_producer = eProducerClang;
             }

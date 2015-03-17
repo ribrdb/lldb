@@ -31,6 +31,7 @@ OK
 $ 
 """
 
+import abc
 import os, sys, traceback
 import os.path
 import re
@@ -41,6 +42,7 @@ import time
 import types
 import unittest2
 import lldb
+from _pyio import __metaclass__
 
 # See also dotest.parseOptionsAndInitTestdirs(), where the environment variables
 # LLDB_COMMAND_TRACE and LLDB_DO_CLEANUP are set from '-t' and '-r dir' options.
@@ -233,6 +235,78 @@ class recording(StringIO.StringIO):
             print >> self.session, self.getvalue()
         self.close()
 
+class _BaseProcess(object):
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractproperty
+    def pid(self):
+        """Returns process PID if has been launched already."""
+
+    @abc.abstractmethod
+    def launch(self, executable, args):
+        """Launches new process with given executable and args."""
+
+    @abc.abstractmethod
+    def terminate(self):
+        """Terminates previously launched process.."""
+
+class _LocalProcess(_BaseProcess):
+
+    def __init__(self, trace_on):
+        self._proc = None
+        self._trace_on = trace_on
+
+    @property
+    def pid(self):
+        return self._proc.pid
+
+    def launch(self, executable, args):
+        self._proc = Popen([executable] + args,
+                           stdout = open(os.devnull) if not self._trace_on else None,
+                           stdin = PIPE)
+
+    def terminate(self):
+        if self._proc.poll() == None:
+            self._proc.terminate()
+
+class _RemoteProcess(_BaseProcess):
+
+    def __init__(self):
+        self._pid = None
+
+    @property
+    def pid(self):
+        return self._pid
+
+    def launch(self, executable, args):
+        remote_work_dir = lldb.remote_platform.GetWorkingDirectory()
+        src_path = executable
+        dst_path = os.path.join(remote_work_dir, os.path.basename(executable))
+
+        dst_file_spec = lldb.SBFileSpec(dst_path, False)
+        err = lldb.remote_platform.Install(lldb.SBFileSpec(src_path, True),
+                                           dst_file_spec)
+        if err.Fail():
+            raise Exception("remote_platform.Install('%s', '%s') failed: %s" % (src_path, dst_path, err))
+
+        launch_info = lldb.SBLaunchInfo(args)
+        launch_info.SetExecutableFile(dst_file_spec, True)
+        launch_info.SetWorkingDirectory(remote_work_dir)
+
+        # Redirect stdout and stderr to /dev/null
+        launch_info.AddSuppressFileAction(1, False, True)
+        launch_info.AddSuppressFileAction(2, False, True)
+
+        err = lldb.remote_platform.Launch(launch_info)
+        if err.Fail():
+            raise Exception("remote_platform.Launch('%s', '%s') failed: %s" % (dst_path, args, err))
+        self._pid = launch_info.GetProcessID()
+
+    def terminate(self):
+        err = lldb.remote_platform.Kill(self._pid)
+        if err.Fail():
+            raise Exception("remote_platform.Kill(%d) failed: %s" % (self._pid, err))
+
 # From 2.7's subprocess.check_output() convenience function.
 # Return a tuple (stdoutdata, stderrdata).
 def system(commands, **kwargs):
@@ -332,6 +406,23 @@ def python_api_test(func):
 
     # Mark this function as such to separate them from lldb command line tests.
     wrapper.__python_api_test__ = True
+    return wrapper
+
+def lldbmi_test(func):
+    """Decorate the item as a lldb-mi only test."""
+    if isinstance(func, type) and issubclass(func, unittest2.TestCase):
+        raise Exception("@lldbmi_test can only be used to decorate a test method")
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        try:
+            if lldb.dont_do_lldbmi_test:
+                self.skipTest("lldb-mi tests")
+        except AttributeError:
+            pass
+        return func(self, *args, **kwargs)
+
+    # Mark this function as such to separate them from lldb command line tests.
+    wrapper.__lldbmi_test__ = True
     return wrapper
 
 def benchmarks_test(func):
@@ -499,6 +590,14 @@ def expectedFailureFreeBSD(bugnumber=None, compilers=None):
 def expectedFailureLinux(bugnumber=None, compilers=None):
     if bugnumber: return expectedFailureOS('linux', bugnumber, compilers)
 
+def expectedFailureWindows(bugnumber=None, compilers=None):
+    if bugnumber: return expectedFailureOS('win32', bugnumber, compilers)
+
+def expectedFailureLLGS(bugnumber=None, compilers=None):
+    def fn(self):
+        return 'PLATFORM_LINUX_FORCE_LLGS_LOCAL' in os.environ and self.expectedCompiler(compilers)
+    if bugnumber: return expectedFailure(fn, bugnumber)
+
 def skipIfRemote(func):
     """Decorate the item to skip tests if testing remotely."""
     if isinstance(func, type) and issubclass(func, unittest2.TestCase):
@@ -565,7 +664,10 @@ def skipIfNoSBHeaders(func):
     def wrapper(*args, **kwargs):
         from unittest2 import case
         self = args[0]
-        header = os.path.join(self.lib_dir, 'LLDB.framework', 'Versions','Current','Headers','LLDB.h')
+        if sys.platform.startswith("darwin"):
+            header = os.path.join(self.lib_dir, 'LLDB.framework', 'Versions','Current','Headers','LLDB.h')
+        else:
+            header = os.path.join(os.environ["LLDB_SRC"], "include", "lldb", "API", "LLDB.h")
         platform = sys.platform
         if not os.path.exists(header):
             self.skipTest("skip because LLDB.h header not found")
@@ -667,6 +769,15 @@ def skipIfi386(func):
     return wrapper
 
 
+class _PlatformContext(object):
+    """Value object class which contains platform-specific options."""
+
+    def __init__(self, shlib_environment_var, shlib_prefix, shlib_extension):
+        self.shlib_environment_var = shlib_environment_var
+        self.shlib_prefix = shlib_prefix
+        self.shlib_extension = shlib_extension
+
+
 class Base(unittest2.TestCase):
     """
     Abstract base for performing lldb (see TestBase) or other generic tests (see
@@ -680,7 +791,7 @@ class Base(unittest2.TestCase):
 
     # Keep track of the old current working directory.
     oldcwd = None
-    
+
     @staticmethod
     def compute_mydir(test_file):
         '''Subclasses should call this function to correctly calculate the required "mydir" attribute as follows: 
@@ -713,6 +824,14 @@ class Base(unittest2.TestCase):
             if traceAlways:
                 print >> sys.stderr, "Change dir to:", os.path.join(os.environ["LLDB_TEST"], cls.mydir)
             os.chdir(os.path.join(os.environ["LLDB_TEST"], cls.mydir))
+
+        # Set platform context.
+        if sys.platform.startswith('darwin'):
+            cls.platformContext = _PlatformContext('DYLD_LIBRARY_PATH', 'lib', 'dylib')
+        elif sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
+            cls.platformContext = _PlatformContext('LD_LIBRARY_PATH', 'lib', 'so')
+        else:
+            cls.platformContext = None
 
     @classmethod
     def tearDownClass(cls):
@@ -770,6 +889,11 @@ class Base(unittest2.TestCase):
             self.lldbExec = os.environ["LLDB_EXEC"]
         else:
             self.lldbExec = None
+        if "LLDBMI_EXEC" in os.environ:
+            self.lldbMiExec = os.environ["LLDBMI_EXEC"]
+        else:
+            self.lldbMiExec = None
+            self.dont_do_lldbmi_test = True
         if "LLDB_HERE" in os.environ:
             self.lldbHere = os.environ["LLDB_HERE"]
         else:
@@ -799,6 +923,19 @@ class Base(unittest2.TestCase):
                     pass
                 else:
                     self.skipTest("non python api test")
+        except AttributeError:
+            pass
+
+        # lldb-mi only test is decorated with @lldbmi_test,
+        # which also sets the "__lldbmi_test__" attribute of the
+        # function object to True.
+        try:
+            if lldb.just_do_lldbmi_test:
+                testMethod = getattr(self, self._testMethodName)
+                if getattr(testMethod, "__lldbmi_test__", False):
+                    pass
+                else:
+                    self.skipTest("non lldb-mi test")
         except AttributeError:
             pass
 
@@ -861,11 +998,9 @@ class Base(unittest2.TestCase):
         # See HideStdout(self).
         self.sys_stdout_hidden = False
 
-        # set environment variable names for finding shared libraries
-        if sys.platform.startswith("darwin"):
-            self.dylibPath = 'DYLD_LIBRARY_PATH'
-        elif sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
-            self.dylibPath = 'LD_LIBRARY_PATH'
+        if self.platformContext:
+            # set environment variable names for finding shared libraries
+            self.dylibPath = self.platformContext.shlib_environment_var
 
     def runHooks(self, child=None, child_prompt=None, use_cmd_api=False):
         """Perform the run hooks to bring lldb debugger to the desired state.
@@ -900,8 +1035,7 @@ class Base(unittest2.TestCase):
     def cleanupSubprocesses(self):
         # Ensure any subprocesses are cleaned up
         for p in self.subprocesses:
-            if p.poll() == None:
-                p.terminate()
+            p.terminate()
             del p
         del self.subprocesses[:]
         # Ensure any forked processes are cleaned up
@@ -918,11 +1052,8 @@ class Base(unittest2.TestCase):
 
             otherwise the test suite will leak processes.
         """
-
-        # Don't display the stdout if not in TraceOn() mode.
-        proc = Popen([executable] + args,
-                     stdout = open(os.devnull) if not self.TraceOn() else None,
-                     stdin = PIPE)
+        proc = _RemoteProcess() if lldb.remote_platform else _LocalProcess(self.TraceOn())
+        proc.launch(executable, args)
         self.subprocesses.append(proc)
         return proc
 
@@ -1019,6 +1150,13 @@ class Base(unittest2.TestCase):
             except (ValueError, pexpect.ExceptionPexpect):
                 # child is already terminated
                 pass
+            except OSError as exception:
+                import errno
+                if exception.errno != errno.EIO:
+                    # unexpected error
+                    raise
+                # child is already terminated
+                pass
             finally:
                 # Give it one final blow to make sure the child is terminated.
                 self.child.close()
@@ -1036,7 +1174,7 @@ class Base(unittest2.TestCase):
                 print >> sbuf, "Executing tearDown hook:", getsource_if_available(hook)
             import inspect
             hook_argc = len(inspect.getargspec(hook).args)
-            if hook_argc == 0:
+            if hook_argc == 0 or getattr(hook,'im_self',None):
                 hook()
             elif hook_argc == 1:
                 hook(self)
@@ -1111,6 +1249,9 @@ class Base(unittest2.TestCase):
             else:
                 print >> sbuf, "unexpected success (problem id:" + str(bugnumber) + ")"	
 
+    def getRerunArgs(self):
+        return " -f %s.%s" % (self.__class__.__name__, self._testMethodName)
+        
     def dumpSessionInfo(self):
         """
         Dump the debugger interactions leading to a test error/failure.  This
@@ -1173,10 +1314,9 @@ class Base(unittest2.TestCase):
             print >> f, "Session info generated @", datetime.datetime.now().ctime()
             print >> f, self.session.getvalue()
             print >> f, "To rerun this test, issue the following command from the 'test' directory:\n"
-            print >> f, "./dotest.py %s -v %s -f %s.%s" % (self.getRunOptions(),
-                                                           ('+b' if benchmarks else '-t'),
-                                                           self.__class__.__name__,
-                                                           self._testMethodName)
+            print >> f, "./dotest.py %s -v %s %s" % (self.getRunOptions(),
+                                                     ('+b' if benchmarks else '-t'),
+                                                     self.getRerunArgs())
 
     # ====================================================
     # Config. methods supported through a plugin interface
@@ -1193,6 +1333,10 @@ class Base(unittest2.TestCase):
         module = builder_module()
         return module.getCompiler()
 
+    def getCompilerBinary(self):
+        """Returns the compiler binary the test suite is running with."""
+        return self.getCompiler().split()[0]
+
     def getCompilerVersion(self):
         """ Returns a string that represents the compiler version.
             Supports: llvm, clang.
@@ -1200,7 +1344,7 @@ class Base(unittest2.TestCase):
         from lldbutil import which
         version = 'unknown'
 
-        compiler = self.getCompiler()
+        compiler = self.getCompilerBinary()
         version_output = system([[which(compiler), "-v"]])[1]
         for line in version_output.split(os.linesep):
             m = re.search('version ([0-9\.]+)', line)
@@ -1359,6 +1503,11 @@ class Base(unittest2.TestCase):
         module = builder_module()
         if not module.buildDwarf(self, architecture, compiler, dictionary, clean):
             raise Exception("Don't know how to build binary with dwarf")
+
+    def signBinary(self, binary_path):
+        if sys.platform.startswith("darwin"):
+            codesign_cmd = "codesign --force --sign lldb_codesign %s" % (binary_path)
+            call(codesign_cmd, shell=True)
 
     def findBuiltClang(self):
         """Tries to find and use Clang from the build directory as the compiler (instead of the system compiler)."""
@@ -1621,6 +1770,53 @@ class TestBase(Base):
             else:
                 print "error: making remote directory '%s': %s" % (remote_test_dir, error)
     
+    def registerSharedLibrariesWithTarget(self, target, shlibs):
+        '''If we are remotely running the test suite, register the shared libraries with the target so they get uploaded, otherwise do nothing
+        
+        Any modules in the target that have their remote install file specification set will
+        get uploaded to the remote host. This function registers the local copies of the
+        shared libraries with the target and sets their remote install locations so they will
+        be uploaded when the target is run.
+        '''
+        if not shlibs or not self.platformContext:
+            return None
+
+        shlib_environment_var = self.platformContext.shlib_environment_var
+        shlib_prefix = self.platformContext.shlib_prefix
+        shlib_extension = '.' + self.platformContext.shlib_extension
+
+        working_dir = self.get_process_working_directory()
+        environment = ['%s=%s' % (shlib_environment_var, working_dir)]
+        # Add any shared libraries to our target if remote so they get
+        # uploaded into the working directory on the remote side
+        for name in shlibs:
+            # The path can be a full path to a shared library, or a make file name like "Foo" for
+            # "libFoo.dylib" or "libFoo.so", or "Foo.so" for "Foo.so" or "libFoo.so", or just a
+            # basename like "libFoo.so". So figure out which one it is and resolve the local copy
+            # of the shared library accordingly
+            if os.path.exists(name):
+                local_shlib_path = name # name is the full path to the local shared library
+            else:
+                # Check relative names
+                local_shlib_path = os.path.join(os.getcwd(), shlib_prefix + name + shlib_extension)
+                if not os.path.exists(local_shlib_path):
+                    local_shlib_path = os.path.join(os.getcwd(), name + shlib_extension)
+                    if not os.path.exists(local_shlib_path):
+                        local_shlib_path = os.path.join(os.getcwd(), name)
+
+                # Make sure we found the local shared library in the above code
+                self.assertTrue(os.path.exists(local_shlib_path))
+
+            # Add the shared library to our target
+            shlib_module = target.AddModule(local_shlib_path, None, None, None)
+            if lldb.remote_platform:
+                # We must set the remote install location if we want the shared library
+                # to get uploaded to the remote target
+                remote_shlib_path = os.path.join(lldb.remote_platform.GetWorkingDirectory(), os.path.basename(local_shlib_path))
+                shlib_module.SetRemoteInstallFileSpec(lldb.SBFileSpec(remote_shlib_path, False))
+
+        return environment
+
     # utility methods that tests can use to access the current objects
     def target(self):
         if not self.dbg:

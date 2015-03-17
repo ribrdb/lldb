@@ -9,6 +9,7 @@
 
 #include "lldb/Host/Config.h"
 
+#include "lldb/Core/Debugger.h"
 #include "lldb/Core/Log.h"
 #include "lldb/Target/ProcessLaunchInfo.h"
 #include "lldb/Target/FileAction.h"
@@ -32,6 +33,7 @@ ProcessLaunchInfo::ProcessLaunchInfo () :
     m_monitor_callback (NULL),
     m_monitor_callback_baton (NULL),
     m_monitor_signals (false),
+    m_listener_sp (),
     m_hijack_listener_sp ()
 {
 }
@@ -48,6 +50,7 @@ ProcessLaunchInfo::ProcessLaunchInfo(const char *stdin_path, const char *stdout_
     m_monitor_callback(NULL),
     m_monitor_callback_baton(NULL),
     m_monitor_signals(false),
+    m_listener_sp (),
     m_hijack_listener_sp()
 {
     if (stdin_path)
@@ -205,7 +208,15 @@ ProcessLaunchInfo::SetLaunchInSeparateProcessGroup (bool separate)
         m_flags.Set(lldb::eLaunchFlagLaunchInSeparateProcessGroup);
     else
         m_flags.Clear (lldb::eLaunchFlagLaunchInSeparateProcessGroup);
+}
 
+void
+ProcessLaunchInfo::SetGlobArguments (bool glob)
+{
+    if (glob)
+        m_flags.Set(lldb::eLaunchFlagGlobArguments);
+    else
+        m_flags.Clear(lldb::eLaunchFlagGlobArguments);
 }
 
 void
@@ -218,6 +229,7 @@ ProcessLaunchInfo::Clear ()
     m_flags.Clear();
     m_file_actions.clear();
     m_resume_count = 0;
+    m_listener_sp.reset();
     m_hijack_listener_sp.reset();
 }
 
@@ -340,7 +352,14 @@ ProcessLaunchInfo::FinalizeFileActions (Target *target, bool default_to_use_pty)
                     log->Printf ("ProcessLaunchInfo::%s default_to_use_pty is set, and at least one stdin/stderr/stdout is unset, so generating a pty to use for it",
                                  __FUNCTION__);
 
-                if (m_pty->OpenFirstAvailableMaster(O_RDWR| O_NOCTTY, NULL, 0))
+                int open_flags = O_RDWR | O_NOCTTY;
+#if !defined(_MSC_VER)
+                // We really shouldn't be specifying platform specific flags
+                // that are intended for a system call in generic code.  But
+                // this will have to do for now.
+                open_flags |= O_CLOEXEC;
+#endif
+                if (m_pty->OpenFirstAvailableMaster(open_flags, NULL, 0))
                 {
                     const char *slave_path = m_pty->GetSlaveName(NULL, 0);
 
@@ -392,14 +411,20 @@ ProcessLaunchInfo::ConvertArgumentsForLaunchingInShell (Error &error,
             Args shell_arguments;
             std::string safe_arg;
             shell_arguments.AppendArgument (shell_executable.c_str());
-            shell_arguments.AppendArgument ("-c");
+            const llvm::Triple &triple = GetArchitecture().GetTriple();
+            if (triple.getOS() == llvm::Triple::Win32 && !triple.isWindowsCygwinEnvironment())
+                shell_arguments.AppendArgument("/C");
+            else
+                shell_arguments.AppendArgument("-c");
+
             StreamString shell_command;
             if (will_debug)
             {
                 // Add a modified PATH environment variable in case argv[0]
-                // is a relative path
+                // is a relative path.
                 const char *argv0 = argv[0];
-                if (argv0 && (argv0[0] != '/' && argv0[0] != '~'))
+                FileSpec arg_spec(argv0, false);
+                if (arg_spec.IsRelativeToCurrentWorkingDirectory())
                 {
                     // We have a relative path to our executable which may not work if
                     // we just try to run "a.out" (without it being converted to "./a.out")
@@ -430,7 +455,8 @@ ProcessLaunchInfo::ConvertArgumentsForLaunchingInShell (Error &error,
                     shell_command.PutCString(new_path.c_str());
                 }
 
-                shell_command.PutCString ("exec");
+                if (triple.getOS() != llvm::Triple::Win32 || triple.isWindowsCygwinEnvironment())
+                    shell_command.PutCString("exec");
 
                 // Only Apple supports /usr/bin/arch being able to specify the architecture
                 if (GetArchitecture().IsValid() &&                                          // Valid architecture
@@ -484,4 +510,13 @@ ProcessLaunchInfo::ConvertArgumentsForLaunchingInShell (Error &error,
         error.SetErrorString ("not launching in shell");
     }
     return false;
+}
+
+Listener &
+ProcessLaunchInfo::GetListenerForProcess (Debugger &debugger)
+{
+    if (m_listener_sp)
+        return *m_listener_sp;
+    else
+        return debugger.GetListener();
 }

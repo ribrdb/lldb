@@ -42,16 +42,15 @@ class LocalDebugDelegate : public IDebugDelegate
   public:
     explicit LocalDebugDelegate::LocalDebugDelegate(lldb::ProcessSP process);
 
-    void OnProcessLaunched(const ProcessMessageCreateProcess &message);
-    void OnExitProcess(const ProcessMessageExitProcess &message);
-    void OnDebuggerConnected(const ProcessMessageDebuggerConnected &message);
-    void OnDebugException(const ProcessMessageException &message);
-    void OnCreateThread(const ProcessMessageCreateThread &message);
-    void OnExitThread(const ProcessMessageExitThread &message);
-    void OnLoadDll(const ProcessMessageLoadDll &message);
-    void OnUnloadDll(const ProcessMessageUnloadDll &message);
-    void OnDebugString(const ProcessMessageDebugString &message);
-    void OnDebuggerError(const ProcessMessageDebuggerError &message);
+    virtual void OnExitProcess(uint32_t exit_code) override;
+    virtual void OnDebuggerConnected(lldb::addr_t image_base) override;
+    virtual ExceptionResult OnDebugException(bool first_chance, const ExceptionRecord &record) override;
+    virtual void OnCreateThread(const HostThread &thread) override;
+    virtual void OnExitThread(const HostThread &thread) override;
+    virtual void OnLoadDll(const lldb_private::ModuleSpec &module_spec, lldb::addr_t module_addr) override;
+    virtual void OnUnloadDll(lldb::addr_t module_addr) override;
+    virtual void OnDebugString(const std::string &message) override;
+    virtual void OnDebuggerError(const Error &error, uint32_t type) override;
 
   private:
     lldb::ProcessSP m_process;

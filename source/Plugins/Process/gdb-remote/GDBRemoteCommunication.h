@@ -27,6 +27,16 @@
 
 #include "Utility/StringExtractorGDBRemote.h"
 
+typedef enum
+{
+    eStoppointInvalid = -1,
+    eBreakpointSoftware = 0,
+    eBreakpointHardware,
+    eWatchpointWrite,
+    eWatchpointRead,
+    eWatchpointReadWrite
+} GDBStoppointType;
+
 class ProcessGDBRemote;
 
 class GDBRemoteCommunication : public lldb_private::Communication
@@ -53,8 +63,7 @@ public:
     // Constructors and Destructors
     //------------------------------------------------------------------
     GDBRemoteCommunication(const char *comm_name, 
-                           const char *listener_name,
-                           bool is_platform);
+                           const char *listener_name);
 
     virtual
     ~GDBRemoteCommunication();
@@ -282,9 +291,8 @@ protected:
     ListenThread (lldb::thread_arg_t arg);
 
 private:
-  lldb_private::HostThread m_listen_thread;
+    lldb_private::HostThread m_listen_thread;
     std::string m_listen_url;
-    
 
     //------------------------------------------------------------------
     // For GDBRemoteCommunication only

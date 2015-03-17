@@ -251,6 +251,8 @@ FormatManager::GetPossibleMatches (ValueObject& valobj,
             do
             {
                 lldb::ProcessSP process_sp = valobj.GetProcessSP();
+                if (!process_sp)
+                    break;
                 ObjCLanguageRuntime* runtime = process_sp->GetObjCLanguageRuntime();
                 if (runtime == nullptr)
                     break;
@@ -864,6 +866,7 @@ FormatManager::FormatManager() :
     m_coreservices_category_name(ConstString("CoreServices")),
     m_vectortypes_category_name(ConstString("VectorTypes")),
     m_appkit_category_name(ConstString("AppKit")),
+    m_coremedia_category_name(ConstString("CoreMedia")),
     m_hardcoded_formats(),
     m_hardcoded_summaries(),
     m_hardcoded_synthetics(),
@@ -874,6 +877,7 @@ FormatManager::FormatManager() :
     LoadLibStdcppFormatters();
     LoadLibcxxFormatters();
     LoadObjCFormatters();
+    LoadCoreMediaFormatters();
     LoadHardcodedFormatters();
     
     EnableCategory(m_objc_category_name,TypeCategoryMap::Last);
@@ -881,6 +885,7 @@ FormatManager::FormatManager() :
     EnableCategory(m_appkit_category_name,TypeCategoryMap::Last);
     EnableCategory(m_coreservices_category_name,TypeCategoryMap::Last);
     EnableCategory(m_coregraphics_category_name,TypeCategoryMap::Last);
+    EnableCategory(m_coremedia_category_name,TypeCategoryMap::Last);
     EnableCategory(m_gnu_cpp_category_name,TypeCategoryMap::Last);
     EnableCategory(m_libcxx_category_name,TypeCategoryMap::Last);
     EnableCategory(m_vectortypes_category_name,TypeCategoryMap::Last);
@@ -912,6 +917,21 @@ AddStringSummary(TypeCategoryImpl::SharedPointer category_sp,
 {
     lldb::TypeSummaryImplSP summary_sp(new StringSummaryFormat(flags,
                                                                string));
+    
+    if (regex)
+        category_sp->GetRegexTypeSummariesContainer()->Add(RegularExpressionSP(new RegularExpression(type_name.AsCString())),summary_sp);
+    else
+        category_sp->GetTypeSummariesContainer()->Add(type_name, summary_sp);
+}
+
+static void
+AddOneLineSummary (TypeCategoryImpl::SharedPointer category_sp,
+                   ConstString type_name,
+                   TypeSummaryImpl::Flags flags,
+                   bool regex = false)
+{
+    flags.SetShowMembersOneLiner(true);
+    lldb::TypeSummaryImplSP summary_sp(new StringSummaryFormat(flags, ""));
     
     if (regex)
         category_sp->GetRegexTypeSummariesContainer()->Add(RegularExpressionSP(new RegularExpression(type_name.AsCString())),summary_sp);
@@ -1261,39 +1281,33 @@ FormatManager::LoadObjCFormatters()
                      objc_flags);
 
     AddStringSummary(appkit_category_sp,
-                     "(x=${var.x}, y=${var.y})",
-                     ConstString("NSPoint"),
-                     objc_flags);
-    AddStringSummary(appkit_category_sp,
                      "location=${var.location}, length=${var.length}",
                      ConstString("NSRange"),
-                     objc_flags);
-    AddStringSummary(appkit_category_sp,
-                     "${var.origin}, ${var.size}",
-                     ConstString("NSRect"),
                      objc_flags);
     AddStringSummary(appkit_category_sp,
                      "(${var.origin}, ${var.size}), ...",
                      ConstString("NSRectArray"),
                      objc_flags);
-    AddStringSummary(appkit_category_sp,
-                     "(width=${var.width}, height=${var.height})",
-                     ConstString("NSSize"),
-                     objc_flags);
     
+    AddOneLineSummary (appkit_category_sp,
+                       ConstString("NSPoint"),
+                       objc_flags);
+    AddOneLineSummary (appkit_category_sp,
+                       ConstString("NSSize"),
+                       objc_flags);
+    AddOneLineSummary (appkit_category_sp,
+                       ConstString("NSRect"),
+                       objc_flags);
     
-    AddStringSummary(coregraphics_category_sp,
-                     "(width=${var.width}, height=${var.height})",
-                     ConstString("CGSize"),
-                     objc_flags);
-    AddStringSummary(coregraphics_category_sp,
-                     "(x=${var.x}, y=${var.y})",
-                     ConstString("CGPoint"),
-                     objc_flags);
-    AddStringSummary(coregraphics_category_sp,
-                     "origin=${var.origin} size=${var.size}",
-                     ConstString("CGRect"),
-                     objc_flags);
+    AddOneLineSummary (coregraphics_category_sp,
+                       ConstString("CGSize"),
+                       objc_flags);
+    AddOneLineSummary (coregraphics_category_sp,
+                       ConstString("CGPoint"),
+                       objc_flags);
+    AddOneLineSummary (coregraphics_category_sp,
+                       ConstString("CGRect"),
+                       objc_flags);
     
     AddStringSummary(coreservices_category_sp,
                      "red=${var.red} green=${var.green} blue=${var.blue}",
@@ -1552,6 +1566,25 @@ FormatManager::LoadObjCFormatters()
 }
 
 void
+FormatManager::LoadCoreMediaFormatters()
+{
+    TypeSummaryImpl::Flags cm_flags;
+    cm_flags.SetCascades(true)
+    .SetDontShowChildren(false)
+    .SetDontShowValue(false)
+    .SetHideItemNames(false)
+    .SetShowMembersOneLiner(false)
+    .SetSkipPointers(false)
+    .SetSkipReferences(false);
+    
+    TypeCategoryImpl::SharedPointer cm_category_sp = GetCategory(m_coremedia_category_name);
+
+#ifndef LLDB_DISABLE_PYTHON
+    AddCXXSummary(cm_category_sp, lldb_private::formatters::CMTimeSummaryProvider, "CMTime summary provider", ConstString("CMTime"), cm_flags);
+#endif // LLDB_DISABLE_PYTHON
+}
+
+void
 FormatManager::LoadHardcodedFormatters()
 {
     {
@@ -1559,6 +1592,17 @@ FormatManager::LoadHardcodedFormatters()
     }
     {
         // insert code to load summaries here
+        m_hardcoded_summaries.push_back(
+                                        [](lldb_private::ValueObject& valobj,
+                                            lldb::DynamicValueType,
+                                            FormatManager&) -> TypeSummaryImpl::SharedPointer {
+                                            static CXXFunctionSummaryFormat::SharedPointer formatter_sp(new CXXFunctionSummaryFormat(TypeSummaryImpl::Flags(), lldb_private::formatters::FunctionPointerSummaryProvider, "Function pointer summary provider"));
+                                            if (valobj.GetClangType().IsFunctionPointerType())
+                                            {
+                                                return formatter_sp;
+                                            }
+                                            return nullptr;
+                                        });
     }
     {
         // insert code to load synthetics here

@@ -98,7 +98,7 @@ lldb_private::formatters::LibcxxStdVectorSyntheticFrontEnd::GetChildAtIndex (siz
     offset = offset + m_start->GetValueAsUnsigned(0);
     StreamString name;
     name.Printf("[%" PRIu64 "]", (uint64_t)idx);
-    ValueObjectSP child_sp = ValueObject::CreateValueObjectFromAddress(name.GetData(), offset, m_backend.GetExecutionContextRef(), m_element_type);
+    ValueObjectSP child_sp = CreateValueObjectFromAddress(name.GetData(), offset, m_backend.GetExecutionContextRef(), m_element_type);
     m_children[idx] = child_sp;
     return child_sp;
 }
@@ -115,7 +115,7 @@ lldb_private::formatters::LibcxxStdVectorSyntheticFrontEnd::Update()
     if (!data_type_finder_sp)
         return false;
     m_element_type = data_type_finder_sp->GetClangType().GetPointeeType();
-    m_element_size = m_element_type.GetByteSize();
+    m_element_size = m_element_type.GetByteSize(nullptr);
     
     if (m_element_size > 0)
     {

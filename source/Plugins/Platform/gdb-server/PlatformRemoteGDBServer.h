@@ -64,8 +64,7 @@ public:
     // lldb_private::Platform functions
     //------------------------------------------------------------
     virtual lldb_private::Error
-    ResolveExecutable (const lldb_private::FileSpec &exe_file,
-                       const lldb_private::ArchSpec &arch,
+    ResolveExecutable (const lldb_private::ModuleSpec &module_spec,
                        lldb::ModuleSP &module_sp,
                        const lldb_private::FileSpecList *module_search_paths_ptr);
 
@@ -87,19 +86,20 @@ public:
 
     virtual lldb_private::Error
     LaunchProcess (lldb_private::ProcessLaunchInfo &launch_info);
-    
+
+    virtual lldb_private::Error
+    KillProcess (const lldb::pid_t pid);
+
     virtual lldb::ProcessSP
     DebugProcess (lldb_private::ProcessLaunchInfo &launch_info,
                   lldb_private::Debugger &debugger,
                   lldb_private::Target *target,       // Can be NULL, if NULL create a new target, else use existing one
-                  lldb_private::Listener &listener,
                   lldb_private::Error &error);
 
     virtual lldb::ProcessSP
     Attach (lldb_private::ProcessAttachInfo &attach_info,
             lldb_private::Debugger &debugger,
             lldb_private::Target *target,       // Can be NULL, if NULL create a new target, else use existing one
-            lldb_private::Listener &listener,
             lldb_private::Error &error);
 
     virtual bool
@@ -215,6 +215,7 @@ public:
 protected:
     GDBRemoteCommunicationClient m_gdb_client;
     std::string m_platform_description; // After we connect we can get a more complete description of what we are connected to
+    std::string m_platform_hostname;
 
 private:
     DISALLOW_COPY_AND_ASSIGN (PlatformRemoteGDBServer);

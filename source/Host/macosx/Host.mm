@@ -42,6 +42,7 @@
 #include "lldb/Core/DataExtractor.h"
 #include "lldb/Core/Log.h"
 #include "lldb/Core/Module.h"
+#include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StreamString.h"
 #include "lldb/Host/ConnectionFileDescriptor.h"
@@ -126,49 +127,6 @@ Host::ResolveExecutableInBundle (FileSpec &file)
 #endif
   return false;
 }
-
-lldb::pid_t
-Host::LaunchApplication (const FileSpec &app_file_spec)
-{
-#if defined (__arm__) || defined(__arm64__) || defined(__aarch64__)
-    return LLDB_INVALID_PROCESS_ID;
-#else
-    char app_path[PATH_MAX];
-    app_file_spec.GetPath(app_path, sizeof(app_path));
-
-    LSApplicationParameters app_params;
-    ::memset (&app_params, 0, sizeof (app_params));
-    app_params.flags = kLSLaunchDefaults | 
-                       kLSLaunchDontAddToRecents | 
-                       kLSLaunchNewInstance;
-    
-    
-    FSRef app_fsref;
-    CFCString app_cfstr (app_path, kCFStringEncodingUTF8);
-    
-    OSStatus error = ::FSPathMakeRef ((const UInt8 *)app_path, &app_fsref, NULL);
-    
-    // If we found the app, then store away the name so we don't have to re-look it up.
-    if (error != noErr)
-        return LLDB_INVALID_PROCESS_ID;
-    
-    app_params.application = &app_fsref;
-
-    ProcessSerialNumber psn;
-
-    error = ::LSOpenApplication (&app_params, &psn);
-
-    if (error != noErr)
-        return LLDB_INVALID_PROCESS_ID;
-
-    ::pid_t pid = LLDB_INVALID_PROCESS_ID;
-    error = ::GetProcessPID(&psn, &pid);
-    if (error != noErr)
-        return LLDB_INVALID_PROCESS_ID;
-    return pid;
-#endif
-}
-
 
 static void *
 AcceptPIDFromInferior (void *arg)
@@ -442,7 +400,8 @@ LaunchInNewTerminalWithAppleScript (const char *exe_path, ProcessLaunchInfo &lau
     darwin_debug_file_spec.GetPath(launcher_path, sizeof(launcher_path));
 
     const ArchSpec &arch_spec = launch_info.GetArchitecture();
-    if (arch_spec.IsValid())
+    // Only set the architecture if it is valid and if it isn't Haswell (x86_64h).
+    if (arch_spec.IsValid() && arch_spec.GetCore() != ArchSpec::eCore_x86_64_x86_64h)
         command.Printf("arch -arch %s ", arch_spec.GetArchitectureName());
 
     command.Printf("'%s' --unix-socket=%s", launcher_path, unix_socket_name);
@@ -468,24 +427,29 @@ LaunchInNewTerminalWithAppleScript (const char *exe_path, ProcessLaunchInfo &lau
     // need to be sent to darwin-debug. If we send all environment entries, we might blow the
     // max command line length, so we only send user modified entries.
     const char **envp = launch_info.GetEnvironmentEntries().GetConstArgumentVector ();
+
     StringList host_env;
     const size_t host_env_count = Host::GetEnvironment (host_env);
-    const char *env_entry;
-    for (size_t env_idx = 0; (env_entry = envp[env_idx]) != NULL; ++env_idx)
+
+    if (envp && envp[0])
     {
-        bool add_entry = true;
-        for (size_t i=0; i<host_env_count; ++i)
+        const char *env_entry;
+        for (size_t env_idx = 0; (env_entry = envp[env_idx]) != NULL; ++env_idx)
         {
-            const char *host_env_entry = host_env.GetStringAtIndex(i);
-            if (strcmp(env_entry, host_env_entry) == 0)
+            bool add_entry = true;
+            for (size_t i=0; i<host_env_count; ++i)
             {
-                add_entry = false;
-                break;
+                const char *host_env_entry = host_env.GetStringAtIndex(i);
+                if (strcmp(env_entry, host_env_entry) == 0)
+                {
+                    add_entry = false;
+                    break;
+                }
             }
-        }
-        if (add_entry)
-        {
-            command.Printf(" --env='%s'", env_entry);
+            if (add_entry)
+            {
+                command.Printf(" --env='%s'", env_entry);
+            }
         }
     }
 
@@ -507,6 +471,8 @@ LaunchInNewTerminalWithAppleScript (const char *exe_path, ProcessLaunchInfo &lau
         command.Printf(" '%s'", exe_path);
     }
     command.PutCString (" ; echo Process exited with status $?");
+    if (launch_info.GetFlags().Test(lldb::eLaunchFlagCloseTTYOnExit))
+        command.PutCString (" ; exit");
     
     StreamString applescript_source;
 
@@ -1306,17 +1272,14 @@ Host::LaunchProcess (ProcessLaunchInfo &launch_info)
     Error error;
     char exe_path[PATH_MAX];
     PlatformSP host_platform_sp (Platform::GetHostPlatform ());
-    
-    const ArchSpec &arch_spec = launch_info.GetArchitecture();
-    
-    FileSpec exe_spec(launch_info.GetExecutableFile());
-    
-    FileSpec::FileType file_type = exe_spec.GetFileType();
+
+    ModuleSpec exe_module_spec(launch_info.GetExecutableFile(), launch_info.GetArchitecture());
+
+    FileSpec::FileType file_type = exe_module_spec.GetFileSpec().GetFileType();
     if (file_type != FileSpec::eFileTypeRegular)
     {
         lldb::ModuleSP exe_module_sp;
-        error = host_platform_sp->ResolveExecutable (exe_spec,
-                                                     arch_spec,
+        error = host_platform_sp->ResolveExecutable (exe_module_spec,
                                                      exe_module_sp,
                                                      NULL);
         
@@ -1324,12 +1287,12 @@ Host::LaunchProcess (ProcessLaunchInfo &launch_info)
             return error;
         
         if (exe_module_sp)
-            exe_spec = exe_module_sp->GetFileSpec();
+            exe_module_spec.GetFileSpec() = exe_module_sp->GetFileSpec();
     }
     
-    if (exe_spec.Exists())
+    if (exe_module_spec.GetFileSpec().Exists())
     {
-        exe_spec.GetPath (exe_path, sizeof(exe_path));
+        exe_module_spec.GetFileSpec().GetPath (exe_path, sizeof(exe_path));
     }
     else
     {

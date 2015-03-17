@@ -246,9 +246,6 @@ public:
     static const lldb_private::UnixSignalsSP&
     GetUnixSignals ();
 
-    static lldb::pid_t
-    LaunchApplication (const FileSpec &app_file_spec);
-
     static Error
     LaunchProcess (ProcessLaunchInfo &launch_info);
 
@@ -267,9 +264,6 @@ public:
     static lldb::DataBufferSP
     GetAuxvData (lldb::pid_t pid);
 
-    static lldb::TargetSP
-    GetDummyTarget (Debugger &debugger);
-    
     static bool
     OpenFileInExternalEditor (const FileSpec &file_spec, 
                               uint32_t line_no);

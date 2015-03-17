@@ -19,6 +19,7 @@
 #include "lldb/Host/IOObject.h"
 #include "lldb/Host/SocketAddress.h"
 #include "lldb/Host/Socket.h"
+#include "lldb/Host/StringConvert.h"
 
 // C Includes
 #include <errno.h>
@@ -41,6 +42,7 @@
 #include "lldb/lldb-private-log.h"
 #include "lldb/Core/Communication.h"
 #include "lldb/Core/Log.h"
+#include "lldb/Core/StreamString.h"
 #include "lldb/Core/Timer.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/Socket.h"
@@ -49,12 +51,13 @@
 using namespace lldb;
 using namespace lldb_private;
 
-ConnectionFileDescriptor::ConnectionFileDescriptor()
+ConnectionFileDescriptor::ConnectionFileDescriptor(bool child_processes_inherit)
     : Connection()
     , m_pipe()
     , m_mutex(Mutex::eMutexTypeRecursive)
     , m_shutting_down(false)
     , m_waiting_for_accept(false)
+    , m_child_processes_inherit(child_processes_inherit)
 {
     Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_CONNECTION | LIBLLDB_LOG_OBJECT));
     if (log)
@@ -67,6 +70,7 @@ ConnectionFileDescriptor::ConnectionFileDescriptor(int fd, bool owns_fd)
     , m_mutex(Mutex::eMutexTypeRecursive)
     , m_shutting_down(false)
     , m_waiting_for_accept(false)
+    , m_child_processes_inherit(false)
 {
     m_write_sp.reset(new File(fd, owns_fd));
     m_read_sp.reset(new File(fd, false));
@@ -94,11 +98,12 @@ ConnectionFileDescriptor::OpenCommandPipe()
 
     Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_CONNECTION));
     // Make the command file descriptor here:
-    if (!m_pipe.Open())
+    Error result = m_pipe.CreateNew(m_child_processes_inherit);
+    if (!result.Success())
     {
         if (log)
             log->Printf("%p ConnectionFileDescriptor::OpenCommandPipe () - could not make pipe: %s", static_cast<void *>(this),
-                        strerror(errno));
+                        result.AsCString());
     }
     else
     {
@@ -139,7 +144,7 @@ ConnectionFileDescriptor::Connect(const char *s, Error *error_ptr)
         if (strstr(s, "listen://") == s)
         {
             // listen://HOST:PORT
-            return SocketListen(s + strlen("listen://"), error_ptr);
+            return SocketListenAndAccept(s + strlen("listen://"), error_ptr);
         }
         else if (strstr(s, "accept://") == s)
         {
@@ -170,7 +175,7 @@ ConnectionFileDescriptor::Connect(const char *s, Error *error_ptr)
             // that is already opened (possibly from a service or other source).
             s += strlen("fd://");
             bool success = false;
-            int fd = Args::StringToSInt32(s, -1, 0, &success);
+            int fd = StringConvert::ToSInt32(s, -1, 0, &success);
 
             if (success)
             {
@@ -216,6 +221,7 @@ ConnectionFileDescriptor::Connect(const char *s, Error *error_ptr)
                         m_read_sp.reset(new File(fd, false));
                         m_write_sp.reset(new File(fd, false));
                     }
+                    m_uri.assign(s);
                     return eConnectionStatusSuccess;
                 }
             }
@@ -289,7 +295,9 @@ ConnectionFileDescriptor::Connect(const char *s, Error *error_ptr)
 bool
 ConnectionFileDescriptor::InterruptRead()
 {
-    return m_pipe.Write("i", 1) == 1;
+    size_t bytes_written = 0;
+    Error result = m_pipe.Write("i", 1, bytes_written);
+    return result.Success();
 }
 
 ConnectionStatus
@@ -323,13 +331,13 @@ ConnectionFileDescriptor::Disconnect(Error *error_ptr)
 
     if (!got_lock)
     {
-        if (m_pipe.WriteDescriptorIsValid())
+        if (m_pipe.CanWrite())
         {
-            int result;
-            result = m_pipe.Write("q", 1) == 1;
+            size_t bytes_written = 0;
+            Error result = m_pipe.Write("q", 1, bytes_written);
             if (log)
-                log->Printf("%p ConnectionFileDescriptor::Disconnect(): Couldn't get the lock, sent 'q' to %d, result = %d.",
-                            static_cast<void *>(this), m_pipe.GetWriteFileDescriptor(), result);
+                log->Printf("%p ConnectionFileDescriptor::Disconnect(): Couldn't get the lock, sent 'q' to %d, error = '%s'.",
+                            static_cast<void *>(this), m_pipe.GetWriteFileDescriptor(), result.AsCString());
         }
         else if (log)
         {
@@ -346,6 +354,7 @@ ConnectionFileDescriptor::Disconnect(Error *error_ptr)
     if (error_ptr)
         *error_ptr = error.Fail() ? error : error2;
 
+    m_uri.clear();
     m_shutting_down = false;
     return status;
 }
@@ -503,6 +512,12 @@ ConnectionFileDescriptor::Write(const void *src, size_t src_len, ConnectionStatu
 
     status = eConnectionStatusSuccess;
     return bytes_sent;
+}
+
+std::string
+ConnectionFileDescriptor::GetURI()
+{
+    return m_uri;
 }
 
 // This ConnectionFileDescriptor::BytesAvailable() uses select().
@@ -690,34 +705,44 @@ ConnectionStatus
 ConnectionFileDescriptor::NamedSocketAccept(const char *socket_name, Error *error_ptr)
 {
     Socket *socket = nullptr;
-    Error error = Socket::UnixDomainAccept(socket_name, socket);
+    Error error = Socket::UnixDomainAccept(socket_name, m_child_processes_inherit, socket);
     if (error_ptr)
         *error_ptr = error;
     m_write_sp.reset(socket);
     m_read_sp = m_write_sp;
-    return (error.Success()) ? eConnectionStatusSuccess : eConnectionStatusError;
+    if (error.Fail())
+    {
+        return eConnectionStatusError;
+    }
+    m_uri.assign(socket_name);
+    return eConnectionStatusSuccess;
 }
 
 ConnectionStatus
 ConnectionFileDescriptor::NamedSocketConnect(const char *socket_name, Error *error_ptr)
 {
     Socket *socket = nullptr;
-    Error error = Socket::UnixDomainConnect(socket_name, socket);
+    Error error = Socket::UnixDomainConnect(socket_name, m_child_processes_inherit, socket);
     if (error_ptr)
         *error_ptr = error;
     m_write_sp.reset(socket);
     m_read_sp = m_write_sp;
-    return (error.Success()) ? eConnectionStatusSuccess : eConnectionStatusError;
+    if (error.Fail())
+    {
+        return eConnectionStatusError;
+    }
+    m_uri.assign(socket_name);
+    return eConnectionStatusSuccess;
 }
 
 ConnectionStatus
-ConnectionFileDescriptor::SocketListen(const char *s, Error *error_ptr)
+ConnectionFileDescriptor::SocketListenAndAccept(const char *s, Error *error_ptr)
 {
     m_port_predicate.SetValue(0, eBroadcastNever);
 
     Socket *socket = nullptr;
     m_waiting_for_accept = true;
-    Error error = Socket::TcpListen(s, socket, &m_port_predicate);
+    Error error = Socket::TcpListen(s, m_child_processes_inherit, socket, &m_port_predicate);
     if (error_ptr)
         *error_ptr = error;
     if (error.Fail())
@@ -727,7 +752,7 @@ ConnectionFileDescriptor::SocketListen(const char *s, Error *error_ptr)
 
     listening_socket_up.reset(socket);
     socket = nullptr;
-    error = listening_socket_up->BlockingAccept(s, socket);
+    error = listening_socket_up->BlockingAccept(s, m_child_processes_inherit, socket);
     listening_socket_up.reset();
     if (error_ptr)
         *error_ptr = error;
@@ -736,19 +761,31 @@ ConnectionFileDescriptor::SocketListen(const char *s, Error *error_ptr)
 
     m_write_sp.reset(socket);
     m_read_sp = m_write_sp;
-    return (error.Success()) ? eConnectionStatusSuccess : eConnectionStatusError;
+    if (error.Fail())
+    {
+        return eConnectionStatusError;
+    }
+    StreamString strm;
+    strm.Printf("connect://%s:%u",socket->GetRemoteIPAddress().c_str(), socket->GetRemotePortNumber());
+    m_uri.swap(strm.GetString());
+    return eConnectionStatusSuccess;
 }
 
 ConnectionStatus
 ConnectionFileDescriptor::ConnectTCP(const char *s, Error *error_ptr)
 {
     Socket *socket = nullptr;
-    Error error = Socket::TcpConnect(s, socket);
+    Error error = Socket::TcpConnect(s, m_child_processes_inherit, socket);
     if (error_ptr)
         *error_ptr = error;
     m_write_sp.reset(socket);
     m_read_sp = m_write_sp;
-    return (error.Success()) ? eConnectionStatusSuccess : eConnectionStatusError;
+    if (error.Fail())
+    {
+        return eConnectionStatusError;
+    }
+    m_uri.assign(s);
+    return eConnectionStatusSuccess;
 }
 
 ConnectionStatus
@@ -756,12 +793,17 @@ ConnectionFileDescriptor::ConnectUDP(const char *s, Error *error_ptr)
 {
     Socket *send_socket = nullptr;
     Socket *recv_socket = nullptr;
-    Error error = Socket::UdpConnect(s, send_socket, recv_socket);
+    Error error = Socket::UdpConnect(s, m_child_processes_inherit, send_socket, recv_socket);
     if (error_ptr)
         *error_ptr = error;
     m_write_sp.reset(send_socket);
     m_read_sp.reset(recv_socket);
-    return (error.Success()) ? eConnectionStatusSuccess : eConnectionStatusError;
+    if (error.Fail())
+    {
+        return eConnectionStatusError;
+    }
+    m_uri.assign(s);
+    return eConnectionStatusSuccess;
 }
 
 uint16_t
@@ -777,4 +819,16 @@ ConnectionFileDescriptor::GetListeningPort(uint32_t timeout_sec)
         m_port_predicate.WaitForValueNotEqualTo(0, bound_port, &timeout);
     }
     return bound_port;
+}
+
+bool
+ConnectionFileDescriptor::GetChildProcessesInherit() const
+{
+    return m_child_processes_inherit;
+}
+
+void
+ConnectionFileDescriptor::SetChildProcessesInherit(bool child_processes_inherit)
+{
+    m_child_processes_inherit = child_processes_inherit;
 }

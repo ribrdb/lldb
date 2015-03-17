@@ -91,7 +91,8 @@ public:
     GetSummary ();
     
     const char *
-    GetSummary (lldb::SBTypeSummaryOptions& options);
+    GetSummary (lldb::SBStream& stream,
+                lldb::SBTypeSummaryOptions& options);
     
     const char *
     GetObjectDescription ();
@@ -158,6 +159,7 @@ public:
     lldb::SBValue
     CreateChildAtOffset (const char *name, uint32_t offset, lldb::SBType type);
     
+    // Deprecated - use the expression evaluator to perform type casting
     lldb::SBValue
     Cast (lldb::SBType type);
     
@@ -324,6 +326,9 @@ public:
     //------------------------------------------------------------------
     bool
     MightHaveChildren ();
+    
+    bool
+    IsRuntimeSupportValue ();
 
     uint32_t
     GetNumChildren ();
@@ -351,6 +356,9 @@ public:
     
     lldb::SBType
     GetType();
+    
+    lldb::SBValue
+    Persist ();
 
     bool
     GetDescription (lldb::SBStream &description);

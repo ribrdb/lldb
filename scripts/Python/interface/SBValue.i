@@ -122,7 +122,8 @@ public:
     GetSummary ();
     
     const char *
-    GetSummary (lldb::SBTypeSummaryOptions& options);
+    GetSummary (lldb::SBStream& stream,
+                lldb::SBTypeSummaryOptions& options);
     
     const char *
     GetObjectDescription ();
@@ -313,6 +314,9 @@ public:
     
     bool
     MightHaveChildren ();
+             
+    bool
+    IsRuntimeSupportValue ();
 
     uint32_t
     GetNumChildren ();
@@ -412,6 +416,9 @@ public:
 	lldb::SBAddress
 	GetAddress();
     
+    lldb::SBValue
+    Persist ();
+             
     %feature("docstring", "Returns an expression path for this value."
     ) GetExpressionPath;
     bool

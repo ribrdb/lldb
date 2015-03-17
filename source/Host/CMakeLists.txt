@@ -5,7 +5,6 @@ endmacro()
 
 add_host_subdirectory(common
   common/Condition.cpp
-  common/Editline.cpp
   common/File.cpp
   common/FileCache.cpp
   common/FileSpec.cpp
@@ -19,19 +18,30 @@ add_host_subdirectory(common
   common/MonitoringProcessLauncher.cpp
   common/NativeBreakpoint.cpp
   common/NativeBreakpointList.cpp
+  common/NativeWatchpointList.cpp
   common/NativeProcessProtocol.cpp
+  common/NativeRegisterContext.cpp
+  common/NativeRegisterContextRegisterInfo.cpp
   common/NativeThreadProtocol.cpp
   common/OptionParser.cpp
+  common/PipeBase.cpp
   common/ProcessRunLock.cpp
   common/Socket.cpp
   common/SocketAddress.cpp
   common/SoftwareBreakpoint.cpp
+  common/StringConvert.cpp
   common/Symbols.cpp
   common/Terminal.cpp
   common/ThisThread.cpp
   common/ThreadLauncher.cpp
   common/TimeValue.cpp
   )
+
+if (NOT LLDB_DISABLE_LIBEDIT)
+  add_host_subdirectory(common
+    common/Editline.cpp
+    )
+endif()
 
 add_host_subdirectory(posix
   posix/ConnectionFileDescriptorPosix.cpp
@@ -81,12 +91,21 @@ else()
       )
 
   elseif (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    add_host_subdirectory(linux
-      linux/Host.cpp
-      linux/HostInfoLinux.cpp
-      linux/HostThreadLinux.cpp
-      linux/ThisThread.cpp
-      )
+    if (__ANDROID_NDK__)
+      add_host_subdirectory(android
+        linux/Host.cpp
+        linux/HostInfoLinux.cpp
+        linux/HostThreadLinux.cpp
+        linux/ThisThread.cpp
+        )
+    else()
+      add_host_subdirectory(linux
+        linux/Host.cpp
+        linux/HostInfoLinux.cpp
+        linux/HostThreadLinux.cpp
+        linux/ThisThread.cpp
+        )
+    endif()
   elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
     add_host_subdirectory(freebsd
       freebsd/Host.cpp

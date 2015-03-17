@@ -36,6 +36,7 @@
 #include "lldb/Symbol/TypeList.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Symbol/VariableList.h"
+#include "lldb/Target/CPPLanguageRuntime.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
@@ -543,6 +544,7 @@ ClangExpressionDeclMap::GetFunctionAddress
     FindCodeSymbolInContext(name, m_parser_vars->m_sym_ctx, sc_list);
 
     uint32_t sc_list_size = sc_list.GetSize();
+    
     if (sc_list_size == 0)
     {
         // We occasionally get debug information in which a const function is reported
@@ -559,6 +561,25 @@ ClangExpressionDeclMap::GetFunctionAddress
                 log->Printf("Failed to find symbols given non-const name %s; trying %s", name.GetCString(), fixed_name.GetCString());
 
             FindCodeSymbolInContext(fixed_name, m_parser_vars->m_sym_ctx, sc_list);
+            sc_list_size = sc_list.GetSize();
+        }
+    }
+    
+    if (sc_list_size == 0)
+    {
+        // Sometimes we get a mangled name for a global function that actually should be "extern C."
+        // This is a hack to compensate.
+        
+        const bool is_mangled = true;
+        Mangled mangled(name, is_mangled);
+                
+        CPPLanguageRuntime::MethodName method_name(mangled.GetDemangledName());
+        
+        llvm::StringRef basename = method_name.GetBasename();
+        
+        if (!basename.empty())
+        {
+            FindCodeSymbolInContext(ConstString(basename), m_parser_vars->m_sym_ctx, sc_list);
             sc_list_size = sc_list.GetSize();
         }
     }
@@ -1306,6 +1327,16 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
                 return;
             }
         }
+        
+        std::vector<clang::NamedDecl *> decls_from_modules;
+        
+        if (target)
+        {
+            if (ClangModulesDeclVendor *decl_vendor = target->GetClangModulesDeclVendor())
+            {
+                decl_vendor->FindDecls(name, false, UINT32_MAX, decls_from_modules);
+            }
+        }
 
         if (!context.m_found.variable)
         {
@@ -1381,6 +1412,19 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
                             extern_symbol = sym_ctx.symbol;
                         else
                             non_extern_symbol = sym_ctx.symbol;
+                    }
+                }
+                
+                if (!context.m_found.function_with_type_info)
+                {
+                    for (clang::NamedDecl *decl : decls_from_modules)
+                    {
+                        if (llvm::isa<clang::FunctionDecl>(decl))
+                        {
+                            clang::NamedDecl *copied_decl = llvm::cast<FunctionDecl>(m_ast_importer->CopyDecl(m_ast_context, &decl->getASTContext(), decl));
+                            context.AddNamedDecl(copied_decl);
+                            context.m_found.function_with_type_info = true;
+                        }
                     }
                 }
 

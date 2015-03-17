@@ -16,6 +16,7 @@
 #include <sys/utsname.h>
 
 #include <algorithm>
+#include <mutex> // std::once
 
 using namespace lldb_private;
 
@@ -56,48 +57,72 @@ HostInfoLinux::GetMaxThreadNameLength()
 bool
 HostInfoLinux::GetOSVersion(uint32_t &major, uint32_t &minor, uint32_t &update)
 {
-    static bool is_initialized = false;
     static bool success = false;
+    static std::once_flag g_once_flag;
+    std::call_once(g_once_flag,  []() {
 
-    if (!is_initialized)
-    {
-        is_initialized = true;
         struct utsname un;
-
-        if (uname(&un))
-            goto finished;
-
-        int status = sscanf(un.release, "%u.%u.%u", &g_fields->m_os_major, &g_fields->m_os_minor, &g_fields->m_os_update);
-        if (status == 3)
+        if (uname(&un) == 0)
         {
-            success = true;
-            goto finished;
+            int status = sscanf(un.release, "%u.%u.%u", &g_fields->m_os_major, &g_fields->m_os_minor, &g_fields->m_os_update);
+            if (status == 3)
+                success = true;
+            else
+            {
+                // Some kernels omit the update version, so try looking for just "X.Y" and
+                // set update to 0.
+                g_fields->m_os_update = 0;
+                status = sscanf(un.release, "%u.%u", &g_fields->m_os_major, &g_fields->m_os_minor);
+                if (status == 2)
+                    success = true;
+            }
         }
+    });
 
-        // Some kernels omit the update version, so try looking for just "X.Y" and
-        // set update to 0.
-        g_fields->m_os_update = 0;
-        status = sscanf(un.release, "%u.%u", &g_fields->m_os_major, &g_fields->m_os_minor);
-        success = !!(status == 2);
-    }
 
-finished:
     major = g_fields->m_os_major;
     minor = g_fields->m_os_minor;
     update = g_fields->m_os_update;
     return success;
 }
 
+bool
+HostInfoLinux::GetOSBuildString(std::string &s)
+{
+    struct utsname un;
+    ::memset(&un, 0, sizeof(utsname));
+    s.clear();
+
+    if (uname(&un) < 0)
+        return false;
+
+    s.assign(un.release);
+    return true;
+}
+
+bool
+HostInfoLinux::GetOSKernelDescription(std::string &s)
+{
+    struct utsname un;
+
+    ::memset(&un, 0, sizeof(utsname));
+    s.clear();
+
+    if (uname(&un) < 0)
+        return false;
+
+    s.assign(un.version);
+    return true;
+}
+
 llvm::StringRef
 HostInfoLinux::GetDistributionId()
 {
-    static bool is_initialized = false;
     // Try to run 'lbs_release -i', and use that response
     // for the distribution id.
-
-    if (!is_initialized)
-    {
-        is_initialized = true;
+    static bool success = false;
+    static std::once_flag g_once_flag;
+    std::call_once(g_once_flag,  []() {
 
         Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST));
         if (log)
@@ -173,7 +198,7 @@ HostInfoLinux::GetDistributionId()
             // clean up the file
             pclose(file);
         }
-    }
+    });
 
     return g_fields->m_distribution_id.c_str();
 }
@@ -195,6 +220,15 @@ HostInfoLinux::GetProgramFileSpec()
     }
 
     return g_program_filespec;
+}
+
+bool
+HostInfoLinux::ComputeSharedLibraryDirectory(FileSpec &file_spec)
+{
+    if (HostInfoPosix::ComputeSharedLibraryDirectory(file_spec))
+        return true;
+    file_spec.GetDirectory() = GetProgramFileSpec().GetDirectory();
+    return (bool)file_spec.GetDirectory();
 }
 
 bool

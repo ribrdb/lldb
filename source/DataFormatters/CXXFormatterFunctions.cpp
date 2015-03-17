@@ -11,6 +11,7 @@
 
 #include "lldb/DataFormatters/CXXFormatterFunctions.h"
 #include "lldb/DataFormatters/StringPrinter.h"
+#include "lldb/DataFormatters/TypeSummary.h"
 
 #include "llvm/Support/ConvertUTF.h"
 
@@ -21,12 +22,16 @@
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Host/Endian.h"
 #include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 
 #include "lldb/Utility/ProcessStructReader.h"
 
 #include <algorithm>
+#if __ANDROID_NDK__
+#include <sys/types.h>
+#endif
 
 using namespace lldb;
 using namespace lldb_private;
@@ -191,6 +196,51 @@ lldb_private::formatters::CallSelectorOnObject (ValueObject &valobj,
 }
 
 bool
+lldb_private::formatters::FunctionPointerSummaryProvider (ValueObject& valobj, Stream& stream, const TypeSummaryOptions& options)
+{
+    std::string destination;
+    StreamString sstr;
+    AddressType func_ptr_address_type = eAddressTypeInvalid;
+    addr_t func_ptr_address = valobj.GetPointerValue (&func_ptr_address_type);
+    if (func_ptr_address != 0 && func_ptr_address != LLDB_INVALID_ADDRESS)
+    {
+        switch (func_ptr_address_type)
+        {
+            case eAddressTypeInvalid:
+            case eAddressTypeFile:
+            case eAddressTypeHost:
+                break;
+                
+            case eAddressTypeLoad:
+            {
+                ExecutionContext exe_ctx (valobj.GetExecutionContextRef());
+                
+                Address so_addr;
+                Target *target = exe_ctx.GetTargetPtr();
+                if (target && target->GetSectionLoadList().IsEmpty() == false)
+                {
+                    if (target->GetSectionLoadList().ResolveLoadAddress(func_ptr_address, so_addr))
+                    {
+                        so_addr.Dump (&sstr,
+                                      exe_ctx.GetBestExecutionContextScope(),
+                                      Address::DumpStyleResolvedDescription,
+                                      Address::DumpStyleSectionNameOffset);
+                    }
+                }
+            }
+                break;
+        }
+    }
+    if (sstr.GetSize() > 0)
+    {
+        stream.Printf("(%s)", sstr.GetData());
+        return true;
+    }
+    else
+        return false;
+}
+
+bool
 lldb_private::formatters::Char16StringSummaryProvider (ValueObject& valobj, Stream& stream, const TypeSummaryOptions&)
 {
     ProcessSP process_sp = valobj.GetProcessSP();
@@ -267,7 +317,7 @@ lldb_private::formatters::WCharStringSummaryProvider (ValueObject& valobj, Strea
         return false;
 
     ClangASTType wchar_clang_type = ClangASTContext::GetBasicType(ast, lldb::eBasicTypeWChar);
-    const uint32_t wchar_size = wchar_clang_type.GetBitSize();
+    const uint32_t wchar_size = wchar_clang_type.GetBitSize(nullptr);
 
     ReadStringAndDumpToStreamOptions options(valobj);
     options.SetLocation(data_addr);
@@ -460,7 +510,7 @@ lldb_private::formatters::LibcxxWStringSummaryProvider (ValueObject& valobj, Str
 }
 
 bool
-lldb_private::formatters::LibcxxStringSummaryProvider (ValueObject& valobj, Stream& stream, const TypeSummaryOptions&)
+lldb_private::formatters::LibcxxStringSummaryProvider (ValueObject& valobj, Stream& stream, const TypeSummaryOptions& summary_options)
 {
     uint64_t size = 0;
     ValueObjectSP location_sp((ValueObject*)nullptr);
@@ -478,7 +528,8 @@ lldb_private::formatters::LibcxxStringSummaryProvider (ValueObject& valobj, Stre
         return false;
     
     DataExtractor extractor;
-    size = std::min<decltype(size)>(size, valobj.GetTargetSP()->GetMaximumSizeOfStringSummary());
+    if (summary_options.GetCapping() == TypeSummaryCapping::eTypeSummaryCapped)
+        size = std::min<decltype(size)>(size, valobj.GetTargetSP()->GetMaximumSizeOfStringSummary());
     location_sp->GetPointeeData(extractor, 0, size);
     
     ReadBufferAndDumpToStreamOptions options(valobj);
@@ -742,7 +793,7 @@ GetNSPathStore2Type (Target &target)
 }
 
 bool
-lldb_private::formatters::NSStringSummaryProvider (ValueObject& valobj, Stream& stream, const TypeSummaryOptions& options)
+lldb_private::formatters::NSStringSummaryProvider (ValueObject& valobj, Stream& stream, const TypeSummaryOptions& summary_options)
 {
     ProcessSP process_sp = valobj.GetProcessSP();
     if (!process_sp)
@@ -843,6 +894,7 @@ lldb_private::formatters::NSStringSummaryProvider (ValueObject& valobj, Stream& 
             options.SetQuote('"');
             options.SetSourceSize(explicit_length);
             options.SetNeedsZeroTermination(false);
+            options.SetIgnoreMaxLength(summary_options.GetCapping() == TypeSummaryCapping::eTypeSummaryUncapped);
             return ReadStringAndDumpToStream<StringElementType::UTF16>(options);
         }
         else
@@ -854,7 +906,7 @@ lldb_private::formatters::NSStringSummaryProvider (ValueObject& valobj, Stream& 
             options.SetPrefixToken('@');
             options.SetSourceSize(explicit_length);
             options.SetNeedsZeroTermination(false);
-            
+            options.SetIgnoreMaxLength(summary_options.GetCapping() == TypeSummaryCapping::eTypeSummaryUncapped);
             return ReadStringAndDumpToStream<StringElementType::ASCII>(options);
         }
     }
@@ -890,6 +942,7 @@ lldb_private::formatters::NSStringSummaryProvider (ValueObject& valobj, Stream& 
         options.SetQuote('"');
         options.SetSourceSize(explicit_length);
         options.SetNeedsZeroTermination(has_explicit_length == false);
+        options.SetIgnoreMaxLength(summary_options.GetCapping() == TypeSummaryCapping::eTypeSummaryUncapped);
         return ReadStringAndDumpToStream<StringElementType::UTF16> (options);
     }
     else if (is_special)
@@ -906,6 +959,7 @@ lldb_private::formatters::NSStringSummaryProvider (ValueObject& valobj, Stream& 
         options.SetQuote('"');
         options.SetSourceSize(explicit_length);
         options.SetNeedsZeroTermination(has_explicit_length == false);
+        options.SetIgnoreMaxLength(summary_options.GetCapping() == TypeSummaryCapping::eTypeSummaryUncapped);
         return ReadStringAndDumpToStream<StringElementType::UTF16> (options);
     }
     else if (is_inline)
@@ -919,6 +973,7 @@ lldb_private::formatters::NSStringSummaryProvider (ValueObject& valobj, Stream& 
         options.SetStream(&stream);
         options.SetPrefixToken('@');
         options.SetSourceSize(explicit_length);
+        options.SetIgnoreMaxLength(summary_options.GetCapping() == TypeSummaryCapping::eTypeSummaryUncapped);
         return ReadStringAndDumpToStream<StringElementType::ASCII>(options);
     }
     else
@@ -935,6 +990,7 @@ lldb_private::formatters::NSStringSummaryProvider (ValueObject& valobj, Stream& 
         options.SetPrefixToken('@');
         options.SetStream(&stream);
         options.SetSourceSize(explicit_length);
+        options.SetIgnoreMaxLength(summary_options.GetCapping() == TypeSummaryCapping::eTypeSummaryUncapped);
         return ReadStringAndDumpToStream<StringElementType::ASCII>(options);
     }
 }
@@ -1120,7 +1176,7 @@ lldb_private::formatters::VectorIteratorSyntheticFrontEnd::Update()
         return false;
     Error err;
     m_exe_ctx_ref = valobj_sp->GetExecutionContextRef();
-    m_item_sp = ValueObject::CreateValueObjectFromAddress("item", item_ptr->GetValueAsUnsigned(0), m_exe_ctx_ref, item_ptr->GetClangType().GetPointeeType());
+    m_item_sp = CreateValueObjectFromAddress("item", item_ptr->GetValueAsUnsigned(0), m_exe_ctx_ref, item_ptr->GetClangType().GetPointeeType());
     if (err.Fail())
         m_item_sp.reset();
     return false;

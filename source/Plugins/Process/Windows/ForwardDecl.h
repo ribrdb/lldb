@@ -14,32 +14,28 @@ class ProcessWindows;
 
 #include <memory>
 
+// ExceptionResult is returned by the debug delegate to specify how it processed
+// the exception.
+enum class ExceptionResult
+{
+    BreakInDebugger,  // Break in the debugger and give the user a chance to interact with
+                      // the program before continuing.
+    MaskException,    // Eat the exception and don't let the application know it occurred.
+    SendToApplication // Send the exception to the application to be handled as if there were
+                      // no debugger attached.
+};
+
 namespace lldb_private
 {
-// Driver message forward declarations
-class DriverMessage;
-class DriverLaunchProcessMessage;
-
-// Driver message result forward declarations
-class DriverMessageResult;
-class DriverLaunchProcessMessageResult;
 
 class IDebugDelegate;
-
-// Process message forward declarations.
-class ProcessMessageBase;
-class ProcessMessageCreateProcess;
-class ProcessMessageExitProcess;
-class ProcessMessageDebuggerConnected;
-class ProcessMessageException;
-class ProcessMessageCreateThread;
-class ProcessMessageExitThread;
-class ProcessMessageLoadDll;
-class ProcessMessageUnloadDll;
-class ProcessMessageDebugString;
-class ProcessMessageDebuggerError;
+class DebuggerThread;
+class ExceptionRecord;
 
 typedef std::shared_ptr<IDebugDelegate> DebugDelegateSP;
+typedef std::shared_ptr<DebuggerThread> DebuggerThreadSP;
+typedef std::shared_ptr<ExceptionRecord> ExceptionRecordSP;
+typedef std::unique_ptr<ExceptionRecord> ExceptionRecordUP;
 }
 
 #endif

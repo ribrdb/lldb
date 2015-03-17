@@ -34,7 +34,7 @@ class SocketAddress;
 class ConnectionFileDescriptor : public Connection
 {
   public:
-    ConnectionFileDescriptor();
+    ConnectionFileDescriptor(bool child_processes_inherit = false);
 
     ConnectionFileDescriptor(int fd, bool owns_fd);
 
@@ -49,6 +49,8 @@ class ConnectionFileDescriptor : public Connection
     virtual size_t Read(void *dst, size_t dst_len, uint32_t timeout_usec, lldb::ConnectionStatus &status, Error *error_ptr);
 
     virtual size_t Write(const void *src, size_t src_len, lldb::ConnectionStatus &status, Error *error_ptr);
+
+    virtual std::string GetURI();
 
     lldb::ConnectionStatus BytesAvailable(uint32_t timeout_usec, Error *error_ptr);
 
@@ -67,12 +69,15 @@ class ConnectionFileDescriptor : public Connection
 
     uint16_t GetListeningPort(uint32_t timeout_sec);
 
+    bool GetChildProcessesInherit() const;
+    void SetChildProcessesInherit(bool child_processes_inherit);
+
   protected:
     void OpenCommandPipe();
 
     void CloseCommandPipe();
 
-    lldb::ConnectionStatus SocketListen(const char *host_and_port, Error *error_ptr);
+    lldb::ConnectionStatus SocketListenAndAccept(const char *host_and_port, Error *error_ptr);
 
     lldb::ConnectionStatus ConnectTCP(const char *host_and_port, Error *error_ptr);
 
@@ -94,6 +99,9 @@ class ConnectionFileDescriptor : public Connection
     std::atomic<bool> m_shutting_down; // This marks that we are shutting down so if we get woken up from
                                        // BytesAvailable to disconnect, we won't try to read again.
     bool m_waiting_for_accept;
+    bool m_child_processes_inherit;
+
+    std::string m_uri;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(ConnectionFileDescriptor);

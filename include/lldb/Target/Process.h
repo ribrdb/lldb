@@ -62,7 +62,8 @@ namespace lldb_private {
 class ProcessProperties : public Properties
 {
 public:
-    ProcessProperties(bool is_global);
+    // Pass NULL for "process" if the ProcessProperties are to be the global copy
+    ProcessProperties (lldb_private::Process *process);
 
     virtual
     ~ProcessProperties();
@@ -108,6 +109,13 @@ public:
     
     void
     SetDetachKeepsStopped (bool keep_stopped);
+
+protected:
+
+    static void
+    OptionValueChangedCallback (void *baton, OptionValue *option_value);
+
+    Process * m_process; // Can be NULL for global ProcessProperties
 };
 
 typedef std::shared_ptr<ProcessProperties> ProcessPropertiesSP;
@@ -228,6 +236,8 @@ class ProcessAttachInfo : public ProcessInstanceInfo
 public:
     ProcessAttachInfo() :
         ProcessInstanceInfo(),
+        m_listener_sp(),
+        m_hijack_listener_sp(),
         m_plugin_name (),
         m_resume_count (0),
         m_wait_for_launch (false),
@@ -239,6 +249,8 @@ public:
 
     ProcessAttachInfo (const ProcessLaunchInfo &launch_info) :
         ProcessInstanceInfo(),
+        m_listener_sp(),
+        m_hijack_listener_sp(),
         m_plugin_name (),
         m_resume_count (0),
         m_wait_for_launch (false),
@@ -249,6 +261,7 @@ public:
         ProcessInfo::operator= (launch_info);
         SetProcessPluginName (launch_info.GetProcessPluginName());
         SetResumeCount (launch_info.GetResumeCount());
+        SetListener(launch_info.GetListener());
         SetHijackListener(launch_info.GetHijackListener());
         m_detach_on_error = launch_info.GetDetachOnError();
     }
@@ -364,8 +377,26 @@ public:
     {
         m_detach_on_error = enable;
     }
-    
+
+    // Get and set the actual listener that will be used for the process events
+    lldb::ListenerSP
+    GetListener () const
+    {
+        return m_listener_sp;
+    }
+
+    void
+    SetListener (const lldb::ListenerSP &listener_sp)
+    {
+        m_listener_sp = listener_sp;
+    }
+
+
+    Listener &
+    GetListenerForProcess (Debugger &debugger);
+
 protected:
+    lldb::ListenerSP m_listener_sp;
     lldb::ListenerSP m_hijack_listener_sp;
     std::string m_plugin_name;
     uint32_t m_resume_count; // How many times do we resume after launching
@@ -647,13 +678,16 @@ public:
     bool
     IsLastResumeForUserExpression () const
     {
+        // If we haven't yet resumed the target, then it can't be for a user expression...
+        if (m_resume_id == 0)
+            return false;
+
         return m_resume_id == m_last_user_expression_resume;
     }
     
     void
     SetRunningUserExpression (bool on)
     {
-        // REMOVEME printf ("Setting running user expression %s at resume id %d - value: %d.\n", on ? "on" : "off", m_resume_id, m_running_user_expression);
         if (on)
             m_running_user_expression++;
         else
@@ -2454,17 +2488,26 @@ public:
     //------------------------------------------------------------------
     /// Get any available STDOUT.
     ///
-    /// If the process was launched without supplying valid file paths
-    /// for stdin, stdout, and stderr, then the Process class might
-    /// try to cache the STDOUT for the process if it is able. Events
-    /// will be queued indicating that there is STDOUT available that
-    /// can be retrieved using this function.
+    /// Calling this method is a valid operation only if all of the
+    /// following conditions are true:
+    /// 1) The process was launched, and not attached to.
+    /// 2) The process was not launched with eLaunchFlagDisableSTDIO.
+    /// 3) The process was launched without supplying a valid file path
+    ///    for STDOUT.
+    ///
+    /// Note that the implementation will probably need to start a read
+    /// thread in the background to make sure that the pipe is drained
+    /// and the STDOUT buffered appropriately, to prevent the process
+    /// from deadlocking trying to write to a full buffer.
+    ///
+    /// Events will be queued indicating that there is STDOUT available
+    /// that can be retrieved using this function.
     ///
     /// @param[out] buf
     ///     A buffer that will receive any STDOUT bytes that are
     ///     currently available.
     ///
-    /// @param[out] buf_size
+    /// @param[in] buf_size
     ///     The size in bytes for the buffer \a buf.
     ///
     /// @return
@@ -2478,13 +2521,22 @@ public:
     //------------------------------------------------------------------
     /// Get any available STDERR.
     ///
-    /// If the process was launched without supplying valid file paths
-    /// for stdin, stdout, and stderr, then the Process class might
-    /// try to cache the STDERR for the process if it is able. Events
-    /// will be queued indicating that there is STDERR available that
-    /// can be retrieved using this function.
+    /// Calling this method is a valid operation only if all of the
+    /// following conditions are true:
+    /// 1) The process was launched, and not attached to.
+    /// 2) The process was not launched with eLaunchFlagDisableSTDIO.
+    /// 3) The process was launched without supplying a valid file path
+    ///    for STDERR.
     ///
-    /// @param[out] buf
+    /// Note that the implementation will probably need to start a read
+    /// thread in the background to make sure that the pipe is drained
+    /// and the STDERR buffered appropriately, to prevent the process
+    /// from deadlocking trying to write to a full buffer.
+    ///
+    /// Events will be queued indicating that there is STDERR available
+    /// that can be retrieved using this function.
+    ///
+    /// @param[in] buf
     ///     A buffer that will receive any STDERR bytes that are
     ///     currently available.
     ///
@@ -2499,6 +2551,27 @@ public:
     virtual size_t
     GetSTDERR (char *buf, size_t buf_size, Error &error);
 
+    //------------------------------------------------------------------
+    /// Puts data into this process's STDIN.
+    ///
+    /// Calling this method is a valid operation only if all of the
+    /// following conditions are true:
+    /// 1) The process was launched, and not attached to.
+    /// 2) The process was not launched with eLaunchFlagDisableSTDIO.
+    /// 3) The process was launched without supplying a valid file path
+    ///    for STDIN.
+    ///
+    /// @param[in] buf
+    ///     A buffer that contains the data to write to the process's STDIN.
+    ///
+    /// @param[in] buf_size
+    ///     The size in bytes for the buffer \a buf.
+    ///
+    /// @return
+    ///     The number of bytes written into \a buf. If this value is
+    ///     less than \a buf_size, another call to this function should
+    ///     be made to write the rest of the data.
+    //------------------------------------------------------------------
     virtual size_t
     PutSTDIN (const char *buf, size_t buf_size, Error &error) 
     {
@@ -2752,6 +2825,7 @@ public:
         Process &m_process;
     };
     friend class ProcessEventHijacker;
+    friend class ProcessProperties;
     //------------------------------------------------------------------
     /// If you need to ensure that you and only you will hear about some public
     /// event, then make a new listener, set to listen to process events, and
@@ -2805,7 +2879,12 @@ public:
     {
         return m_os_ap.get();
     }
-    
+
+    ArchSpec::StopInfoOverrideCallbackType
+    GetStopInfoOverrideCallback () const
+    {
+        return m_stop_info_override_callback;
+    }
 
     virtual LanguageRuntime *
     GetLanguageRuntime (lldb::LanguageType language, bool retry_if_null = true);
@@ -3101,6 +3180,7 @@ protected:
     lldb::IOHandlerSP           m_process_input_reader;
     Communication               m_stdio_communication;
     Mutex                       m_stdio_communication_mutex;
+    bool                        m_stdin_forward;           /// Remember if stdin must be forwarded to remote debug server
     std::string                 m_stdout_data;
     std::string                 m_stderr_data;
     Mutex                       m_profile_data_comm_mutex;
@@ -3116,6 +3196,7 @@ protected:
     ProcessRunLock              m_public_run_lock;
     ProcessRunLock              m_private_run_lock;
     Predicate<bool>             m_currently_handling_event; // This predicate is set in HandlePrivateEvent while all its business is being done.
+    ArchSpec::StopInfoOverrideCallbackType m_stop_info_override_callback;
     bool                        m_currently_handling_do_on_removals;
     bool                        m_resume_requested;         // If m_currently_handling_event or m_currently_handling_do_on_removals are true, Resume will only request a resume, using this flag to check.
     bool                        m_finalize_called;
@@ -3211,6 +3292,8 @@ protected:
     bool
     StateChangedIsExternallyHijacked();
 
+    void
+    LoadOperatingSystemPlugin(bool flush);
 private:
     //------------------------------------------------------------------
     // For Process only

@@ -84,6 +84,8 @@
 #endif
 
 #if defined (_WIN32)
+#include "lldb/Host/windows/windows.h"
+#include "Plugins/Process/Windows/DynamicLoaderWindows.h"
 #include "Plugins/Process/Windows/ProcessWindows.h"
 #endif
 
@@ -118,6 +120,25 @@ lldb_private::Initialize ()
     if (!g_inited)
     {
         g_inited = true;
+
+#if defined(_MSC_VER)
+        const char *disable_crash_dialog_var = getenv("LLDB_DISABLE_CRASH_DIALOG");
+        if (disable_crash_dialog_var && llvm::StringRef(disable_crash_dialog_var).equals_lower("true"))
+        {
+            // This will prevent Windows from displaying a dialog box requiring user interaction when
+            // LLDB crashes.  This is mostly useful when automating LLDB, for example via the test
+            // suite, so that a crash in LLDB does not prevent completion of the test suite.
+            ::SetErrorMode(GetErrorMode() | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+
+            _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+            _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+            _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+            _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+            _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+            _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+        }
+#endif
+
         Log::Initialize();
         HostInfo::Initialize();
         Timer::Initialize ();
@@ -190,7 +211,8 @@ lldb_private::Initialize ()
         //----------------------------------------------------------------------
         ProcessLinux::Initialize();
 #endif
-#if defined(_WIN32)
+#if defined(_MSC_VER)
+        DynamicLoaderWindows::Initialize();
         ProcessWindows::Initialize();
 #endif
 #if defined (__FreeBSD__)
@@ -278,6 +300,10 @@ lldb_private::Terminate ()
 #endif
 
     Debugger::SettingsTerminate ();
+
+#if defined(_MSC_VER)
+    DynamicLoaderWindows::Terminate();
+#endif
 
 #if defined (__linux__)
     ProcessLinux::Terminate();
@@ -440,6 +466,7 @@ lldb_private::GetSectionTypeAsCString (SectionType sect_type)
     case eSectionTypeDWARFAppleNamespaces: return "apple-namespaces";
     case eSectionTypeDWARFAppleObjC: return "apple-objc";
     case eSectionTypeEHFrame: return "eh-frame";
+    case eSectionTypeCompactUnwind: return "compact-unwind";
     case eSectionTypeOther: return "regular";
     }
     return "unknown";

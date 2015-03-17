@@ -132,6 +132,15 @@ namespace lldb_private
 
         void
         SetLaunchInSeparateProcessGroup (bool separate);
+        
+        bool
+        GetGlobArguments () const
+        {
+            return m_flags.Test(lldb::eLaunchFlagGlobArguments);
+        }
+        
+        void
+        SetGlobArguments (bool glob);
 
         void
         Clear ();
@@ -179,6 +188,22 @@ namespace lldb_private
             return *m_pty;
         }
 
+        // Get and set the actual listener that will be used for the process events
+        lldb::ListenerSP
+        GetListener () const
+        {
+            return m_listener_sp;
+        }
+
+        void
+        SetListener (const lldb::ListenerSP &listener_sp)
+        {
+            m_listener_sp = listener_sp;
+        }
+
+        Listener &
+        GetListenerForProcess (Debugger &debugger);
+
         lldb::ListenerSP
         GetHijackListener () const
         {
@@ -190,7 +215,6 @@ namespace lldb_private
         {
             m_hijack_listener_sp = listener_sp;
         }
-
 
         void
         SetLaunchEventData (const char *data)
@@ -225,6 +249,7 @@ namespace lldb_private
         void *m_monitor_callback_baton;
         bool m_monitor_signals;
         std::string m_event_data; // A string passed to the plugin launch, having no meaning to the upper levels of lldb.
+        lldb::ListenerSP m_listener_sp;
         lldb::ListenerSP m_hijack_listener_sp;
     };
 }

@@ -288,82 +288,6 @@ PlatformPOSIX::PutFile (const lldb_private::FileSpec& source,
             }
             // if we are still here rsync has failed - let's try the slow way before giving up
         }
-        
-        if (log)
-            log->Printf ("PlatformPOSIX::PutFile(src='%s', dst='%s', uid=%u, gid=%u)",
-                         source.GetPath().c_str(),
-                         destination.GetPath().c_str(),
-                         uid,
-                         gid); // REMOVE THIS PRINTF PRIOR TO CHECKIN
-        // open
-        // read, write, read, write, ...
-        // close
-        // chown uid:gid dst
-        if (log)
-            log->Printf("[PutFile] Using block by block transfer....\n");
-        
-        uint32_t source_open_options = File::eOpenOptionRead;
-        if (source.GetFileType() == FileSpec::eFileTypeSymbolicLink)
-            source_open_options |= File::eOpenoptionDontFollowSymlinks;
-
-        File source_file(source, source_open_options, lldb::eFilePermissionsUserRW);
-        Error error;
-        uint32_t permissions = source_file.GetPermissions(error);
-        if (permissions == 0)
-            permissions = lldb::eFilePermissionsFileDefault;
-
-        if (!source_file.IsValid())
-            return Error("unable to open source file");
-        lldb::user_id_t dest_file = OpenFile (destination,
-                                              File::eOpenOptionCanCreate | File::eOpenOptionWrite | File::eOpenOptionTruncate,
-                                              permissions,
-                                              error);
-        if (log)
-            log->Printf ("dest_file = %" PRIu64 "\n", dest_file);
-        if (error.Fail())
-            return error;
-        if (dest_file == UINT64_MAX)
-            return Error("unable to open target file");
-        lldb::DataBufferSP buffer_sp(new DataBufferHeap(1024, 0));
-        uint64_t offset = 0;
-        while (error.Success())
-        {
-            size_t bytes_read = buffer_sp->GetByteSize();
-            error = source_file.Read(buffer_sp->GetBytes(), bytes_read);
-            if (bytes_read)
-            {
-                const uint64_t bytes_written = WriteFile(dest_file, offset, buffer_sp->GetBytes(), bytes_read, error);
-                offset += bytes_written;
-                if (bytes_written != bytes_read)
-                {
-                    // We didn't write the correct numbe of bytes, so adjust
-                    // the file position in the source file we are reading from...
-                    source_file.SeekFromStart(offset);
-                }
-            }
-            else
-                break;
-        }
-        CloseFile(dest_file, error);
-        if (uid == UINT32_MAX && gid == UINT32_MAX)
-            return error;
-        // This is remopve, don't chown a local file...
-//        std::string dst_path (destination.GetPath());
-//        if (chown_file(this,dst_path.c_str(),uid,gid) != 0)
-//            return Error("unable to perform chown");
-
-
-        uint64_t src_md5[2];
-        uint64_t dst_md5[2];
-
-        if (FileSystem::CalculateMD5 (source, src_md5[0], src_md5[1]) && CalculateMD5 (destination, dst_md5[0], dst_md5[1]))
-        {
-            if (src_md5[0] != dst_md5[0] || src_md5[1] != dst_md5[1])
-            {
-                error.SetErrorString("md5 checksum of installed file doesn't match, installation failed");
-            }
-        }
-        return error;
     }
     return Platform::PutFile(source,destination,uid,gid);
 }
@@ -794,7 +718,6 @@ lldb::ProcessSP
 PlatformPOSIX::Attach (ProcessAttachInfo &attach_info,
                        Debugger &debugger,
                        Target *target,
-                       Listener &listener,
                        Error &error)
 {
     lldb::ProcessSP process_sp;
@@ -835,15 +758,19 @@ PlatformPOSIX::Attach (ProcessAttachInfo &attach_info,
             }
 
 
-            process_sp = target->CreateProcess (listener, attach_info.GetProcessPluginName(), NULL);
+            process_sp = target->CreateProcess (attach_info.GetListenerForProcess(debugger), attach_info.GetProcessPluginName(), NULL);
 
             if (process_sp)
             {
                 // Set UnixSignals appropriately.
                 process_sp->SetUnixSignals (Host::GetUnixSignals ());
 
-                ListenerSP listener_sp (new Listener("lldb.PlatformPOSIX.attach.hijack"));
-                attach_info.SetHijackListener(listener_sp);
+                auto listener_sp = attach_info.GetHijackListener();
+                if (listener_sp == nullptr)
+                {
+                    listener_sp.reset(new Listener("lldb.PlatformPOSIX.attach.hijack"));
+                    attach_info.SetHijackListener(listener_sp);
+                }
                 process_sp->HijackProcessEvents(listener_sp.get());
                 error = process_sp->Attach (attach_info);
             }
@@ -852,7 +779,7 @@ PlatformPOSIX::Attach (ProcessAttachInfo &attach_info,
     else
     {
         if (m_remote_platform_sp)
-            process_sp = m_remote_platform_sp->Attach (attach_info, debugger, target, listener, error);
+            process_sp = m_remote_platform_sp->Attach (attach_info, debugger, target, error);
         else
             error.SetErrorString ("the platform is not currently connected");
     }
@@ -863,7 +790,6 @@ lldb::ProcessSP
 PlatformPOSIX::DebugProcess (ProcessLaunchInfo &launch_info,
                               Debugger &debugger,
                               Target *target,       // Can be NULL, if NULL create a new target, else use existing one
-                              Listener &listener,
                               Error &error)
 {
     ProcessSP process_sp;
@@ -874,12 +800,12 @@ PlatformPOSIX::DebugProcess (ProcessLaunchInfo &launch_info,
         // We still need to reap it from lldb but if we let the monitor thread also set the exit status, we set up a
         // race between debugserver & us for who will find out about the debugged process's death.
         launch_info.GetFlags().Set(eLaunchFlagDontSetExitStatus);
-        process_sp = Platform::DebugProcess (launch_info, debugger, target, listener, error);
+        process_sp = Platform::DebugProcess (launch_info, debugger, target, error);
     }
     else
     {
         if (m_remote_platform_sp)
-            process_sp = m_remote_platform_sp->DebugProcess (launch_info, debugger, target, listener, error);
+            process_sp = m_remote_platform_sp->DebugProcess (launch_info, debugger, target, error);
         else
             error.SetErrorString ("the platform is not currently connected");
     }

@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 // C includes
 #include <errno.h>
 #include <limits.h>
@@ -30,7 +28,7 @@
 #endif
 
 #if defined (__linux__) || defined (__FreeBSD__) || defined (__FreeBSD_kernel__) || defined (__APPLE__) || defined(__NetBSD__)
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
 #include <spawn.h>
 #endif
 #include <sys/wait.h>
@@ -44,23 +42,25 @@
 // C++ includes
 #include <limits>
 
+#include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Core/ArchSpec.h"
-#include "lldb/Core/Debugger.h"
 #include "lldb/Core/Error.h"
 #include "lldb/Core/Log.h"
-#include "lldb/Core/Module.h"
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Host/HostProcess.h"
 #include "lldb/Host/MonitoringProcessLauncher.h"
+#include "lldb/Host/Predicate.h"
 #include "lldb/Host/ProcessLauncher.h"
 #include "lldb/Host/ThreadLauncher.h"
 #include "lldb/lldb-private-forward.h"
+#include "llvm/Support/FileSystem.h"
 #include "lldb/Target/FileAction.h"
 #include "lldb/Target/ProcessLaunchInfo.h"
-#include "lldb/Target/TargetList.h"
+#include "lldb/Target/UnixSignals.h"
 #include "lldb/Utility/CleanUp.h"
+#include "llvm/ADT/SmallString.h"
 
 #if defined(_WIN32)
 #include "lldb/Host/windows/ProcessLauncherWindows.h"
@@ -111,7 +111,7 @@ Host::StartMonitoringChildProcess(Host::MonitorChildProcessCallback callback, vo
     return ThreadLauncher::LaunchThread(thread_name, MonitorChildProcessThreadFunction, info_ptr, NULL);
 }
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
 //------------------------------------------------------------------
 // Scoped class that will disable thread canceling when it is
 // constructed, and exception safely restore the previous value it
@@ -126,7 +126,6 @@ public:
         int err = ::pthread_setcancelstate (PTHREAD_CANCEL_DISABLE, &m_old_state);
         if (err != 0)
             m_old_state = -1;
-
     }
 
     ~ScopedPThreadCancelDisabler()
@@ -139,7 +138,7 @@ public:
 private:
     int m_old_state;    // Save the old cancelability state.
 };
-#endif
+#endif // __ANDROID_NDK__
 
 static thread_result_t
 MonitorChildProcessThreadFunction (void *arg)
@@ -170,18 +169,17 @@ MonitorChildProcessThreadFunction (void *arg)
     {
         log = lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_PROCESS);
         if (log)
-            log->Printf("%s ::wait_pid (pid = %" PRIi32 ", &status, options = %i)...", function, pid, options);
+            log->Printf("%s ::waitpid (pid = %" PRIi32 ", &status, options = %i)...", function, pid, options);
 
         // Wait for all child processes
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
         ::pthread_testcancel ();
 #endif
         // Get signals from all children with same process group of pid
         const ::pid_t wait_pid = ::waitpid (pid, &status, options);
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
         ::pthread_testcancel ();
 #endif
-
         if (wait_pid == -1)
         {
             if (errno == EINTR)
@@ -226,7 +224,7 @@ MonitorChildProcessThreadFunction (void *arg)
 
             // Scope for pthread_cancel_disabler
             {
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
                 ScopedPThreadCancelDisabler pthread_cancel_disabler;
 #endif
 
@@ -234,9 +232,9 @@ MonitorChildProcessThreadFunction (void *arg)
                 if (log)
                     log->Printf ("%s ::waitpid (pid = %" PRIi32 ", &status, options = %i) => pid = %" PRIi32 ", status = 0x%8.8x (%s), signal = %i, exit_state = %i",
                                  function,
-                                 wait_pid,
-                                 options,
                                  pid,
+                                 options,
+                                 wait_pid,
                                  status,
                                  status_cstr,
                                  signal,
@@ -316,6 +314,8 @@ Host::GetCurrentThreadID()
     return thread_self;
 #elif defined(__FreeBSD__)
     return lldb::tid_t(pthread_getthreadid_np());
+#elif defined(__ANDROID_NDK__)
+    return lldb::tid_t(gettid());
 #elif defined(__linux__)
     return lldb::tid_t(syscall(SYS_gettid));
 #else
@@ -456,7 +456,7 @@ FileSpec
 Host::GetModuleFileSpecForHostAddress (const void *host_addr)
 {
     FileSpec module_filespec;
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
     Dl_info info;
     if (::dladdr (host_addr, &info))
     {
@@ -478,28 +478,6 @@ Host::FindProcessThreads (const lldb::pid_t pid, TidMap &tids_to_attach)
     return false;
 }
 #endif
-
-lldb::TargetSP
-Host::GetDummyTarget (lldb_private::Debugger &debugger)
-{
-    static TargetSP g_dummy_target_sp;
-
-    // FIXME: Maybe the dummy target should be per-Debugger
-    if (!g_dummy_target_sp || !g_dummy_target_sp->IsValid())
-    {
-        ArchSpec arch(Target::GetDefaultArchitecture());
-        if (!arch.IsValid())
-            arch = HostInfo::GetArchitecture();
-        Error err = debugger.GetTargetList().CreateTarget(debugger, 
-                                                          NULL,
-                                                          arch.GetTriple().getTriple().c_str(),
-                                                          false, 
-                                                          NULL, 
-                                                          g_dummy_target_sp);
-    }
-
-    return g_dummy_target_sp;
-}
 
 struct ShellInfo
 {
@@ -554,6 +532,7 @@ Host::RunShellCommand (const char *command,
 {
     Error error;
     ProcessLaunchInfo launch_info;
+    launch_info.SetArchitecture(HostInfo::GetArchitecture());
     if (run_in_default_shell)
     {
         // Run the command in a shell
@@ -578,9 +557,8 @@ Host::RunShellCommand (const char *command,
     
     if (working_dir)
         launch_info.SetWorkingDirectory(working_dir);
-    char output_file_path_buffer[PATH_MAX];
-    const char *output_file_path = NULL;
-    
+    llvm::SmallString<PATH_MAX> output_file_path;
+
     if (command_output_ptr)
     {
         // Create a temporary file to get the stdout/stderr and redirect the
@@ -589,21 +567,19 @@ Host::RunShellCommand (const char *command,
         FileSpec tmpdir_file_spec;
         if (HostInfo::GetLLDBPath(ePathTypeLLDBTempSystemDir, tmpdir_file_spec))
         {
-            tmpdir_file_spec.AppendPathComponent("lldb-shell-output.XXXXXX");
-            strncpy(output_file_path_buffer, tmpdir_file_spec.GetPath().c_str(), sizeof(output_file_path_buffer));
+            tmpdir_file_spec.AppendPathComponent("lldb-shell-output.%%%%%%");
+            llvm::sys::fs::createUniqueFile(tmpdir_file_spec.GetPath().c_str(), output_file_path);
         }
         else
         {
-            strncpy(output_file_path_buffer, "/tmp/lldb-shell-output.XXXXXX", sizeof(output_file_path_buffer));
+            llvm::sys::fs::createTemporaryFile("lldb-shell-output.%%%%%%", "", output_file_path);
         }
-        
-        output_file_path = ::mktemp(output_file_path_buffer);
     }
     
     launch_info.AppendSuppressFileAction (STDIN_FILENO, true, false);
-    if (output_file_path)
+    if (!output_file_path.empty())
     {
-        launch_info.AppendOpenFileAction(STDOUT_FILENO, output_file_path, false, true);
+        launch_info.AppendOpenFileAction(STDOUT_FILENO, output_file_path.c_str(), false, true);
         launch_info.AppendDuplicateFileAction(STDOUT_FILENO, STDERR_FILENO);
     }
     else
@@ -662,7 +638,7 @@ Host::RunShellCommand (const char *command,
             if (command_output_ptr)
             {
                 command_output_ptr->clear();
-                FileSpec file_spec(output_file_path, File::eOpenOptionRead);
+                FileSpec file_spec(output_file_path.c_str(), File::eOpenOptionRead);
                 uint64_t file_size = file_spec.GetByteSize();
                 if (file_size > 0)
                 {
@@ -681,8 +657,9 @@ Host::RunShellCommand (const char *command,
         shell_info->can_delete.SetValue(true, eBroadcastAlways);
     }
 
-    if (output_file_path)
-        ::unlink (output_file_path);
+    FileSpec output_file_spec(output_file_path.c_str(), false);
+    if (FileSystem::GetFileExists(output_file_spec))
+        FileSystem::Unlink(output_file_path.c_str());
     // Handshake with the monitor thread, or just let it know in advance that
     // it can delete "shell_info" in case we timed out and were not able to kill
     // the process...
@@ -694,14 +671,13 @@ Host::RunShellCommand (const char *command,
 // systems
 
 #if defined (__APPLE__) || defined (__linux__) || defined (__FreeBSD__) || defined (__GLIBC__) || defined(__NetBSD__)
-
 // this method needs to be visible to macosx/Host.cpp and
 // common/Host.cpp.
 
 short
 Host::GetPosixspawnFlags(const ProcessLaunchInfo &launch_info)
 {
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
     short flags = POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK;
 
 #if defined (__APPLE__)
@@ -745,7 +721,7 @@ Host::GetPosixspawnFlags(const ProcessLaunchInfo &launch_info)
 #endif // #if defined (__APPLE__)
     return flags;
 #else
-    assert(false *&& "Host::GetPosixspawnFlags() not supported on Android");
+    assert(false && "Host::GetPosixspawnFlags() not supported on Android");
     return 0;
 #endif
 }
@@ -754,7 +730,7 @@ Error
 Host::LaunchProcessPosixSpawn(const char *exe_path, const ProcessLaunchInfo &launch_info, lldb::pid_t &pid)
 {
     Error error;
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_HOST | LIBLLDB_LOG_PROCESS));
 
     posix_spawnattr_t attr;
@@ -954,7 +930,7 @@ Host::LaunchProcessPosixSpawn(const char *exe_path, const ProcessLaunchInfo &lau
 bool
 Host::AddPosixSpawnFileAction(void *_file_actions, const FileAction *info, Log *log, Error &error)
 {
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
     if (info == NULL)
         return false;
 
@@ -1022,7 +998,6 @@ Host::AddPosixSpawnFileAction(void *_file_actions, const FileAction *info, Log *
     return false;
 #endif
 }
-
 #endif // LaunchProcedssPosixSpawn: Apple, Linux, FreeBSD and other GLIBC systems
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__GLIBC__) || defined(__NetBSD__) || defined(_WIN32)
@@ -1049,11 +1024,9 @@ Host::LaunchProcess (ProcessLaunchInfo &launch_info)
 
     return error;
 }
-
 #endif // defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 
 #ifndef _WIN32
-
 void
 Host::Kill(lldb::pid_t pid, int signo)
 {
@@ -1079,15 +1052,9 @@ Host::SetCrashDescription (const char *description)
 {
 }
 
-lldb::pid_t
-Host::LaunchApplication (const FileSpec &app_file_spec)
-{
-    return LLDB_INVALID_PROCESS_ID;
-}
-
 #endif
 
-#if !defined (__linux__) && !defined (__FreeBSD__) && !defined (__NetBSD__)
+#if !defined (__linux__) && !defined (__FreeBSD__) && !defined(__FreeBSD_kernel__) && !defined (__NetBSD__)
 
 const lldb_private::UnixSignalsSP&
 Host::GetUnixSignals ()

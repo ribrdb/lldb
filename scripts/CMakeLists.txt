@@ -2,17 +2,23 @@ set(LLVM_NO_RTTI 1)
 
 file(GLOB SWIG_INPUTS Python/interface/*.i)
 
+if (CMAKE_SYSTEM_NAME MATCHES "Windows")
+    STRING(REGEX REPLACE "[.]lib" ".dll" PYTHON_DLL ${PYTHON_LIBRARY})
+    file(COPY ${PYTHON_DLL} DESTINATION ${CMAKE_BINARY_DIR}/bin)
+endif ()
+
 if ( LLDB_ENABLE_PYTHON_SCRIPTS_SWIG_API_GENERATION )
+	find_package(SWIG REQUIRED)
 	add_custom_command(
 	  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/LLDBWrapPython.cpp
 	  DEPENDS ${LLDB_SOURCE_DIR}/scripts/lldb.swig
 	  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/buildSwigWrapperClasses.py
-	  DEPENDS ${SWIG_INPUTS}  
-	  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/buildSwigWrapperClasses.py "--srcRoot=${LLDB_SOURCE_DIR}" "--targetDir=${CMAKE_CURRENT_BINARY_DIR}" "--cfgBldDir=${CMAKE_CURRENT_BINARY_DIR}" "--prefix=${CMAKE_BINARY_DIR}" -m    
+	  DEPENDS ${SWIG_INPUTS}
+	  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/buildSwigWrapperClasses.py "--srcRoot=${LLDB_SOURCE_DIR}" "--targetDir=${CMAKE_CURRENT_BINARY_DIR}" "--cfgBldDir=${CMAKE_CURRENT_BINARY_DIR}" "--prefix=${CMAKE_BINARY_DIR}" "--swigExecutable=${SWIG_EXECUTABLE}" -m
 	  COMMENT "Python script building LLDB Python wrapper")  
 	set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/LLDBWrapPython.cpp PROPERTIES GENERATED 1)
 
-	ADD_CUSTOM_TARGET(swig_wrapper ALL echo -n
+	add_custom_target(swig_wrapper ALL
 		DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/LLDBWrapPython.cpp
 		)
 
@@ -33,7 +39,7 @@ else ()
 	  COMMENT "Building lldb python wrapper")
 	set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/LLDBWrapPython.cpp PROPERTIES GENERATED 1)
 
-	ADD_CUSTOM_TARGET(swig_wrapper ALL echo -n
+	add_custom_target(swig_wrapper ALL
 		DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/LLDBWrapPython.cpp
 		)
 

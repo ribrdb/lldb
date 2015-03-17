@@ -18,6 +18,7 @@
 #include "lldb/Core/Log.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
+#include "lldb/Core/StructuredData.h"
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
@@ -286,8 +287,7 @@ Platform::Platform (bool is_host) :
     m_minor_os_version (UINT32_MAX),
     m_update_os_version (UINT32_MAX),
     m_system_arch(),
-    m_uid_map_mutex (Mutex::eMutexTypeNormal),
-    m_gid_map_mutex (Mutex::eMutexTypeNormal),
+    m_mutex (Mutex::eMutexTypeRecursive),
     m_uid_map(),
     m_gid_map(),
     m_max_uid_name_len (0),
@@ -299,8 +299,7 @@ Platform::Platform (bool is_host) :
     m_ssh_opts (),
     m_ignores_remote_hostname (false),
     m_trap_handlers(),
-    m_calculated_trap_handlers (false),
-    m_trap_handler_mutex()
+    m_calculated_trap_handlers (false)
 {
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_OBJECT));
     if (log)
@@ -384,6 +383,8 @@ Platform::GetOSVersion (uint32_t &major,
                         uint32_t &minor, 
                         uint32_t &update)
 {
+    Mutex::Locker locker (m_mutex);
+
     bool success = m_major_os_version != UINT32_MAX;
     if (IsHost())
     {
@@ -461,6 +462,20 @@ Platform::GetOSKernelDescription (std::string &s)
     else
         return GetRemoteOSKernelDescription (s);
 }
+
+void
+Platform::AddClangModuleCompilationOptions (Target *target, std::vector<std::string> &options)
+{
+    std::vector<std::string> default_compilation_options =
+    {
+        "-x", "c++", "-Xclang", "-nostdsysteminc", "-Xclang", "-nostdsysteminc"
+    };
+    
+    options.insert(options.end(),
+                   default_compilation_options.begin(),
+                   default_compilation_options.end());
+}
+
 
 ConstString
 Platform::GetWorkingDirectory ()
@@ -882,15 +897,13 @@ Platform::SetOSVersion (uint32_t major,
 
 
 Error
-Platform::ResolveExecutable (const FileSpec &exe_file,
-                             const ArchSpec &exe_arch,
+Platform::ResolveExecutable (const ModuleSpec &module_spec,
                              lldb::ModuleSP &exe_module_sp,
                              const FileSpecList *module_search_paths_ptr)
 {
     Error error;
-    if (exe_file.Exists())
+    if (module_spec.GetFileSpec().Exists())
     {
-        ModuleSpec module_spec (exe_file, exe_arch);
         if (module_spec.GetArchitecture().IsValid())
         {
             error = ModuleList::GetSharedModule (module_spec, 
@@ -904,9 +917,10 @@ Platform::ResolveExecutable (const FileSpec &exe_file,
             // No valid architecture was specified, ask the platform for
             // the architectures that we should be using (in the correct order)
             // and see if we can find a match that way
-            for (uint32_t idx = 0; GetSupportedArchitectureAtIndex (idx, module_spec.GetArchitecture()); ++idx)
+            ModuleSpec arch_module_spec(module_spec);
+            for (uint32_t idx = 0; GetSupportedArchitectureAtIndex (idx, arch_module_spec.GetArchitecture()); ++idx)
             {
-                error = ModuleList::GetSharedModule (module_spec, 
+                error = ModuleList::GetSharedModule (arch_module_spec,
                                                      exe_module_sp, 
                                                      module_search_paths_ptr,
                                                      NULL, 
@@ -920,7 +934,7 @@ Platform::ResolveExecutable (const FileSpec &exe_file,
     else
     {
         error.SetErrorStringWithFormat ("'%s' does not exist",
-                                        exe_file.GetPath().c_str());
+                                        module_spec.GetFileSpec().GetPath().c_str());
     }
     return error;
 }
@@ -1079,6 +1093,84 @@ Platform::LaunchProcess (ProcessLaunchInfo &launch_info)
                                                                   num_resumes))
                 return error;
         }
+        else if (launch_info.GetFlags().Test(eLaunchFlagGlobArguments))
+        {
+            FileSpec glob_tool_spec;
+            if (!HostInfo::GetLLDBPath(lldb::ePathTypeSupportExecutableDir, glob_tool_spec))
+            {
+                error.SetErrorString("could not find argdumper tool");
+                return error;
+            }
+            glob_tool_spec.AppendPathComponent("argdumper");
+            if (!glob_tool_spec.Exists())
+            {
+                error.SetErrorString("could not find argdumper tool");
+                return error;
+            }
+
+            std::string quoted_cmd_string;
+            launch_info.GetArguments().GetQuotedCommandString(quoted_cmd_string);
+            
+            StreamString glob_command;
+            
+            glob_command.Printf("%s %s",
+                                glob_tool_spec.GetPath().c_str(),
+                                quoted_cmd_string.c_str());
+            
+            int status;
+            std::string output;
+            RunShellCommand(glob_command.GetData(), launch_info.GetWorkingDirectory(), &status, nullptr, &output, 10);
+            
+            if (status != 0)
+            {
+                error.SetErrorStringWithFormat("argdumper exited with error %d", status);
+                return error;
+            }
+            
+            auto data_sp = StructuredData::ParseJSON(output);
+            if (!data_sp)
+            {
+                error.SetErrorString("invalid JSON");
+                return error;
+            }
+            
+            auto dict_sp = data_sp->GetAsDictionary();
+            if (!data_sp)
+            {
+                error.SetErrorString("invalid JSON");
+                return error;
+            }
+
+            auto args_sp = dict_sp->GetObjectForDotSeparatedPath("arguments");
+            if (!args_sp)
+            {
+                error.SetErrorString("invalid JSON");
+                return error;
+            }
+            
+            auto args_array_sp = args_sp->GetAsArray();
+            if (!args_array_sp)
+            {
+                error.SetErrorString("invalid JSON");
+                return error;
+            }
+            
+            launch_info.GetArguments().Clear();
+            
+            for (size_t i = 0;
+                 i < args_array_sp->GetSize();
+                 i++)
+            {
+                auto item_sp = args_array_sp->GetItemAtIndex(i);
+                if (!item_sp)
+                    continue;
+                auto str_sp = item_sp->GetAsString();
+                if (!str_sp)
+                    continue;
+                
+                launch_info.GetArguments().AppendArgument(str_sp->GetValue().c_str());
+            }
+        }
 
         if (log)
             log->Printf ("Platform::%s final launch_info resume count: %" PRIu32, __FUNCTION__, launch_info.GetResumeCount ());
@@ -1090,11 +1182,24 @@ Platform::LaunchProcess (ProcessLaunchInfo &launch_info)
     return error;
 }
 
+Error
+Platform::KillProcess (const lldb::pid_t pid)
+{
+    Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_PLATFORM));
+    if (log)
+        log->Printf ("Platform::%s, pid %" PRIu64, __FUNCTION__, pid);
+
+    if (!IsHost ())
+        return Error ("base lldb_private::Platform class can't launch remote processes");
+
+    Host::Kill (pid, SIGTERM);
+    return Error();
+}
+
 lldb::ProcessSP
 Platform::DebugProcess (ProcessLaunchInfo &launch_info, 
                         Debugger &debugger,
                         Target *target,       // Can be NULL, if NULL create a new target, else use existing one
-                        Listener &listener,
                         Error &error)
 {
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_PLATFORM));
@@ -1117,7 +1222,7 @@ Platform::DebugProcess (ProcessLaunchInfo &launch_info,
         if (launch_info.GetProcessID() != LLDB_INVALID_PROCESS_ID)
         {
             ProcessAttachInfo attach_info (launch_info);
-            process_sp = Attach (attach_info, debugger, target, listener, error);
+            process_sp = Attach (attach_info, debugger, target, error);
             if (process_sp)
             {
                 if (log)
@@ -1221,7 +1326,64 @@ Platform::PutFile (const FileSpec& source,
                    uint32_t uid,
                    uint32_t gid)
 {
-    Error error("unimplemented");
+    Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_PLATFORM));
+    if (log)
+        log->Printf("[PutFile] Using block by block transfer....\n");
+
+    uint32_t source_open_options = File::eOpenOptionRead;
+    if (source.GetFileType() == FileSpec::eFileTypeSymbolicLink)
+        source_open_options |= File::eOpenoptionDontFollowSymlinks;
+
+    File source_file(source, source_open_options, lldb::eFilePermissionsUserRW);
+    Error error;
+    uint32_t permissions = source_file.GetPermissions(error);
+    if (permissions == 0)
+        permissions = lldb::eFilePermissionsFileDefault;
+
+    if (!source_file.IsValid())
+        return Error("PutFile: unable to open source file");
+    lldb::user_id_t dest_file = OpenFile (destination,
+                                          File::eOpenOptionCanCreate |
+                                          File::eOpenOptionWrite |
+                                          File::eOpenOptionTruncate,
+                                          permissions,
+                                          error);
+    if (log)
+        log->Printf ("dest_file = %" PRIu64 "\n", dest_file);
+
+    if (error.Fail())
+        return error;
+    if (dest_file == UINT64_MAX)
+        return Error("unable to open target file");
+    lldb::DataBufferSP buffer_sp(new DataBufferHeap(1024, 0));
+    uint64_t offset = 0;
+    for (;;)
+    {
+        size_t bytes_read = buffer_sp->GetByteSize();
+        error = source_file.Read(buffer_sp->GetBytes(), bytes_read);
+        if (error.Fail() || bytes_read == 0)
+            break;
+
+        const uint64_t bytes_written = WriteFile(dest_file, offset,
+            buffer_sp->GetBytes(), bytes_read, error);
+        if (error.Fail())
+            break;
+
+        offset += bytes_written;
+        if (bytes_written != bytes_read)
+        {
+            // We didn't write the correct number of bytes, so adjust
+            // the file position in the source file we are reading from...
+            source_file.SeekFromStart(offset);
+        }
+    }
+    CloseFile(dest_file, error);
+
+    if (uid == UINT32_MAX && gid == UINT32_MAX)
+        return error;
+
+    // TODO: ChownFile?
+
     return error;
 }
 
@@ -1516,7 +1678,7 @@ Platform::GetTrapHandlerSymbolNames ()
 {
     if (!m_calculated_trap_handlers)
     {
-        Mutex::Locker locker (m_trap_handler_mutex);
+        Mutex::Locker locker (m_mutex);
         if (!m_calculated_trap_handlers)
         {
             CalculateTrapHandlerSymbolNames();

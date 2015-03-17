@@ -137,7 +137,9 @@ class GdbRemoteTestCaseBase(TestBase):
         self.debug_monitor_exe = get_lldb_gdbserver_exe()
         if not self.debug_monitor_exe:
             self.skipTest("lldb_gdbserver exe not found")
-        self.debug_monitor_extra_args = " -c 'log enable -T -f process-{}.log lldb break process thread' -c 'log enable -T -f packets-{}.log gdb-remote packets'".format(self.id(), self.id(), self.id())
+        dname = os.path.join(os.environ["LLDB_TEST"],
+                             os.environ["LLDB_SESSION_DIRNAME"])
+        self.debug_monitor_extra_args = " -c 'log enable -T -f {}/process-{}.log lldb break process thread' -c 'log enable -T -f {}/packets-{}.log gdb-remote packets'".format(dname, self.id(), dname, self.id())
         if use_named_pipe:
             (self.named_pipe_path, self.named_pipe, self.named_pipe_fd) = self.create_named_pipe()
 
@@ -408,13 +410,13 @@ class GdbRemoteTestCaseBase(TestBase):
 
     def add_thread_suffix_request_packets(self):
         self.test_sequence.add_log_lines(
-            ["read packet: $QThreadSuffixSupported#00",
+            ["read packet: $QThreadSuffixSupported#e4",
              "send packet: $OK#00",
             ], True)
 
     def add_process_info_collection_packets(self):
         self.test_sequence.add_log_lines(
-            ["read packet: $qProcessInfo#00",
+            ["read packet: $qProcessInfo#dc",
               { "direction":"send", "regex":r"^\$(.+)#[0-9a-fA-F]{2}$", "capture":{1:"process_info_raw"} }],
             True)
 
@@ -626,7 +628,7 @@ class GdbRemoteTestCaseBase(TestBase):
         if (do_continue):
             self.test_sequence.add_log_lines(
                 [# Continue the inferior.
-                 "read packet: $c#00",
+                 "read packet: $c#63",
                  # Expect a breakpoint stop report.
                  {"direction":"send", "regex":r"^\$T([0-9a-fA-F]{2})thread:([0-9a-fA-F]+);", "capture":{1:"stop_signo", 2:"stop_thread_id"} },
                  ], True)        
@@ -689,7 +691,7 @@ class GdbRemoteTestCaseBase(TestBase):
     def run_process_then_stop(self, run_seconds=1):
         # Tell the stub to continue.
         self.test_sequence.add_log_lines(
-             ["read packet: $vCont;c#00"],
+             ["read packet: $vCont;c#a8"],
              True)
         context = self.expect_gdbremote_sequence()
 
@@ -734,7 +736,7 @@ class GdbRemoteTestCaseBase(TestBase):
 
         registers = {}
         for (key, val) in kv_dict.items():
-            if re.match(r"^[0-9a-fA-F]+", key):
+            if re.match(r"^[0-9a-fA-F]+$", key):
                 registers[int(key, 16)] = val
         return registers
 
@@ -1035,7 +1037,7 @@ class GdbRemoteTestCaseBase(TestBase):
 
     def add_vCont_query_packets(self):
         self.test_sequence.add_log_lines([
-            "read packet: $vCont?#00",
+            "read packet: $vCont?#49",
             {"direction":"send", "regex":r"^\$(vCont)?(.*)#[0-9a-fA-F]{2}$", "capture":{2:"vCont_query_response" } },
             ], True)
 
@@ -1124,7 +1126,7 @@ class GdbRemoteTestCaseBase(TestBase):
         # Run the process
         self.test_sequence.add_log_lines(
             [# Start running after initial stop.
-             "read packet: $c#00",
+             "read packet: $c#63",
              # Match output line that prints the memory address of the function call entry point.
              # Note we require launch-only testing so we can get inferior otuput.
              { "type":"output_match", "regex":r"^code address: 0x([0-9a-fA-F]+)\r\ndata address: 0x([0-9a-fA-F]+)\r\ndata address: 0x([0-9a-fA-F]+)\r\n$", 

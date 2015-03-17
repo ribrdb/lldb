@@ -34,10 +34,13 @@ class HostInfoLinux : public HostInfoPosix
     static uint32_t GetMaxThreadNameLength();
 
     static bool GetOSVersion(uint32_t &major, uint32_t &minor, uint32_t &update);
+    static bool GetOSBuildString(std::string &s);
+    static bool GetOSKernelDescription(std::string &s);
     static llvm::StringRef GetDistributionId();
     static FileSpec GetProgramFileSpec();
 
   protected:
+    static bool ComputeSharedLibraryDirectory(FileSpec &file_spec);
     static bool ComputeSystemPluginsDirectory(FileSpec &file_spec);
     static bool ComputeUserPluginsDirectory(FileSpec &file_spec);
     static void ComputeHostArchitectureSupport(ArchSpec &arch_32, ArchSpec &arch_64);
