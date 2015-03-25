@@ -207,6 +207,9 @@ public:
     
     bool
     GetObjCClassName (std::string &class_name);
+
+    bool
+    IsGoInterface ()const { return m_is_go_interface; }
     
 
     //----------------------------------------------------------------------
@@ -672,6 +675,7 @@ public:
 private:
     lldb::clang_type_t m_type;
     clang::ASTContext *m_ast;
+    bool m_is_go_interface;
     
 };
     
