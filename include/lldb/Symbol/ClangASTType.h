@@ -15,8 +15,14 @@
 #include "lldb/Core/ClangForward.h"
 #include "clang/AST/Type.h"
 
+namespace go {
+class Type;
+}
+
 namespace lldb_private {
 
+class GoASTContext;
+    
 //----------------------------------------------------------------------
 // A class that can carry around a clang ASTContext and a opaque clang 
 // QualType. A clang::QualType can be easily reconstructed from an
@@ -49,7 +55,7 @@ public:
     
     ClangASTType () :
         m_type (0),
-        m_ast  (0)
+        m_ast  ()
     {
     }
     
@@ -74,7 +80,7 @@ public:
 
     explicit operator bool () const
     {
-        return m_type != NULL && m_ast != NULL;
+        return m_type != NULL && !m_ast.isNull();
     }
     
     bool
@@ -82,13 +88,13 @@ public:
     {
         if (m_ast == rhs.m_ast)
             return m_type < rhs.m_type;
-        return m_ast < rhs.m_ast;
+        return m_ast.getOpaqueValue() < rhs.m_ast.getOpaqueValue();
     }
 
     bool
     IsValid () const
     {
-        return m_type != NULL && m_ast != NULL;
+        return m_type != NULL && !m_ast.isNull();
     }
     
     bool
@@ -208,10 +214,6 @@ public:
     bool
     GetObjCClassName (std::string &class_name);
 
-    bool
-    IsGoInterface ()const { return m_is_go_interface; }
-    
-
     //----------------------------------------------------------------------
     // Type Completion
     //----------------------------------------------------------------------
@@ -233,7 +235,7 @@ public:
     clang::ASTContext *
     GetASTContext() const
     {
-        return m_ast;
+        return m_ast.dyn_cast<clang::ASTContext*>();
     }
     
     ConstString
@@ -265,6 +267,13 @@ public:
     
     void
     SetClangType (clang::ASTContext *ast, lldb::clang_type_t type)
+    {
+        m_ast = ast;
+        m_type = type;
+    }
+    
+    void
+    SetClangType (GoASTContext *ast, go::Type* type)
     {
         m_ast = ast;
         m_type = type;
@@ -654,7 +663,7 @@ public:
     Clear()
     {
         m_type = NULL;
-        m_ast = NULL;
+        m_ast = nullptr;
     }
 
     clang::QualType
@@ -673,9 +682,8 @@ public:
     }
 
 private:
-    lldb::clang_type_t m_type;
-    clang::ASTContext *m_ast;
-    bool m_is_go_interface;
+    void* m_type;
+    llvm::PointerUnion<clang::ASTContext*, GoASTContext*> m_ast;
     
 };
     

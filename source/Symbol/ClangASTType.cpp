@@ -47,6 +47,9 @@
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
 
+#include "Expression/gofrontend/expressions.h"
+#include "Expression/gofrontend/types.h"
+
 #include <iterator>
 #include <mutex>
 
@@ -193,7 +196,8 @@ ClangASTType::IsAggregateType () const
 {
     if (!IsValid())
         return false;
-    
+    clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>();
+    assert(ast);
     clang::QualType qual_type (GetCanonicalQualType());
     
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
@@ -209,11 +213,11 @@ ClangASTType::IsAggregateType () const
         case clang::Type::ObjCInterface:
             return true;
         case clang::Type::Elaborated:
-            return ClangASTType(m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsAggregateType();
+            return ClangASTType(ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsAggregateType();
         case clang::Type::Typedef:
-            return ClangASTType(m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsAggregateType();
+            return ClangASTType(ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsAggregateType();
         case clang::Type::Paren:
-            return ClangASTType(m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsAggregateType();
+            return ClangASTType(ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsAggregateType();
         default:
             break;
     }
@@ -228,56 +232,78 @@ ClangASTType::IsArrayType (ClangASTType *element_type_ptr,
 {
     if (IsValid())
     {
-        clang::QualType qual_type (GetCanonicalQualType());
-        
-        const clang::Type::TypeClass type_class = qual_type->getTypeClass();
-        switch (type_class)
+        if (m_ast.is<GoASTContext*>())
         {
-            default:
-                break;
-                
-            case clang::Type::ConstantArray:
-                if (element_type_ptr)
-                    element_type_ptr->SetClangType (m_ast, llvm::cast<clang::ConstantArrayType>(qual_type)->getElementType());
-                if (size)
-                    *size = llvm::cast<clang::ConstantArrayType>(qual_type)->getSize().getLimitedValue(ULLONG_MAX);
+            const go::Array_type* array = ((go::Type*)m_type)->array_type();
+            if (array) {
+                element_type_ptr->SetClangType(m_ast.get<GoASTContext*>(), array->element_type());
+                if (size) {
+                    go::Numeric_constant val;
+                    if (array->size()->numeric_constant_value(&val)) {
+                        unsigned long ul_size;
+                        val->to_unsigned_long(&ul_size);
+                        *size = ul_size;
+                    } else {
+                        *size = 0;
+                    }
+                }
                 return true;
-                
-            case clang::Type::IncompleteArray:
-                if (element_type_ptr)
-                    element_type_ptr->SetClangType (m_ast, llvm::cast<clang::IncompleteArrayType>(qual_type)->getElementType());
-                if (size)
-                    *size = 0;
-                if (is_incomplete)
-                    *is_incomplete = true;
-                return true;
-                
-            case clang::Type::VariableArray:
-                if (element_type_ptr)
-                    element_type_ptr->SetClangType (m_ast, llvm::cast<clang::VariableArrayType>(qual_type)->getElementType());
-                if (size)
-                    *size = 0;
-                return true;
-                
-            case clang::Type::DependentSizedArray:
-                if (element_type_ptr)
-                    element_type_ptr->SetClangType (m_ast, llvm::cast<clang::DependentSizedArrayType>(qual_type)->getElementType());
-                if (size)
-                    *size = 0;
-                return true;
-                
-            case clang::Type::Typedef:
-                return ClangASTType (m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsArrayType (element_type_ptr,
-                                                                                                                       size,
-                                                                                                                       is_incomplete);
-            case clang::Type::Elaborated:
-                return ClangASTType (m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsArrayType (element_type_ptr,
-                                                                                                          size,
-                                                                                                          is_incomplete);
-            case clang::Type::Paren:
-                return ClangASTType (m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsArrayType (element_type_ptr,
-                                                                                                       size,
-                                                                                                       is_incomplete);
+            }
+        }
+        else
+        {
+            clang::ASTContext* ast = m_ast.get<clang::ASTContext*>();
+            clang::QualType qual_type (GetCanonicalQualType());
+            
+            const clang::Type::TypeClass type_class = qual_type->getTypeClass();
+            switch (type_class)
+            {
+                default:
+                    break;
+                    
+                case clang::Type::ConstantArray:
+                    if (element_type_ptr)
+                        element_type_ptr->SetClangType (ast, llvm::cast<clang::ConstantArrayType>(qual_type)->getElementType());
+                    if (size)
+                        *size = llvm::cast<clang::ConstantArrayType>(qual_type)->getSize().getLimitedValue(ULLONG_MAX);
+                    return true;
+                    
+                case clang::Type::IncompleteArray:
+                    if (element_type_ptr)
+                        element_type_ptr->SetClangType (ast, llvm::cast<clang::IncompleteArrayType>(qual_type)->getElementType());
+                    if (size)
+                        *size = 0;
+                    if (is_incomplete)
+                        *is_incomplete = true;
+                    return true;
+                    
+                case clang::Type::VariableArray:
+                    if (element_type_ptr)
+                        element_type_ptr->SetClangType (ast, llvm::cast<clang::VariableArrayType>(qual_type)->getElementType());
+                    if (size)
+                        *size = 0;
+                    return true;
+                    
+                case clang::Type::DependentSizedArray:
+                    if (element_type_ptr)
+                        element_type_ptr->SetClangType (ast, llvm::cast<clang::DependentSizedArrayType>(qual_type)->getElementType());
+                    if (size)
+                        *size = 0;
+                    return true;
+                    
+                case clang::Type::Typedef:
+                    return ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsArrayType (element_type_ptr,
+                                                                                                                                        size,
+                                                                                                                                        is_incomplete);
+                case clang::Type::Elaborated:
+                    return ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsArrayType (element_type_ptr,
+                                                                                                                           size,
+                                                                                                                           is_incomplete);
+                case clang::Type::Paren:
+                    return ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsArrayType (element_type_ptr,
+                                                                                                                 size,
+                                                                                                                 is_incomplete);
+            }
         }
     }
     if (element_type_ptr)
@@ -293,7 +319,7 @@ bool
 ClangASTType::IsVectorType (ClangASTType *element_type,
                             uint64_t *size) const
 {
-    if (IsValid())
+    if (IsValid() && m_ast.is<clang::ASTContext*>())
     {
         clang::QualType qual_type (GetCanonicalQualType());
         
@@ -308,7 +334,7 @@ ClangASTType::IsVectorType (ClangASTType *element_type,
                     if (size)
                         *size = vector_type->getNumElements();
                     if (element_type)
-                        *element_type = ClangASTType(m_ast, vector_type->getElementType().getAsOpaquePtr());
+                        *element_type = ClangASTType(m_ast.get<clang::ASTContext*>(), vector_type->getElementType().getAsOpaquePtr());
                 }
                 return true;
             }
@@ -323,7 +349,7 @@ ClangASTType::IsVectorType (ClangASTType *element_type,
 bool
 ClangASTType::IsRuntimeGeneratedType () const
 {
-    if (!IsValid())
+    if (!IsValid() || m_ast.is<GoASTContext*>())
         return false;
     
     clang::DeclContext* decl_ctx = GetDeclContextForType();
@@ -335,7 +361,7 @@ ClangASTType::IsRuntimeGeneratedType () const
     
     clang::ObjCInterfaceDecl *result_iface_decl = llvm::dyn_cast<clang::ObjCInterfaceDecl>(decl_ctx);
     
-    ClangASTMetadata* ast_metadata = ClangASTContext::GetMetadata(m_ast, result_iface_decl);
+    ClangASTMetadata* ast_metadata = ClangASTContext::GetMetadata(m_ast.get<clang::ASTContext*>(), result_iface_decl);
     if (!ast_metadata)
         return false;
     return (ast_metadata->GetISAPtr() != 0);
@@ -397,6 +423,9 @@ ClangASTType::IsFunctionType (bool *is_variadic_ptr) const
 {
     if (IsValid())
     {
+        clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>();
+        if (!ast)
+            return false;
         clang::QualType qual_type (GetCanonicalQualType());
         
         if (qual_type->isFunctionType())
@@ -418,18 +447,18 @@ ClangASTType::IsFunctionType (bool *is_variadic_ptr) const
             default:
                 break;
             case clang::Type::Typedef:
-                return ClangASTType (m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsFunctionType();
+                return ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsFunctionType();
             case clang::Type::Elaborated:
-                return ClangASTType (m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsFunctionType();
+                return ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsFunctionType();
             case clang::Type::Paren:
-                return ClangASTType (m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsFunctionType();
+                return ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsFunctionType();
                 
             case clang::Type::LValueReference:
             case clang::Type::RValueReference:
                 {
                     const clang::ReferenceType *reference_type = llvm::cast<clang::ReferenceType>(qual_type.getTypePtr());
                     if (reference_type)
-                        return ClangASTType (m_ast, reference_type->getPointeeType()).IsFunctionType();
+                        return ClangASTType (ast, reference_type->getPointeeType()).IsFunctionType();
                 }
                 break;
         }
