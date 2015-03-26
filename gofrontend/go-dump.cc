@@ -17,6 +17,7 @@ Go_dump* dumps;
 
 } // End empty namespace.
 
+namespace go {
 // Create a new dump.
 
 Go_dump::Go_dump(const char* name)
@@ -42,12 +43,12 @@ Go_dump::enable_by_name(const char* name)
     }
   return found;
 }
-
+} // namespace go
 // Enable a dump.  Return 1 if this is a real name, 0 if not.
 
 GO_EXTERN_C
 int
 go_enable_dump(const char* name)
 {
-  return Go_dump::enable_by_name(name) ? 1 : 0;
+    return go::Go_dump::enable_by_name(name) ? 1 : 0;
 }

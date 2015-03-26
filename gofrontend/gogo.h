@@ -10,6 +10,7 @@
 #include <set>
 #include "go-linemap.h"
 
+namespace go {
 class Traverse;
 class Statement_inserter;
 class Type;
@@ -3068,5 +3069,5 @@ extern Gogo* go_get_gogo();
 // Whether we have seen any errors.  FIXME: Replace with a backend
 // interface.
 extern bool saw_errors();
-
+} // namespace go
 #endif // !defined(GO_GOGO_H)

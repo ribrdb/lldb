@@ -5,11 +5,12 @@
 // license that can be found in the LICENSE file.
 
 #include "go-system.h"
-
+#if 0
 #include "go-c.h"
 #include "types.h"
 #include "gogo.h"
 
+namespace go {
 // Set up the builtin unsafe package.  This should probably be driven
 // by a table.
 
@@ -94,3 +95,5 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
       this->imported_unsafe_ = true;
     }
 }
+} // namespace go
+#endif

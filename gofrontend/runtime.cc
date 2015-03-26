@@ -10,7 +10,7 @@
 #include "types.h"
 #include "expressions.h"
 #include "runtime.h"
-
+namespace go {
 // The frontend generates calls to various runtime functions.  They
 // are implemented in libgo/runtime.  This is how the runtime
 // functions are represented in the frontend.  Note that there is
@@ -402,3 +402,4 @@ Runtime::map_iteration_type()
 				Linemap::predeclared_location());
   return Type::make_array_type(runtime_function_type(RFT_POINTER), iexpr);
 }
+} // namespace go

@@ -22,7 +22,7 @@
 
 // The Linemap class is a pure abstract interface, plus some static
 // convenience functions.  The backend must implement the interface.
-
+namespace go {
 class Linemap
 {
  public:
@@ -123,9 +123,9 @@ class Linemap
     return Linemap::instance_->is_unknown(loc);
   }
 };
-
+} // namespace go
 // The backend interface must define this function.  It should return
 // a fully implemented instance of Linemap.
-extern Linemap* go_get_linemap();
+extern go::Linemap* go_get_linemap();
 
 #endif // !defined(GO_LINEMAP_H)

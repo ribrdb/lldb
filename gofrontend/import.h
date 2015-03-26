@@ -10,6 +10,8 @@
 #include "export.h"
 #include "go-linemap.h"
 
+namespace go {
+
 class Gogo;
 class Package;
 class Type;
@@ -364,5 +366,5 @@ class Stream_from_file : public Import::Stream
   // Data read from the file.
   std::string data_;
 };
-
+} // namespace go
 #endif // !defined(GO_IMPORT_H)

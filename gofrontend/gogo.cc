@@ -21,6 +21,7 @@
 #include "backend.h"
 #include "gogo.h"
 
+namespace go {
 // Class Gogo.
 
 Gogo::Gogo(Backend* backend, Linemap* linemap, int, int pointer_size)
@@ -7724,3 +7725,4 @@ Statement_inserter::insert(Statement* s)
   else
     go_assert(saw_errors());
 }
+} // namespace go

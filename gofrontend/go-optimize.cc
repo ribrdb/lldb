@@ -9,6 +9,7 @@
 #include "go-c.h"
 #include "go-optimize.h"
 
+namespace go {
 namespace {
 
 // The list of optimizations.
@@ -42,7 +43,7 @@ Go_optimize::enable_by_name(const char* name)
     }
   return found;
 }
-
+} // namespace go
 // Enable an optimization.  Return 1 if this is a real name, 0 if not.
 
 GO_EXTERN_C

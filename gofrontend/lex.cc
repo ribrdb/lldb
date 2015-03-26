@@ -8,6 +8,7 @@
 
 #include "lex.h"
 
+namespace go {
 // Manage mapping from keywords to the Keyword codes.
 
 class Keywords
@@ -2438,3 +2439,4 @@ Lex::is_invalid_identifier(const std::string& name)
 {
   return name.find("$INVALID$") != std::string::npos;
 }
+} // namespace go

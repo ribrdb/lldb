@@ -7,6 +7,7 @@
 #ifndef GO_DATAFLOW_H
 #define GO_DATAFLOW_H
 
+namespace go {
 class Expression;
 class Named_object;
 class Statement;
@@ -86,6 +87,6 @@ class Dataflow
   // Variable refs;
   Refmap refs_;
 };
-
+} // namespace go
 
 #endif // !defined(GO_DATAFLOW_H)

@@ -11,6 +11,7 @@
 #include "statements.h"
 #include "dataflow.h"
 
+namespace go {
 // This class is used to traverse the tree to look for uses of
 // variables.
 
@@ -193,7 +194,7 @@ Dataflow::Compare_vars::operator()(const Named_object* no1,
   Location loc2 = no2->location();
   if (loc1 < loc2)
     return false;
-  if (loc1 > loc2)
+  if (loc2 < loc1)
     return true;
 
   if (no1 == no2)
@@ -276,3 +277,5 @@ Dataflow::find_refs(Named_object* var) const
   else
     return p->second;
 }
+
+} // namespace go

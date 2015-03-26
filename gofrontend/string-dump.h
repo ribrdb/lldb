@@ -6,7 +6,7 @@
 
 #ifndef GO_STRING_DUMP_H
 #define GO_STRING_DUMP_H
-
+namespace go {
 // This abstract class provides an interface strings for whatever purpose.
 // Used for example for exporting and dumping objects.
 
@@ -21,5 +21,5 @@ class String_dump
   virtual void
   write_c_string(const char*) = 0;
 };
-
+} // namespace go
 #endif  // GO_STRING_DUMP_H

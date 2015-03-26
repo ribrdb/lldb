@@ -6,7 +6,9 @@
 
 #ifndef GO_PARSE_H
 #define GO_PARSE_H
+#include <set>
 
+namespace go {
 class Set_iota_traverse;
 class Lex;
 class Gogo;
@@ -324,6 +326,6 @@ class Parse
   // enclosing functions.
   Enclosing_vars enclosing_vars_;
 };
-
+} // namespace go
 
 #endif // !defined(GO_PARSE_H)

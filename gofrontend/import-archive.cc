@@ -12,6 +12,7 @@
 #define O_BINARY 0
 #endif
 
+namespace go {
 // Archive magic numbers.
 
 static const char armag[] =
@@ -667,3 +668,4 @@ Import::find_archive_export_data(const std::string& filename, int fd,
 
   return ret;
 }
+} // namespace go

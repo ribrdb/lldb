@@ -20,6 +20,7 @@
 #define O_BINARY 0
 #endif
 
+
 // The list of paths we search for import files.
 
 static std::vector<std::string> search_path;
@@ -34,6 +35,7 @@ go_add_search_path(const char* path)
   search_path.push_back(std::string(path));
 }
 
+namespace go {
 // Find import data.  This searches the file system for FILENAME and
 // returns a pointer to a Stream object to read the data that it
 // exports.  If the file is not found, it returns NULL.
@@ -984,3 +986,4 @@ Stream_from_file::do_advance(size_t skip)
 	this->data_.clear();
     }
 }
+} // namespace go

@@ -7,6 +7,7 @@
 #ifndef GO_OPTIMIZE_H
 #define GO_OPTIMIZE_H
 
+namespace go {
 // This class manages different arguments to -fgo-optimize-XXX.  If you
 // want to create a new optimization, create a variable of this type with the
 // name to use for XXX.  You can then use is_enabled to see whether
@@ -34,5 +35,5 @@ class Go_optimize
   // Whether this dump was enabled.
   bool is_enabled_;
 };
-
+} // namespace go
 #endif // !defined(GO_OPTIMIZE_H)

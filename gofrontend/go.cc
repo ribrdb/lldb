@@ -6,7 +6,7 @@
 
 #include "go-system.h"
 
-#include "go-c.h"
+//#include "go-c.h"
 
 #include "lex.h"
 #include "parse.h"
@@ -14,11 +14,11 @@
 #include "gogo.h"
 
 // The data structures we build to represent the file.
-static Gogo* gogo;
+static go::Gogo* gogo;
+namespace go {
 
 // Create the main IR data structure.
 
-GO_EXTERN_C
 void
 go_create_gogo(int int_type_size, int pointer_size, const char *pkgpath,
 	       const char *prefix, const char *relative_import_path,
@@ -43,7 +43,7 @@ go_create_gogo(int int_type_size, int pointer_size, const char *pkgpath,
 
 // Parse the input files.
 
-GO_EXTERN_C
+
 void
 go_parse_input_files(const char** filenames, unsigned int filename_count,
 		     bool only_check_syntax, bool)
@@ -62,9 +62,7 @@ go_parse_input_files(const char** filenames, unsigned int filename_count,
       else
 	{
 	  file = fopen(filename, "r");
-	  if (file == NULL)
-	    fatal_error(Linemap::unknown_location(),
-			"cannot open %s: %m", filename);
+        go_assert(file != NULL);
 	}
 
       Lex lexer(filename, file, ::gogo->linemap());
@@ -140,7 +138,7 @@ go_parse_input_files(const char** filenames, unsigned int filename_count,
 
 // Write out globals.
 
-GO_EXTERN_C
+
 void
 go_write_globals()
 {
@@ -155,3 +153,4 @@ go_get_gogo()
 {
   return ::gogo;
 }
+} // namespace go

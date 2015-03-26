@@ -12,6 +12,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 
+namespace go {
 class Gogo;
 class Translate_context;
 class Traverse;
@@ -2739,5 +2740,5 @@ class Numeric_constant
   // constant.
   Type* type_;
 };
-
+} // namespace go
 #endif // !defined(GO_EXPRESSIONS_H)

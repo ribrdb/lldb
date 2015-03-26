@@ -12,6 +12,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 
+namespace go {
 struct Unicode_range;
 
 // The keywords.  These must be in sorted order, other than
@@ -496,5 +497,5 @@ class Lex
   // //extern comment.
   std::string extern_;
 };
-
+} // namespace go
 #endif // !defined(GO_LEX_H)

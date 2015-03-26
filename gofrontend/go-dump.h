@@ -6,7 +6,7 @@
 
 #ifndef GO_DUMP_H
 #define GO_DUMP_H
-
+namespace go {
 // This class manages different arguments to -fgo-dump-XXX.  If you
 // want to create a new dump, create a variable of this type with the
 // name to use for XXX.  You can then use is_enabled to see whether
@@ -34,5 +34,5 @@ class Go_dump
   // Whether this dump was enabled.
   bool is_enabled_;
 };
-
+} // namespace go
 #endif // !defined(GO_DUMP_H)

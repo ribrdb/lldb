@@ -6,7 +6,7 @@
 
 #include "go-system.h"
 
-#include "go-c.h"
+//#include "go-c.h"
 #include "gogo.h"
 #include "operator.h"
 #include "expressions.h"
@@ -16,6 +16,7 @@
 #include "backend.h"
 #include "types.h"
 
+namespace go{
 // Forward declarations so that we don't have to make types.h #include
 // backend.h.
 
@@ -32,6 +33,9 @@ static void
 get_backend_interface_fields(Gogo* gogo, Interface_type* type,
 			     bool use_placeholder,
 			     std::vector<Backend::Btyped_identifier>* bfields);
+
+#define open_quote "\""
+#define close_quote "\""
 
 // Class Type.
 
@@ -2501,10 +2505,9 @@ Type::is_backend_type_size_known(Gogo* gogo)
 	    Numeric_constant nc;
 	    if (!at->length()->numeric_constant_value(&nc))
 	      return false;
-	    mpz_t ival;
+        llvm::APInt ival;
 	    if (!nc.to_int(&ival))
 	      return false;
-	    mpz_clear(ival);
 	    return at->element_type()->is_backend_type_size_known(gogo);
 	  }
       }
@@ -5534,7 +5537,7 @@ Struct_type::do_mangled_name(Gogo* gogo, std::string* ret) const
 		   p != tag.end();
 		   ++p)
 		{
-		  if (ISALNUM(*p) || *p == '_')
+		  if (isalnum(*p) || *p == '_')
 		    out.push_back(*p);
 		  else
 		    {
@@ -5692,16 +5695,14 @@ Array_type::is_identical(const Array_type* t, bool errors_are_identical) const
       if (l1->numeric_constant_value(&nc1)
 	  && l2->numeric_constant_value(&nc2))
 	{
-	  mpz_t v1;
+      llvm::APInt v1;
 	  if (nc1.to_int(&v1))
 	    {
-	      mpz_t v2;
+	      llvm::APInt v2;
 	      if (nc2.to_int(&v2))
 		{
-		  ret = mpz_cmp(v1, v2) == 0;
-		  mpz_clear(v2);
+          ret = v1 == v2;
 		}
-	      mpz_clear(v1);
 	    }
 	}
       return ret;
@@ -5772,11 +5773,10 @@ Array_type::verify_length()
       return false;
     case Numeric_constant::NC_UL_BIG:
       {
-	mpz_t val;
+	llvm::APInt val;
 	if (!nc.to_int(&val))
 	  go_unreachable();
-	unsigned int bits = mpz_sizeinbase(val, 2);
-	mpz_clear(val);
+      unsigned int bits = 1 + val.getBitWidth() - val.getNumSignBits();
 	if (bits >= tbits)
 	  {
 	    error_at(this->length_->location(), "array bound overflows");
@@ -6105,10 +6105,10 @@ Array_type::get_backend_length(Gogo* gogo)
   if (this->blength_ == NULL)
     {
       Numeric_constant nc;
-      mpz_t val;
+      llvm::APInt val;
       if (this->length_->numeric_constant_value(&nc) && nc.to_int(&val))
 	{
-	  if (mpz_sgn(val) < 0)
+	  if (val.isNegative())
 	    {
 	      this->blength_ = gogo->backend()->error_expression();
 	      return this->blength_;
@@ -6121,7 +6121,6 @@ Array_type::get_backend_length(Gogo* gogo)
           Btype* btype = t->get_backend(gogo);
           this->blength_ =
 	    gogo->backend()->integer_constant_expression(btype, val);
-	  mpz_clear(val);
 	}
       else
 	{
@@ -10481,3 +10480,4 @@ Typed_identifier_list::copy() const
     ret->push_back(Typed_identifier(p->name(), p->type(), p->location()));
   return ret;
 }
+} // namespace go

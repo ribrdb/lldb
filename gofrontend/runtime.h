@@ -6,7 +6,7 @@
 
 #ifndef GO_RUNTIME_H
 #define GO_RUNTIME_H
-
+namespace go {
 class Gogo;
 class Type;
 class Named_object;
@@ -47,5 +47,5 @@ class Runtime
   static Named_object*
   runtime_declaration(Function);
 };
-
+} // namespace go
 #endif // !defined(GO_BUILTINS_H)

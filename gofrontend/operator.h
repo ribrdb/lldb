@@ -7,6 +7,7 @@
 #ifndef GO_OPERATOR_H
 #define GO_OPERATOR_H
 
+namespace go {
 // The operators.
 
 enum Operator
@@ -62,5 +63,5 @@ enum Operator
   OPERATOR_LSQUARE,	// [
   OPERATOR_RSQUARE	// ]
 };
-
+} // namespace go
 #endif // !defined(GO_OPERATOR_H)

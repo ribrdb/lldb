@@ -8,7 +8,7 @@
 #define GO_EXPORT_H
 
 #include "string-dump.h"
-
+namespace go {
 struct sha1_ctx;
 class Gogo;
 class Import_init;
@@ -206,5 +206,5 @@ class Stream_to_section : public Export::Stream
   void
   do_write(const char*, size_t);
 };
-
+} // namespace go
 #endif // !defined(GO_EXPORT_H)

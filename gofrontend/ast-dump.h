@@ -9,6 +9,7 @@
 
 #include "string-dump.h"
 
+namespace go {
 class Expression;
 class Expression_list;
 class Named_object;
@@ -118,5 +119,5 @@ class Ast_dump_context : public String_dump
 
   Gogo* gogo_;
 };
-
+} // namespace go
 #endif  // GO_AST_DUMP_H

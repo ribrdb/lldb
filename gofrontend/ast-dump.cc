@@ -17,6 +17,7 @@
 //#include "go-c.h"
 #include "go-dump.h"
 
+namespace go {
 // The -fgo-dump-ast flag to activate AST dumps.
 
 Go_dump ast_dump_flag("ast");
@@ -429,7 +430,7 @@ Ast_dump_context::print_indent()
 
 void Gogo::dump_ast(const char* basename)
 {
-  if (::ast_dump_flag.is_enabled())
+  if (ast_dump_flag.is_enabled())
     {
       Ast_dump_context adc;
       adc.dump(this, basename);
@@ -467,3 +468,4 @@ Ast_dump_context::dump_to_stream(const Expression* expr, std::ostream* out)
   Ast_dump_context adc(out, false);
   expr->dump_expression(&adc);
 }
+} // namespace go

@@ -7,12 +7,9 @@
 #ifndef GO_BACKEND_H
 #define GO_BACKEND_H
 
-#include <gmp.h>
-#include <mpfr.h>
-#include <mpc.h>
-
 #include "operator.h"
 
+namespace go {
 // Pointers to these types are created by the backend, passed to the
 // frontend, and passed back to the backend.  The types must be
 // defined by the backend using these names.
@@ -272,15 +269,15 @@ class Backend
 
   // Return an expression for the multi-precision integer VAL in BTYPE.
   virtual Bexpression*
-  integer_constant_expression(Btype* btype, mpz_t val) = 0;
+    integer_constant_expression(Btype* btype, const llvm::APInt& val) = 0;
 
   // Return an expression for the floating point value VAL in BTYPE.
   virtual Bexpression*
-  float_constant_expression(Btype* btype, mpfr_t val) = 0;
+    float_constant_expression(Btype* btype, const llvm::APFloat& val) = 0;
 
   // Return an expression for the complex value VAL in BTYPE.
   virtual Bexpression*
-  complex_constant_expression(Btype* btype, mpc_t val) = 0;
+    complex_constant_expression(Btype* btype, const std::pair<llvm::APFloat, llvm::APFloat>& val) = 0;
 
   // Return an expression for the string value VAL.
   virtual Bexpression*
@@ -739,5 +736,6 @@ class Backend
 // The backend interface has to define this function.
 
 extern Backend* go_get_backend();
+} // namespace go
 
 #endif // !defined(GO_BACKEND_H)

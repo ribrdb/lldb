@@ -10,7 +10,7 @@
 #define lldb_go_location_h
 
 #include "lldb/Symbol/Declaration.h"
-
+namespace go {
 class Location
 {
 public:
@@ -19,7 +19,7 @@ public:
     
     explicit Location(lldb_private::Declaration decl) : m_decl(decl) {
     }
-    const lldb_private::Declaration& GetDecl() { return m_decl; }
+    const lldb_private::Declaration& GetDecl() const { return m_decl; }
 
 private:
     lldb_private::Declaration m_decl;
@@ -28,7 +28,8 @@ private:
 inline bool operator<(Location a, Location b) {
     return lldb_private::Declaration::Compare(a.GetDecl(), b.GetDecl()) < 0;
 }
+} // namespace go 
 
-#define UNKNOWN_LOCATION 
+#define UNKNOWN_LOCATION
 
 #endif

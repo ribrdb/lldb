@@ -8,7 +8,7 @@
 #define GO_STATEMENTS_H
 
 #include "operator.h"
-
+namespace go {
 class Gogo;
 class Traverse;
 class Statement_inserter;
@@ -1653,5 +1653,5 @@ class Type_switch_statement : public Statement
   // The break label, if needed.
   Unnamed_label* break_label_;
 };
-
+} // namespace go
 #endif // !defined(GO_STATEMENTS_H)

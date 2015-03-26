@@ -29,6 +29,9 @@ std::unordered_set<KEYTYPE, HASHFN, EQFN>
 #define go_assert(x) assert (x)
 #define go_unreachable() assert(0 && "unreachable")
 #define error(...) fprintf(stderr, __VA_ARGS__)
-#define error_at(loc, ...) do {lldb_private::StreamString __s; (loc).GetDecl().Dump(&__s); __s.Printf(": "); __s.Printf(__VA_ARGS); fprintf(stderr, "%s", __s.GetData()); } while(false)
-
+#define inform(...) error_at(__VA_ARGS__)
+#define error_at(loc, ...) do {lldb_private::StreamString __s; (loc).GetDecl().Dump(&__s, true); __s.Printf(": "); __s.Printf(__VA_ARGS__); fprintf(stderr, "%s", __s.GetData()); } while(false)
+#define warning_at(...) error_at(__VA_ARGS__)
+#define _(x) x
+#define GO_EXTERN_C extern "C"
 #endif

@@ -15,6 +15,7 @@
 #include "statements.h"
 #include "export.h"
 
+namespace go {
 // This file handles exporting global declarations.
 
 // Class Export.
@@ -544,4 +545,5 @@ Stream_to_section::do_write(const char* bytes, size_t length)
 {
   go_write_export_data (bytes, length);
 }
+} // namespace go
 #endif

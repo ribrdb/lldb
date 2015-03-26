@@ -16,7 +16,7 @@
 #include "ast-dump.h"
 
 // Class Statement.
-
+namespace go {
 Statement::Statement(Statement_classification classification,
 		     Location location)
   : classification_(classification), location_(location)
@@ -6073,3 +6073,4 @@ Statement::make_for_range_statement(Expression* index_var,
 {
   return new For_range_statement(index_var, value_var, range, location);
 }
+} // namespace go

@@ -20,6 +20,7 @@
 #include "expressions.h"
 #include "ast-dump.h"
 
+namespace go {
 // Class Expression.
 
 Expression::Expression(Expression_classification classification,
@@ -15899,3 +15900,4 @@ Numeric_constant::expression(Location loc) const
       go_unreachable();
     }
 }
+} // namespace go

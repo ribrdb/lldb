@@ -8,7 +8,7 @@
 #define GO_TYPES_H
 
 #include "go-linemap.h"
-
+namespace go {
 class Gogo;
 class Package;
 class Traverse;
@@ -3257,5 +3257,5 @@ struct Type_context
     : type(a_type), may_be_abstract(a_may_be_abstract)
   { }
 };
-
+}  // namespace go
 #endif // !defined(GO_TYPES_H)
