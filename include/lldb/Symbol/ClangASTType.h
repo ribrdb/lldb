@@ -44,6 +44,12 @@ public:
         m_ast  (ast_context) 
     {
     }
+    
+    ClangASTType (GoASTContext *ast_context, go::Type* type) :
+    m_type (type),
+    m_ast  (ast_context)
+    {
+    }
 
     ClangASTType (clang::ASTContext *ast_context, clang::QualType qual_type);
 
@@ -680,6 +686,9 @@ public:
             return clang::QualType::getFromOpaquePtr(m_type).getCanonicalType();
         return clang::QualType();
     }
+
+    go::Type* GetGoType () const;
+    go::Type* GetCanonicalGoType () const;
 
 private:
     void* m_type;

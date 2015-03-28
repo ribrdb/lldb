@@ -47,6 +47,7 @@
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
 
+#include "Expression/gofrontend/gogo.h"
 #include "Expression/gofrontend/expressions.h"
 #include "Expression/gofrontend/types.h"
 
@@ -239,9 +240,9 @@ ClangASTType::IsArrayType (ClangASTType *element_type_ptr,
                 element_type_ptr->SetClangType(m_ast.get<GoASTContext*>(), array->element_type());
                 if (size) {
                     go::Numeric_constant val;
-                    if (array->size()->numeric_constant_value(&val)) {
+                    if (array->length()->numeric_constant_value(&val)) {
                         unsigned long ul_size;
-                        val->to_unsigned_long(&ul_size);
+                        val.to_unsigned_long(&ul_size);
                         *size = ul_size;
                     } else {
                         *size = 0;
@@ -381,8 +382,11 @@ ClangASTType::IsCompleteType () const
 {
     if (!IsValid())
         return false;
+    if (m_ast.is<GoASTContext*>()) {
+        return !GetCanonicalGoType()->is_undefined();
+    }
     const bool allow_completion = false;
-    return GetCompleteQualType (m_ast, GetQualType(), allow_completion);
+    return GetCompleteQualType (m_ast.get<clang::ASTContext*>(), GetQualType(), allow_completion);
 }
 
 bool
@@ -470,9 +474,9 @@ ClangASTType::IsFunctionType (bool *is_variadic_ptr) const
 uint32_t
 ClangASTType::IsHomogeneousAggregate (ClangASTType* base_type_ptr) const
 {
-    if (!IsValid())
+    if (!IsValid() || m_ast.is<GoASTContext*>())
         return 0;
-    
+    clang::ASTContext* ast = m_ast.get<clang::ASTContext*>();
     clang::QualType qual_type(GetCanonicalQualType());
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
     switch (type_class)
@@ -544,7 +548,7 @@ ClangASTType::IsHomogeneousAggregate (ClangASTType* base_type_ptr) const
                             ++num_fields;
                         }
                         if (base_type_ptr)
-                            *base_type_ptr = ClangASTType (m_ast, base_qual_type);
+                            *base_type_ptr = ClangASTType (ast, base_qual_type);
                         return num_fields;
                     }
                 }
@@ -552,10 +556,10 @@ ClangASTType::IsHomogeneousAggregate (ClangASTType* base_type_ptr) const
             break;
             
         case clang::Type::Typedef:
-            return ClangASTType(m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsHomogeneousAggregate (base_type_ptr);
+            return ClangASTType(ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsHomogeneousAggregate (base_type_ptr);
             
         case clang::Type::Elaborated:
-            return  ClangASTType(m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsHomogeneousAggregate (base_type_ptr);
+            return  ClangASTType(ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsHomogeneousAggregate (base_type_ptr);
         default:
             break;
     }
@@ -580,12 +584,23 @@ ClangASTType::GetFunctionArgumentAtIndex (const size_t index) const
 {
     if (IsValid())
     {
-        clang::QualType qual_type (GetCanonicalQualType());
-        const clang::FunctionProtoType* func = llvm::dyn_cast<clang::FunctionProtoType>(qual_type.getTypePtr());
-        if (func)
+        clang::ASTContext* clang_ast = m_ast.dyn_cast<clang::ASTContext*>();
+        if (clang_ast)
         {
-            if (index < func->getNumParams())
-                return ClangASTType(m_ast, func->getParamType(index).getAsOpaquePtr());
+            clang::QualType qual_type (GetCanonicalQualType());
+            const clang::FunctionProtoType* func = llvm::dyn_cast<clang::FunctionProtoType>(qual_type.getTypePtr());
+            if (func)
+            {
+                if (index < func->getNumParams())
+                    return ClangASTType(clang_ast, func->getParamType(index).getAsOpaquePtr());
+            }
+        } else {
+            const go::Function_type* func = GetCanonicalGoType()->function_type();
+            if (func)
+            {
+                if (index < func->parameters()->size())
+                    return ClangASTType(m_ast.get<GoASTContext*>(), func->parameters()->at(index).type());
+            }
         }
     }
     return ClangASTType();
@@ -594,7 +609,9 @@ ClangASTType::GetFunctionArgumentAtIndex (const size_t index) const
 bool
 ClangASTType::IsFunctionPointerType () const
 {
-    if (IsValid())
+    if (!IsValid())
+        return false;
+    if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
     {
         clang::QualType qual_type (GetCanonicalQualType());
         
@@ -607,21 +624,23 @@ ClangASTType::IsFunctionPointerType () const
         default:
             break;
         case clang::Type::Typedef:
-            return ClangASTType (m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsFunctionPointerType();
+            return ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsFunctionPointerType();
         case clang::Type::Elaborated:
-            return ClangASTType (m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsFunctionPointerType();
+            return ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsFunctionPointerType();
         case clang::Type::Paren:
-            return ClangASTType (m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsFunctionPointerType();
+            return ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsFunctionPointerType();
             
         case clang::Type::LValueReference:
         case clang::Type::RValueReference:
             {
                 const clang::ReferenceType *reference_type = llvm::cast<clang::ReferenceType>(qual_type.getTypePtr());
                 if (reference_type)
-                    return ClangASTType (m_ast, reference_type->getPointeeType()).IsFunctionPointerType();
+                    return ClangASTType (ast, reference_type->getPointeeType()).IsFunctionPointerType();
             }
             break;
         }
+    } else {
+        return GetCanonicalGoType()->function_type() != nullptr;
     }
     return false;
 
@@ -653,44 +672,57 @@ ClangASTType::IsPointerType (ClangASTType *pointee_type) const
 {
     if (IsValid())
     {
-        clang::QualType qual_type (GetCanonicalQualType());
-        const clang::Type::TypeClass type_class = qual_type->getTypeClass();
-        switch (type_class)
+        if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
         {
-            case clang::Type::Builtin:
-                switch (llvm::cast<clang::BuiltinType>(qual_type)->getKind())
-                {
-                    default:
-                        break;
-                    case clang::BuiltinType::ObjCId:
-                    case clang::BuiltinType::ObjCClass:
-                        return true;
-                }
-                return false;
-            case clang::Type::ObjCObjectPointer:
+            clang::QualType qual_type (GetCanonicalQualType());
+            const clang::Type::TypeClass type_class = qual_type->getTypeClass();
+            switch (type_class)
+            {
+                case clang::Type::Builtin:
+                    switch (llvm::cast<clang::BuiltinType>(qual_type)->getKind())
+                    {
+                        default:
+                            break;
+                        case clang::BuiltinType::ObjCId:
+                        case clang::BuiltinType::ObjCClass:
+                            return true;
+                    }
+                    return false;
+                case clang::Type::ObjCObjectPointer:
+                    if (pointee_type)
+                        pointee_type->SetClangType (ast, llvm::cast<clang::ObjCObjectPointerType>(qual_type)->getPointeeType());
+                    return true;
+                case clang::Type::BlockPointer:
+                    if (pointee_type)
+                        pointee_type->SetClangType (ast, llvm::cast<clang::BlockPointerType>(qual_type)->getPointeeType());
+                    return true;
+                case clang::Type::Pointer:
+                    if (pointee_type)
+                        pointee_type->SetClangType (ast, llvm::cast<clang::PointerType>(qual_type)->getPointeeType());
+                    return true;
+                case clang::Type::MemberPointer:
+                    if (pointee_type)
+                        pointee_type->SetClangType (ast, llvm::cast<clang::MemberPointerType>(qual_type)->getPointeeType());
+                    return true;
+                case clang::Type::Typedef:
+                    return ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsPointerType(pointee_type);
+                case clang::Type::Elaborated:
+                    return ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsPointerType(pointee_type);
+                case clang::Type::Paren:
+                    return ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsPointerType(pointee_type);
+                default:
+                    break;
+            }
+        }
+        else
+        {
+            go::Type* elem = GetCanonicalGoType()->points_to();
+            if (elem)
+            {
                 if (pointee_type)
-                    pointee_type->SetClangType (m_ast, llvm::cast<clang::ObjCObjectPointerType>(qual_type)->getPointeeType());
+                    pointee_type->SetClangType(m_ast.get<GoASTContext*>(), elem);
                 return true;
-            case clang::Type::BlockPointer:
-                if (pointee_type)
-                    pointee_type->SetClangType (m_ast, llvm::cast<clang::BlockPointerType>(qual_type)->getPointeeType());
-                return true;
-            case clang::Type::Pointer:
-                if (pointee_type)
-                    pointee_type->SetClangType (m_ast, llvm::cast<clang::PointerType>(qual_type)->getPointeeType());
-                return true;
-            case clang::Type::MemberPointer:
-                if (pointee_type)
-                    pointee_type->SetClangType (m_ast, llvm::cast<clang::MemberPointerType>(qual_type)->getPointeeType());
-                return true;
-            case clang::Type::Typedef:
-                return ClangASTType (m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsPointerType(pointee_type);
-            case clang::Type::Elaborated:
-                return ClangASTType (m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsPointerType(pointee_type);
-            case clang::Type::Paren:
-                return ClangASTType (m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsPointerType(pointee_type);
-            default:
-                break;
+            }
         }
     }
     if (pointee_type)
@@ -704,6 +736,9 @@ ClangASTType::IsPointerOrReferenceType (ClangASTType *pointee_type) const
 {
     if (IsValid())
     {
+        clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>();
+        if (!ast)
+            return IsPointerType(pointee_type);
         clang::QualType qual_type (GetCanonicalQualType());
         const clang::Type::TypeClass type_class = qual_type->getTypeClass();
         switch (type_class)
@@ -720,34 +755,34 @@ ClangASTType::IsPointerOrReferenceType (ClangASTType *pointee_type) const
                 return false;
             case clang::Type::ObjCObjectPointer:
                 if (pointee_type)
-                    pointee_type->SetClangType(m_ast, llvm::cast<clang::ObjCObjectPointerType>(qual_type)->getPointeeType());
+                    pointee_type->SetClangType(ast, llvm::cast<clang::ObjCObjectPointerType>(qual_type)->getPointeeType());
                 return true;
             case clang::Type::BlockPointer:
                 if (pointee_type)
-                    pointee_type->SetClangType(m_ast, llvm::cast<clang::BlockPointerType>(qual_type)->getPointeeType());
+                    pointee_type->SetClangType(ast, llvm::cast<clang::BlockPointerType>(qual_type)->getPointeeType());
                 return true;
             case clang::Type::Pointer:
                 if (pointee_type)
-                    pointee_type->SetClangType(m_ast, llvm::cast<clang::PointerType>(qual_type)->getPointeeType());
+                    pointee_type->SetClangType(ast, llvm::cast<clang::PointerType>(qual_type)->getPointeeType());
                 return true;
             case clang::Type::MemberPointer:
                 if (pointee_type)
-                    pointee_type->SetClangType(m_ast, llvm::cast<clang::MemberPointerType>(qual_type)->getPointeeType());
+                    pointee_type->SetClangType(ast, llvm::cast<clang::MemberPointerType>(qual_type)->getPointeeType());
                 return true;
             case clang::Type::LValueReference:
                 if (pointee_type)
-                    pointee_type->SetClangType(m_ast, llvm::cast<clang::LValueReferenceType>(qual_type)->desugar());
+                    pointee_type->SetClangType(ast, llvm::cast<clang::LValueReferenceType>(qual_type)->desugar());
                 return true;
             case clang::Type::RValueReference:
                 if (pointee_type)
-                    pointee_type->SetClangType(m_ast, llvm::cast<clang::RValueReferenceType>(qual_type)->desugar());
+                    pointee_type->SetClangType(ast, llvm::cast<clang::RValueReferenceType>(qual_type)->desugar());
                 return true;
             case clang::Type::Typedef:
-                return ClangASTType (m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsPointerOrReferenceType(pointee_type);
+                return ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsPointerOrReferenceType(pointee_type);
             case clang::Type::Elaborated:
-                return ClangASTType (m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsPointerOrReferenceType(pointee_type);
+                return ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsPointerOrReferenceType(pointee_type);
             case clang::Type::Paren:
-                return ClangASTType (m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsPointerOrReferenceType(pointee_type);
+                return ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsPointerOrReferenceType(pointee_type);
             default:
                 break;
         }
@@ -761,8 +796,9 @@ ClangASTType::IsPointerOrReferenceType (ClangASTType *pointee_type) const
 bool
 ClangASTType::IsReferenceType (ClangASTType *pointee_type, bool* is_rvalue) const
 {
-    if (IsValid())
+    if (IsValid() && m_ast.is<clang::ASTContext*>())
     {
+        clang::ASTContext* ast = m_ast.get<clang::ASTContext*>();
         clang::QualType qual_type (GetCanonicalQualType());
         const clang::Type::TypeClass type_class = qual_type->getTypeClass();
         
@@ -770,22 +806,22 @@ ClangASTType::IsReferenceType (ClangASTType *pointee_type, bool* is_rvalue) cons
         {
             case clang::Type::LValueReference:
                 if (pointee_type)
-                    pointee_type->SetClangType(m_ast, llvm::cast<clang::LValueReferenceType>(qual_type)->desugar());
+                    pointee_type->SetClangType(ast, llvm::cast<clang::LValueReferenceType>(qual_type)->desugar());
                 if (is_rvalue)
                     *is_rvalue = false;
                 return true;
             case clang::Type::RValueReference:
                 if (pointee_type)
-                    pointee_type->SetClangType(m_ast, llvm::cast<clang::RValueReferenceType>(qual_type)->desugar());
+                    pointee_type->SetClangType(ast, llvm::cast<clang::RValueReferenceType>(qual_type)->desugar());
                 if (is_rvalue)
                     *is_rvalue = true;
                 return true;
             case clang::Type::Typedef:
-                return ClangASTType(m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsReferenceType(pointee_type, is_rvalue);
+                return ClangASTType(ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsReferenceType(pointee_type, is_rvalue);
             case clang::Type::Elaborated:
-                return ClangASTType(m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsReferenceType(pointee_type, is_rvalue);
+                return ClangASTType(ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsReferenceType(pointee_type, is_rvalue);
             case clang::Type::Paren:
-                return ClangASTType(m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsReferenceType(pointee_type, is_rvalue);
+                return ClangASTType(ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).IsReferenceType(pointee_type, is_rvalue);
                 
             default:
                 break;
@@ -801,33 +837,49 @@ ClangASTType::IsFloatingPointType (uint32_t &count, bool &is_complex) const
 {
     if (IsValid())
     {
-        clang::QualType qual_type (GetCanonicalQualType());
-        
-        if (const clang::BuiltinType *BT = llvm::dyn_cast<clang::BuiltinType>(qual_type->getCanonicalTypeInternal()))
+        if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
         {
-            clang::BuiltinType::Kind kind = BT->getKind();
-            if (kind >= clang::BuiltinType::Float && kind <= clang::BuiltinType::LongDouble)
+            clang::QualType qual_type (GetCanonicalQualType());
+            
+            if (const clang::BuiltinType *BT = llvm::dyn_cast<clang::BuiltinType>(qual_type->getCanonicalTypeInternal()))
             {
+                clang::BuiltinType::Kind kind = BT->getKind();
+                if (kind >= clang::BuiltinType::Float && kind <= clang::BuiltinType::LongDouble)
+                {
+                    count = 1;
+                    is_complex = false;
+                    return true;
+                }
+            }
+            else if (const clang::ComplexType *CT = llvm::dyn_cast<clang::ComplexType>(qual_type->getCanonicalTypeInternal()))
+            {
+                if (ClangASTType (ast, CT->getElementType()).IsFloatingPointType (count, is_complex))
+                {
+                    count = 2;
+                    is_complex = true;
+                    return true;
+                }
+            }
+            else if (const clang::VectorType *VT = llvm::dyn_cast<clang::VectorType>(qual_type->getCanonicalTypeInternal()))
+            {
+                if (ClangASTType (ast, VT->getElementType()).IsFloatingPointType (count, is_complex))
+                {
+                    count = VT->getNumElements();
+                    is_complex = false;
+                    return true;
+                }
+            }
+        }
+        else
+        {
+            if (GetCanonicalGoType()->float_type()) {
                 count = 1;
                 is_complex = false;
                 return true;
             }
-        }
-        else if (const clang::ComplexType *CT = llvm::dyn_cast<clang::ComplexType>(qual_type->getCanonicalTypeInternal()))
-        {
-            if (ClangASTType (m_ast, CT->getElementType()).IsFloatingPointType (count, is_complex))
-            {
+            else if (GetCanonicalGoType()->complex_type()) {
                 count = 2;
                 is_complex = true;
-                return true;
-            }
-        }
-        else if (const clang::VectorType *VT = llvm::dyn_cast<clang::VectorType>(qual_type->getCanonicalTypeInternal()))
-        {
-            if (ClangASTType (m_ast, VT->getElementType()).IsFloatingPointType (count, is_complex))
-            {
-                count = VT->getNumElements();
-                is_complex = false;
                 return true;
             }
         }
@@ -928,170 +980,183 @@ ClangASTType::IsPossibleDynamicType (ClangASTType *dynamic_pointee_type,
     clang::QualType pointee_qual_type;
     if (m_type)
     {
-        clang::QualType qual_type (GetCanonicalQualType());
-        bool success = false;
-        const clang::Type::TypeClass type_class = qual_type->getTypeClass();
-        switch (type_class)
+        if (GoASTContext* ast = m_ast.dyn_cast<GoASTContext*>())
         {
-            case clang::Type::Builtin:
-                if (check_objc && llvm::cast<clang::BuiltinType>(qual_type)->getKind() == clang::BuiltinType::ObjCId)
-                {
-                    if (dynamic_pointee_type)
-                        dynamic_pointee_type->SetClangType(m_ast, m_type);
-                    return true;
-                }
-                break;
-                
-            case clang::Type::ObjCObjectPointer:
-                if (check_objc)
-                {
-                    if (dynamic_pointee_type)
-                        dynamic_pointee_type->SetClangType(m_ast, llvm::cast<clang::ObjCObjectPointerType>(qual_type)->getPointeeType());
-                    return true;
-                }
-                break;
-                
-            case clang::Type::Pointer:
-                pointee_qual_type = llvm::cast<clang::PointerType>(qual_type)->getPointeeType();
-                success = true;
-                break;
-                
-            case clang::Type::LValueReference:
-            case clang::Type::RValueReference:
-                pointee_qual_type = llvm::cast<clang::ReferenceType>(qual_type)->getPointeeType();
-                success = true;
-                break;
-                
-            case clang::Type::Typedef:
-                return ClangASTType (m_ast,
-                                     llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsPossibleDynamicType (dynamic_pointee_type,
-                                                                                                                          check_cplusplus,
-                                                                                                                          check_objc);
-                
-            case clang::Type::Elaborated:
-                return ClangASTType (m_ast,
-                                     llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsPossibleDynamicType (dynamic_pointee_type,
-                                                                                                             check_cplusplus,
-                                                                                                             check_objc);
-                
-            case clang::Type::Paren:
-                return ClangASTType (m_ast,
-                                     llvm::cast<clang::ParenType>(qual_type)->desugar()).IsPossibleDynamicType (dynamic_pointee_type,
-                                                                                                   check_cplusplus,
-                                                                                                   check_objc);
-            default:
-                break;
+            go::Type* iface = GetGoType()->interface_type();
+            if (iface)
+            {
+                if (dynamic_pointee_type)
+                    dynamic_pointee_type->SetClangType(ast, iface);
+                return true;
+            }
         }
-        
-        if (success)
+        else if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
         {
-            // Check to make sure what we are pointing too is a possible dynamic C++ type
-            // We currently accept any "void *" (in case we have a class that has been
-            // watered down to an opaque pointer) and virtual C++ classes.
-            const clang::Type::TypeClass pointee_type_class = pointee_qual_type.getCanonicalType()->getTypeClass();
-            switch (pointee_type_class)
+            clang::QualType qual_type (GetCanonicalQualType());
+            bool success = false;
+            const clang::Type::TypeClass type_class = qual_type->getTypeClass();
+            switch (type_class)
             {
                 case clang::Type::Builtin:
-                    switch (llvm::cast<clang::BuiltinType>(pointee_qual_type)->getKind())
-                {
-                    case clang::BuiltinType::UnknownAny:
-                    case clang::BuiltinType::Void:
-                        if (dynamic_pointee_type)
-                            dynamic_pointee_type->SetClangType(m_ast, pointee_qual_type);
-                        return true;
-                        
-                    case clang::BuiltinType::NullPtr:
-                    case clang::BuiltinType::Bool:
-                    case clang::BuiltinType::Char_U:
-                    case clang::BuiltinType::UChar:
-                    case clang::BuiltinType::WChar_U:
-                    case clang::BuiltinType::Char16:
-                    case clang::BuiltinType::Char32:
-                    case clang::BuiltinType::UShort:
-                    case clang::BuiltinType::UInt:
-                    case clang::BuiltinType::ULong:
-                    case clang::BuiltinType::ULongLong:
-                    case clang::BuiltinType::UInt128:
-                    case clang::BuiltinType::Char_S:
-                    case clang::BuiltinType::SChar:
-                    case clang::BuiltinType::WChar_S:
-                    case clang::BuiltinType::Short:
-                    case clang::BuiltinType::Int:
-                    case clang::BuiltinType::Long:
-                    case clang::BuiltinType::LongLong:
-                    case clang::BuiltinType::Int128:
-                    case clang::BuiltinType::Float:
-                    case clang::BuiltinType::Double:
-                    case clang::BuiltinType::LongDouble:
-                    case clang::BuiltinType::Dependent:
-                    case clang::BuiltinType::Overload:
-                    case clang::BuiltinType::ObjCId:
-                    case clang::BuiltinType::ObjCClass:
-                    case clang::BuiltinType::ObjCSel:
-                    case clang::BuiltinType::BoundMember:
-                    case clang::BuiltinType::Half:
-                    case clang::BuiltinType::ARCUnbridgedCast:
-                    case clang::BuiltinType::PseudoObject:
-                    case clang::BuiltinType::BuiltinFn:
-                    case clang::BuiltinType::OCLEvent:
-                    case clang::BuiltinType::OCLImage1d:
-                    case clang::BuiltinType::OCLImage1dArray:
-                    case clang::BuiltinType::OCLImage1dBuffer:
-                    case clang::BuiltinType::OCLImage2d:
-                    case clang::BuiltinType::OCLImage2dArray:
-                    case clang::BuiltinType::OCLImage3d:
-                    case clang::BuiltinType::OCLSampler:
-                        break;
-                }
-                    break;
-                    
-                case clang::Type::Record:
-                    if (check_cplusplus)
+                    if (check_objc && llvm::cast<clang::BuiltinType>(qual_type)->getKind() == clang::BuiltinType::ObjCId)
                     {
-                        clang::CXXRecordDecl *cxx_record_decl = pointee_qual_type->getAsCXXRecordDecl();
-                        if (cxx_record_decl)
-                        {
-                            bool is_complete = cxx_record_decl->isCompleteDefinition();
-                            
-                            if (is_complete)
-                                success = cxx_record_decl->isDynamicClass();
-                            else
-                            {
-                                ClangASTMetadata *metadata = ClangASTContext::GetMetadata (m_ast, cxx_record_decl);
-                                if (metadata)
-                                    success = metadata->GetIsDynamicCXXType();
-                                else
-                                {
-                                    is_complete = ClangASTType(m_ast, pointee_qual_type).GetCompleteType();
-                                    if (is_complete)
-                                        success = cxx_record_decl->isDynamicClass();
-                                    else
-                                        success = false;
-                                }
-                            }
-                            
-                            if (success)
-                            {
-                                if (dynamic_pointee_type)
-                                    dynamic_pointee_type->SetClangType(m_ast, pointee_qual_type);
-                                return true;
-                            }
-                        }
+                        if (dynamic_pointee_type)
+                            dynamic_pointee_type->SetClangType(ast, m_type);
+                        return true;
                     }
                     break;
                     
-                case clang::Type::ObjCObject:
-                case clang::Type::ObjCInterface:
+                case clang::Type::ObjCObjectPointer:
                     if (check_objc)
                     {
                         if (dynamic_pointee_type)
-                            dynamic_pointee_type->SetClangType(m_ast, pointee_qual_type);
+                            dynamic_pointee_type->SetClangType(ast, llvm::cast<clang::ObjCObjectPointerType>(qual_type)->getPointeeType());
                         return true;
                     }
                     break;
                     
+                case clang::Type::Pointer:
+                    pointee_qual_type = llvm::cast<clang::PointerType>(qual_type)->getPointeeType();
+                    success = true;
+                    break;
+                    
+                case clang::Type::LValueReference:
+                case clang::Type::RValueReference:
+                    pointee_qual_type = llvm::cast<clang::ReferenceType>(qual_type)->getPointeeType();
+                    success = true;
+                    break;
+                    
+                case clang::Type::Typedef:
+                    return ClangASTType (ast,
+                                         llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).IsPossibleDynamicType (dynamic_pointee_type,
+                                                                                                                              check_cplusplus,
+                                                                                                                              check_objc);
+                    
+                case clang::Type::Elaborated:
+                    return ClangASTType (ast,
+                                         llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).IsPossibleDynamicType (dynamic_pointee_type,
+                                                                                                                 check_cplusplus,
+                                                                                                                 check_objc);
+                    
+                case clang::Type::Paren:
+                    return ClangASTType (ast,
+                                         llvm::cast<clang::ParenType>(qual_type)->desugar()).IsPossibleDynamicType (dynamic_pointee_type,
+                                                                                                       check_cplusplus,
+                                                                                                       check_objc);
                 default:
                     break;
+            }
+            
+            if (success)
+            {
+                // Check to make sure what we are pointing too is a possible dynamic C++ type
+                // We currently accept any "void *" (in case we have a class that has been
+                // watered down to an opaque pointer) and virtual C++ classes.
+                const clang::Type::TypeClass pointee_type_class = pointee_qual_type.getCanonicalType()->getTypeClass();
+                switch (pointee_type_class)
+                {
+                    case clang::Type::Builtin:
+                        switch (llvm::cast<clang::BuiltinType>(pointee_qual_type)->getKind())
+                    {
+                        case clang::BuiltinType::UnknownAny:
+                        case clang::BuiltinType::Void:
+                            if (dynamic_pointee_type)
+                                dynamic_pointee_type->SetClangType(ast, pointee_qual_type);
+                            return true;
+                            
+                        case clang::BuiltinType::NullPtr:
+                        case clang::BuiltinType::Bool:
+                        case clang::BuiltinType::Char_U:
+                        case clang::BuiltinType::UChar:
+                        case clang::BuiltinType::WChar_U:
+                        case clang::BuiltinType::Char16:
+                        case clang::BuiltinType::Char32:
+                        case clang::BuiltinType::UShort:
+                        case clang::BuiltinType::UInt:
+                        case clang::BuiltinType::ULong:
+                        case clang::BuiltinType::ULongLong:
+                        case clang::BuiltinType::UInt128:
+                        case clang::BuiltinType::Char_S:
+                        case clang::BuiltinType::SChar:
+                        case clang::BuiltinType::WChar_S:
+                        case clang::BuiltinType::Short:
+                        case clang::BuiltinType::Int:
+                        case clang::BuiltinType::Long:
+                        case clang::BuiltinType::LongLong:
+                        case clang::BuiltinType::Int128:
+                        case clang::BuiltinType::Float:
+                        case clang::BuiltinType::Double:
+                        case clang::BuiltinType::LongDouble:
+                        case clang::BuiltinType::Dependent:
+                        case clang::BuiltinType::Overload:
+                        case clang::BuiltinType::ObjCId:
+                        case clang::BuiltinType::ObjCClass:
+                        case clang::BuiltinType::ObjCSel:
+                        case clang::BuiltinType::BoundMember:
+                        case clang::BuiltinType::Half:
+                        case clang::BuiltinType::ARCUnbridgedCast:
+                        case clang::BuiltinType::PseudoObject:
+                        case clang::BuiltinType::BuiltinFn:
+                        case clang::BuiltinType::OCLEvent:
+                        case clang::BuiltinType::OCLImage1d:
+                        case clang::BuiltinType::OCLImage1dArray:
+                        case clang::BuiltinType::OCLImage1dBuffer:
+                        case clang::BuiltinType::OCLImage2d:
+                        case clang::BuiltinType::OCLImage2dArray:
+                        case clang::BuiltinType::OCLImage3d:
+                        case clang::BuiltinType::OCLSampler:
+                            break;
+                    }
+                        break;
+                        
+                    case clang::Type::Record:
+                        if (check_cplusplus)
+                        {
+                            clang::CXXRecordDecl *cxx_record_decl = pointee_qual_type->getAsCXXRecordDecl();
+                            if (cxx_record_decl)
+                            {
+                                bool is_complete = cxx_record_decl->isCompleteDefinition();
+                                
+                                if (is_complete)
+                                    success = cxx_record_decl->isDynamicClass();
+                                else
+                                {
+                                    ClangASTMetadata *metadata = ClangASTContext::GetMetadata (ast, cxx_record_decl);
+                                    if (metadata)
+                                        success = metadata->GetIsDynamicCXXType();
+                                    else
+                                    {
+                                        is_complete = ClangASTType(ast, pointee_qual_type).GetCompleteType();
+                                        if (is_complete)
+                                            success = cxx_record_decl->isDynamicClass();
+                                        else
+                                            success = false;
+                                    }
+                                }
+                                
+                                if (success)
+                                {
+                                    if (dynamic_pointee_type)
+                                        dynamic_pointee_type->SetClangType(ast, pointee_qual_type);
+                                    return true;
+                                }
+                            }
+                        }
+                        break;
+                        
+                    case clang::Type::ObjCObject:
+                    case clang::Type::ObjCInterface:
+                        if (check_objc)
+                        {
+                            if (dynamic_pointee_type)
+                                dynamic_pointee_type->SetClangType(ast, pointee_qual_type);
+                            return true;
+                        }
+                        break;
+                        
+                    default:
+                        break;
+                }
             }
         }
     }
@@ -1191,7 +1256,7 @@ ClangASTType::IsBeingDefined () const
 bool
 ClangASTType::IsObjCObjectPointerType (ClangASTType *class_type_ptr)
 {
-    if (!IsValid())
+    if (!IsValid() || m_ast.is<GoASTContext*>())
         return false;
     
     clang::QualType qual_type (GetCanonicalQualType());
@@ -1207,7 +1272,7 @@ ClangASTType::IsObjCObjectPointerType (ClangASTType *class_type_ptr)
                 if (obj_pointer_type == nullptr)
                     class_type_ptr->Clear();
                 else
-                    class_type_ptr->SetClangType (m_ast, clang::QualType(obj_pointer_type->getInterfaceType(), 0));
+                    class_type_ptr->SetClangType (m_ast.get<clang::ASTContext*>(), clang::QualType(obj_pointer_type->getInterfaceType(), 0));
             }
         }
         return true;
@@ -1248,8 +1313,12 @@ ClangASTType::GetCompleteType () const
 {
     if (!IsValid())
         return false;
-    const bool allow_completion = true;
-    return GetCompleteQualType (m_ast, GetQualType(), allow_completion);
+    if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
+    {
+        const bool allow_completion = true;
+        return GetCompleteQualType (ast, GetQualType(), allow_completion);
+    }
+    return GetGoType()->is_undefined();
 }
 
 //----------------------------------------------------------------------
@@ -1258,8 +1327,11 @@ ClangASTType::GetCompleteType () const
 size_t
 ClangASTType::GetPointerByteSize () const
 {
-    if (m_ast)
-        return m_ast->getTypeSize(m_ast->VoidPtrTy) / 8;
+    if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
+        return ast->getTypeSize(ast->VoidPtrTy) / 8;
+    // TODO(ribrdb)
+    //else if (GoASTContext* ast = m_ast.dyn_cast<GoASTContext*>())
+    //    return ast->getTypeSize(ast->GetVoidPtrType());
     return 0;
 }
 
@@ -1287,19 +1359,26 @@ ClangASTType::GetTypeName () const
     std::string type_name;
     if (IsValid())
     {
-        clang::PrintingPolicy printing_policy (m_ast->getPrintingPolicy());
-        clang::QualType qual_type(GetQualType());
-        printing_policy.SuppressTagKeyword = true;
-        printing_policy.LangOpts.WChar = true;
-        const clang::TypedefType *typedef_type = qual_type->getAs<clang::TypedefType>();
-        if (typedef_type)
+        if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
         {
-            const clang::TypedefNameDecl *typedef_decl = typedef_type->getDecl();
-            type_name = typedef_decl->getQualifiedNameAsString();
-        }
-        else
-        {
-            type_name = qual_type.getAsString(printing_policy);
+            clang::PrintingPolicy printing_policy (ast->getPrintingPolicy());
+            clang::QualType qual_type(GetQualType());
+            printing_policy.SuppressTagKeyword = true;
+            printing_policy.LangOpts.WChar = true;
+            const clang::TypedefType *typedef_type = qual_type->getAs<clang::TypedefType>();
+            if (typedef_type)
+            {
+                const clang::TypedefNameDecl *typedef_decl = typedef_type->getDecl();
+                type_name = typedef_decl->getQualifiedNameAsString();
+            }
+            else
+            {
+                type_name = qual_type.getAsString(printing_policy);
+            }
+        } else {
+            go::Named_type* named = GetGoType()->named_type();
+            if (named)
+                type_name = named->named_object()->name();
         }
     }
     return ConstString(type_name);
@@ -1320,6 +1399,51 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
     if (pointee_or_element_clang_type)
         pointee_or_element_clang_type->Clear();
     
+    if (m_ast.is<GoASTContext*>())
+    {
+        GoASTContext* ast = m_ast.get<GoASTContext*>();
+        go::Type* type = GetGoType()->forwarded();
+        if (type->is_basic_type()) {
+            uint32_t builtin_type_flags = eTypeIsBuiltIn | eTypeHasValue;
+            if (type->points_to())
+            {
+                builtin_type_flags |= eTypeIsPointer;
+                if (pointee_or_element_clang_type)
+                    pointee_or_element_clang_type->SetClangType(ast, type->points_to());
+            } else if (type->is_boolean_type())
+            {
+                builtin_type_flags |= eTypeIsInteger;
+            } else if (type->is_numeric_type())
+            {
+                if (type->float_type())
+                    builtin_type_flags |= eTypeIsFloat;
+                if (type->complex_type())
+                    builtin_type_flags |= eTypeIsComplex;
+                if (type->integer_type())
+                {
+                    builtin_type_flags |= eTypeIsInteger;
+                    if (!type->integer_type()->is_unsigned()) {
+                        builtin_type_flags |= eTypeIsSigned;
+                    }
+                }
+            }
+            return builtin_type_flags;
+        }
+        if (type->array_type())
+        {
+            if (pointee_or_element_clang_type)
+                pointee_or_element_clang_type->SetClangType(ast, type->array_type()->element_type());
+            return eTypeHasChildren | eTypeIsArray;
+        }
+        if (type->channel_type() || type->interface_type() || type->struct_type() || type->map_type())
+            return eTypeHasChildren | eTypeIsStructUnion;
+        if (type->function_type())
+            return eTypeIsFuncPrototype | eTypeHasValue;
+        fprintf(stderr, "ClangASTType::GetTypeInfo: Unrecognized go type");
+        return 0;
+    }
+    clang::ASTContext* ast = m_ast.get<clang::ASTContext*>();
+    
     clang::QualType qual_type (GetQualType());
     
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
@@ -1335,13 +1459,13 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
                 case clang::BuiltinType::ObjCId:
                 case clang::BuiltinType::ObjCClass:
                     if (pointee_or_element_clang_type)
-                        pointee_or_element_clang_type->SetClangType(m_ast, m_ast->ObjCBuiltinClassTy);
+                        pointee_or_element_clang_type->SetClangType(ast, ast->ObjCBuiltinClassTy);
                     builtin_type_flags |= eTypeIsPointer | eTypeIsObjC;
                     break;
                     
                 case clang::BuiltinType::ObjCSel:
                     if (pointee_or_element_clang_type)
-                        pointee_or_element_clang_type->SetClangType(m_ast, m_ast->CharTy);
+                        pointee_or_element_clang_type->SetClangType(ast, ast->CharTy);
                     builtin_type_flags |= eTypeIsPointer | eTypeIsObjC;
                     break;
                     
@@ -1385,7 +1509,7 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
             
         case clang::Type::BlockPointer:
             if (pointee_or_element_clang_type)
-                pointee_or_element_clang_type->SetClangType(m_ast, qual_type->getPointeeType());
+                pointee_or_element_clang_type->SetClangType(ast, qual_type->getPointeeType());
             return eTypeIsPointer | eTypeHasChildren | eTypeIsBlock;
             
         case clang::Type::Complex:
@@ -1409,7 +1533,7 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
         case clang::Type::IncompleteArray:
         case clang::Type::VariableArray:
             if (pointee_or_element_clang_type)
-                pointee_or_element_clang_type->SetClangType(m_ast, llvm::cast<clang::ArrayType>(qual_type.getTypePtr())->getElementType());
+                pointee_or_element_clang_type->SetClangType(ast, llvm::cast<clang::ArrayType>(qual_type.getTypePtr())->getElementType());
             return eTypeHasChildren | eTypeIsArray;
             
         case clang::Type::DependentName:                    return 0;
@@ -1419,13 +1543,13 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
             
         case clang::Type::Enum:
             if (pointee_or_element_clang_type)
-                pointee_or_element_clang_type->SetClangType(m_ast, llvm::cast<clang::EnumType>(qual_type)->getDecl()->getIntegerType());
+                pointee_or_element_clang_type->SetClangType(ast, llvm::cast<clang::EnumType>(qual_type)->getDecl()->getIntegerType());
             return eTypeIsEnumeration | eTypeHasValue;
             
         case clang::Type::Elaborated:
-            return ClangASTType (m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetTypeInfo (pointee_or_element_clang_type);
+            return ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetTypeInfo (pointee_or_element_clang_type);
         case clang::Type::Paren:
-            return ClangASTType (m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).GetTypeInfo (pointee_or_element_clang_type);
+            return ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).GetTypeInfo (pointee_or_element_clang_type);
             
         case clang::Type::FunctionProto:                    return eTypeIsFuncPrototype | eTypeHasValue;
         case clang::Type::FunctionNoProto:                  return eTypeIsFuncPrototype | eTypeHasValue;
@@ -1434,14 +1558,14 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
         case clang::Type::LValueReference:
         case clang::Type::RValueReference:
             if (pointee_or_element_clang_type)
-                pointee_or_element_clang_type->SetClangType(m_ast, llvm::cast<clang::ReferenceType>(qual_type.getTypePtr())->getPointeeType());
+                pointee_or_element_clang_type->SetClangType(ast, llvm::cast<clang::ReferenceType>(qual_type.getTypePtr())->getPointeeType());
             return eTypeHasChildren | eTypeIsReference | eTypeHasValue;
             
         case clang::Type::MemberPointer:                    return eTypeIsPointer   | eTypeIsMember | eTypeHasValue;
             
         case clang::Type::ObjCObjectPointer:
             if (pointee_or_element_clang_type)
-                pointee_or_element_clang_type->SetClangType(m_ast, qual_type->getPointeeType());
+                pointee_or_element_clang_type->SetClangType(ast, qual_type->getPointeeType());
             return eTypeHasChildren | eTypeIsObjC | eTypeIsClass | eTypeIsPointer | eTypeHasValue;
             
         case clang::Type::ObjCObject:                       return eTypeHasChildren | eTypeIsObjC | eTypeIsClass;
@@ -1449,7 +1573,7 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
             
         case clang::Type::Pointer:
             if (pointee_or_element_clang_type)
-                pointee_or_element_clang_type->SetClangType(m_ast, qual_type->getPointeeType());
+                pointee_or_element_clang_type->SetClangType(ast, qual_type->getPointeeType());
             return eTypeHasChildren | eTypeIsPointer | eTypeHasValue;
             
         case clang::Type::Record:
@@ -1463,7 +1587,7 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
         case clang::Type::TemplateSpecialization:           return eTypeIsTemplate;
             
         case clang::Type::Typedef:
-            return eTypeIsTypedef | ClangASTType (m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetTypeInfo (pointee_or_element_clang_type);
+            return eTypeIsTypedef | ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetTypeInfo (pointee_or_element_clang_type);
         case clang::Type::TypeOfExpr:                       return 0;
         case clang::Type::TypeOf:                           return 0;
         case clang::Type::UnresolvedUsing:                  return 0;
@@ -1494,7 +1618,10 @@ ClangASTType::GetMinimumLanguage ()
 {
     if (!IsValid())
         return lldb::eLanguageTypeC;
+    if (m_ast.is<GoASTContext*>())
+        return lldb::eLanguageTypeGo;
     
+    clang::ASTContext* ast = m_ast.get<clang::ASTContext*>();
     // If the type is a reference, then resolve it to what it refers to first:
     clang::QualType qual_type (GetCanonicalQualType().getNonReferenceType());
     if (qual_type->isAnyPointerType())
@@ -1509,7 +1636,7 @@ ClangASTType::GetMinimumLanguage ()
             return lldb::eLanguageTypeObjC;
         if (pointee_type->isObjCClassType())
             return lldb::eLanguageTypeObjC;
-        if (pointee_type.getTypePtr() == m_ast->ObjCBuiltinIdTy.getTypePtr())
+        if (pointee_type.getTypePtr() == ast->ObjCBuiltinIdTy.getTypePtr())
             return lldb::eLanguageTypeObjC;
     }
     else
@@ -1567,7 +1694,7 @@ ClangASTType::GetMinimumLanguage ()
             }
                 break;
             case clang::Type::Typedef:
-                return ClangASTType(m_ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetMinimumLanguage();
+                return ClangASTType(ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetMinimumLanguage();
         }
     }
     return lldb::eLanguageTypeC;
@@ -1579,73 +1706,96 @@ ClangASTType::GetTypeClass () const
     if (!IsValid())
         return lldb::eTypeClassInvalid;
     
-    clang::QualType qual_type(GetQualType());
-    
-    switch (qual_type->getTypeClass())
+    if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
     {
-        case clang::Type::UnaryTransform:           break;
-        case clang::Type::FunctionNoProto:          return lldb::eTypeClassFunction;
-        case clang::Type::FunctionProto:            return lldb::eTypeClassFunction;
-        case clang::Type::IncompleteArray:          return lldb::eTypeClassArray;
-        case clang::Type::VariableArray:            return lldb::eTypeClassArray;
-        case clang::Type::ConstantArray:            return lldb::eTypeClassArray;
-        case clang::Type::DependentSizedArray:      return lldb::eTypeClassArray;
-        case clang::Type::DependentSizedExtVector:  return lldb::eTypeClassVector;
-        case clang::Type::ExtVector:                return lldb::eTypeClassVector;
-        case clang::Type::Vector:                   return lldb::eTypeClassVector;
-        case clang::Type::Builtin:                  return lldb::eTypeClassBuiltin;
-        case clang::Type::ObjCObjectPointer:        return lldb::eTypeClassObjCObjectPointer;
-        case clang::Type::BlockPointer:             return lldb::eTypeClassBlockPointer;
-        case clang::Type::Pointer:                  return lldb::eTypeClassPointer;
-        case clang::Type::LValueReference:          return lldb::eTypeClassReference;
-        case clang::Type::RValueReference:          return lldb::eTypeClassReference;
-        case clang::Type::MemberPointer:            return lldb::eTypeClassMemberPointer;
-        case clang::Type::Complex:
-            if (qual_type->isComplexType())
-                return lldb::eTypeClassComplexFloat;
-            else
-                return lldb::eTypeClassComplexInteger;
-        case clang::Type::ObjCObject:               return lldb::eTypeClassObjCObject;
-        case clang::Type::ObjCInterface:            return lldb::eTypeClassObjCInterface;
-        case clang::Type::Record:
-            {
-                const clang::RecordType *record_type = llvm::cast<clang::RecordType>(qual_type.getTypePtr());
-                const clang::RecordDecl *record_decl = record_type->getDecl();
-                if (record_decl->isUnion())
-                    return lldb::eTypeClassUnion;
-                else if (record_decl->isStruct())
-                    return lldb::eTypeClassStruct;
+        clang::QualType qual_type(GetQualType());
+        
+        switch (qual_type->getTypeClass())
+        {
+            case clang::Type::UnaryTransform:           break;
+            case clang::Type::FunctionNoProto:          return lldb::eTypeClassFunction;
+            case clang::Type::FunctionProto:            return lldb::eTypeClassFunction;
+            case clang::Type::IncompleteArray:          return lldb::eTypeClassArray;
+            case clang::Type::VariableArray:            return lldb::eTypeClassArray;
+            case clang::Type::ConstantArray:            return lldb::eTypeClassArray;
+            case clang::Type::DependentSizedArray:      return lldb::eTypeClassArray;
+            case clang::Type::DependentSizedExtVector:  return lldb::eTypeClassVector;
+            case clang::Type::ExtVector:                return lldb::eTypeClassVector;
+            case clang::Type::Vector:                   return lldb::eTypeClassVector;
+            case clang::Type::Builtin:                  return lldb::eTypeClassBuiltin;
+            case clang::Type::ObjCObjectPointer:        return lldb::eTypeClassObjCObjectPointer;
+            case clang::Type::BlockPointer:             return lldb::eTypeClassBlockPointer;
+            case clang::Type::Pointer:                  return lldb::eTypeClassPointer;
+            case clang::Type::LValueReference:          return lldb::eTypeClassReference;
+            case clang::Type::RValueReference:          return lldb::eTypeClassReference;
+            case clang::Type::MemberPointer:            return lldb::eTypeClassMemberPointer;
+            case clang::Type::Complex:
+                if (qual_type->isComplexType())
+                    return lldb::eTypeClassComplexFloat;
                 else
-                    return lldb::eTypeClassClass;
-            }
-            break;
-        case clang::Type::Enum:                     return lldb::eTypeClassEnumeration;
-        case clang::Type::Typedef:                  return lldb::eTypeClassTypedef;
-        case clang::Type::UnresolvedUsing:          break;
-        case clang::Type::Paren:
-            return ClangASTType(m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).GetTypeClass();
-        case clang::Type::Elaborated:
-            return ClangASTType(m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetTypeClass();
-            
-        case clang::Type::Attributed:               break;
-        case clang::Type::TemplateTypeParm:         break;
-        case clang::Type::SubstTemplateTypeParm:    break;
-        case clang::Type::SubstTemplateTypeParmPack:break;
-        case clang::Type::Auto:                     break;
-        case clang::Type::InjectedClassName:        break;
-        case clang::Type::DependentName:            break;
-        case clang::Type::DependentTemplateSpecialization: break;
-        case clang::Type::PackExpansion:            break;
-            
-        case clang::Type::TypeOfExpr:               break;
-        case clang::Type::TypeOf:                   break;
-        case clang::Type::Decltype:                 break;
-        case clang::Type::TemplateSpecialization:   break;
-        case clang::Type::Atomic:                   break;
+                    return lldb::eTypeClassComplexInteger;
+            case clang::Type::ObjCObject:               return lldb::eTypeClassObjCObject;
+            case clang::Type::ObjCInterface:            return lldb::eTypeClassObjCInterface;
+            case clang::Type::Record:
+                {
+                    const clang::RecordType *record_type = llvm::cast<clang::RecordType>(qual_type.getTypePtr());
+                    const clang::RecordDecl *record_decl = record_type->getDecl();
+                    if (record_decl->isUnion())
+                        return lldb::eTypeClassUnion;
+                    else if (record_decl->isStruct())
+                        return lldb::eTypeClassStruct;
+                    else
+                        return lldb::eTypeClassClass;
+                }
+                break;
+            case clang::Type::Enum:                     return lldb::eTypeClassEnumeration;
+            case clang::Type::Typedef:                  return lldb::eTypeClassTypedef;
+            case clang::Type::UnresolvedUsing:          break;
+            case clang::Type::Paren:
+                return ClangASTType(m_ast, llvm::cast<clang::ParenType>(qual_type)->desugar()).GetTypeClass();
+            case clang::Type::Elaborated:
+                return ClangASTType(m_ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetTypeClass();
+                
+            case clang::Type::Attributed:               break;
+            case clang::Type::TemplateTypeParm:         break;
+            case clang::Type::SubstTemplateTypeParm:    break;
+            case clang::Type::SubstTemplateTypeParmPack:break;
+            case clang::Type::Auto:                     break;
+            case clang::Type::InjectedClassName:        break;
+            case clang::Type::DependentName:            break;
+            case clang::Type::DependentTemplateSpecialization: break;
+            case clang::Type::PackExpansion:            break;
+                
+            case clang::Type::TypeOfExpr:               break;
+            case clang::Type::TypeOf:                   break;
+            case clang::Type::Decltype:                 break;
+            case clang::Type::TemplateSpecialization:   break;
+            case clang::Type::Atomic:                   break;
 
-        // pointer type decayed from an array or function type.
-        case clang::Type::Decayed:                  break;
-        case clang::Type::Adjusted:                 break;
+            // pointer type decayed from an array or function type.
+            case clang::Type::Decayed:                  break;
+            case clang::Type::Adjusted:                 break;
+        }
+    }
+    else
+    {
+        switch (GetGoType()->classification())
+        {
+            case go::Type::TYPE_ARRAY: return lldb::eTypeClassArray;
+            case go::Type::TYPE_COMPLEX: return lldb::eTypeClassComplexFloat;
+            case go::Type::TYPE_POINTER: return lldb::eTypeClassPointer;
+            case go::Type::TYPE_FUNCTION: return lldb::eTypeClassFunction;
+            case go::Type::TYPE_BOOLEAN:
+            case go::Type::TYPE_FLOAT:
+            case go::Type::TYPE_INTEGER:
+            case go::Type::TYPE_STRING:
+                return lldb::eTypeClassBuiltin;
+            case go::Type::TYPE_CALL_MULTIPLE_RESULT:
+            case go::Type::TYPE_CHANNEL:
+            case go::Type::TYPE_MAP:
+            case go::Type::TYPE_STRUCT:
+                return lldb::eTypeClassStruct;
+        }
     }
     // We don't know hot to display this type...
     return lldb::eTypeClassOther;
@@ -1676,9 +1826,13 @@ ClangASTType::AddConstModifier () const
 {
     if (m_type)
     {
-        clang::QualType result(GetQualType());
-        result.addConst();
-        return ClangASTType (m_ast, result);
+        if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
+        {
+            clang::QualType result(GetQualType());
+            result.addConst();
+            return ClangASTType (ast, result);
+        }
+        return *this;
     }
     return ClangASTType();
 }
@@ -1688,9 +1842,13 @@ ClangASTType::AddRestrictModifier () const
 {
     if (m_type)
     {
-        clang::QualType result(GetQualType());
-        result.getQualifiers().setRestrict (true);
-        return ClangASTType (m_ast, result);
+        if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
+        {
+            clang::QualType result(GetQualType());
+            result.getQualifiers().setRestrict (true);
+            return ClangASTType (ast, result);
+        }
+        return *this;
     }
     return ClangASTType();
 }
@@ -1700,9 +1858,13 @@ ClangASTType::AddVolatileModifier () const
 {
     if (m_type)
     {
-        clang::QualType result(GetQualType());
-        result.getQualifiers().setVolatile (true);
-        return ClangASTType (m_ast, result);
+        if (clang::ASTContext* ast = m_ast.dyn_cast<clang::ASTContext*>())
+        {
+            clang::QualType result(GetQualType());
+            result.getQualifiers().setVolatile (true);
+            return ClangASTType (ast, result);
+        }
+        return *this;
     }
     return ClangASTType();
 }
@@ -7039,5 +7201,26 @@ lldb_private::operator != (const lldb_private::ClangASTType &lhs, const lldb_pri
     return lhs.GetASTContext() != rhs.GetASTContext() || lhs.GetOpaqueQualType() != rhs.GetOpaqueQualType();
 }
 
+go::Type* ClangASTType::GetGoType () const {
+    if (IsValid() && m_ast.Is<GoASTContext*>()) {
+        return (go::Type*)m_type;
+    }
+    return nullptr;
+}
 
+go::Type* ClangASTType::GetCanonicalGoType () const {
+    go::Type* last_type = GetGoType();
+    if (!last_type)
+        return nullptr;
+    go::Type* next_type = last_type;
+    do {
+        last_type = next_type;
+        if (last_type->forward_declaration_type()) {
+            next_type = last_type->forwarded();
+        } else if (last_type->named_type()) {
+            next_type = last_type->named_type()->real_type();
+        }
+    } while (next_type != last_type);
+    return next_type;
+}
 

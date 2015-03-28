@@ -9,6 +9,8 @@
 
 #include <utility>
 #include "operator.h"
+#include "go-location.h"
+#include "types.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 
