@@ -66,6 +66,7 @@
 #include "lldb/Core/ThreadSafeDenseMap.h"
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Expression/ASTDumper.h"
+#include "lldb/Symbol/ClangASTTypeSystem.h"
 #include "lldb/Symbol/ClangExternalASTSourceCommon.h"
 #include "lldb/Symbol/VerifyDecl.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -406,6 +407,7 @@ ClangASTContext::getASTContext()
                                        *getIdentifierTable(),
                                        *getSelectorTable(),
                                        *getBuiltinContext()));
+        m_type_system_ap.reset(new ClangASTTypeSystem(m_ast_ap.get()));
         m_ast_ap->InitBuiltinTypes(*getTargetInfo());
         
         if ((m_callback_tag_decl || m_callback_objc_decl) && m_callback_baton)
@@ -419,6 +421,16 @@ ClangASTContext::getASTContext()
         GetASTMap().Insert(m_ast_ap.get(), this);
     }
     return m_ast_ap.get();
+}
+
+ClangASTTypeSystem*
+ClangASTContext::getTypeSystem()
+{
+    if (m_type_system_ap.get() == nullptr)
+    {
+        getASTContext();
+    }
+    return m_type_system_ap.get();
 }
 
 ClangASTContext*
@@ -1882,34 +1894,34 @@ ClangASTContext::GetOrCreateStructForIdentifier (const ConstString &type_name,
     if ((type = GetTypeForIdentifier<clang::CXXRecordDecl>(type_name)).IsValid())
         return type;
     type = CreateRecordType(nullptr, lldb::eAccessPublic, type_name.GetCString(), clang::TTK_Struct, lldb::eLanguageTypeC);
-    type.StartTagDeclarationDefinition();
+    getTypeSystem()->StartTagDeclarationDefinition(type.GetOpaqueQualType());
     for (const auto& field : type_fields)
-        type.AddFieldToRecordType(field.first, field.second, lldb::eAccessPublic, 0);
+        getTypeSystem()->AddFieldToRecordType(type.GetOpaqueQualType(), field.first, field.second, lldb::eAccessPublic, 0);
     if (packed)
-        type.SetIsPacked();
-    type.CompleteTagDeclarationDefinition();
+        getTypeSystem()->SetIsPacked(type.GetOpaqueQualType());
+    getTypeSystem()->CompleteTagDeclarationDefinition(type.GetOpaqueQualType());
     return type;
 }
 
 #pragma mark Enumeration Types
 
 ClangASTType
-ClangASTContext::CreateEnumerationType 
+ClangASTContext::CreateEnumerationType
 (
-    const char *name, 
-    DeclContext *decl_ctx, 
-    const Declaration &decl, 
-    const ClangASTType &integer_clang_type
-)
+ const char *name,
+ DeclContext *decl_ctx,
+ const Declaration &decl,
+ const ClangASTType &integer_clang_type
+ )
 {
     // TODO: Do something intelligent with the Declaration object passed in
     // like maybe filling in the SourceLocation with it...
     ASTContext *ast = getASTContext();
-
+    
     // TODO: ask about these...
-//    const bool IsScoped = false;
-//    const bool IsFixed = false;
-
+    //    const bool IsScoped = false;
+    //    const bool IsFixed = false;
+    
     EnumDecl *enum_decl = EnumDecl::Create (*ast,
                                             decl_ctx,
                                             SourceLocation(),
@@ -2194,4 +2206,110 @@ ClangASTContext::GetClassMethodInfoForDeclContext (clang::DeclContext *decl_ctx,
     }
     return false;
 }
+
+
+bool
+ClangASTContext::SetTagTypeKind (clang::QualType tag_qual_type, int kind) const
+{
+    const clang::Type *clang_type = tag_qual_type.getTypePtr();
+    if (clang_type)
+    {
+        const clang::TagType *tag_type = llvm::dyn_cast<clang::TagType>(clang_type);
+        if (tag_type)
+        {
+            clang::TagDecl *tag_decl = llvm::dyn_cast<clang::TagDecl>(tag_type->getDecl());
+            if (tag_decl)
+            {
+                tag_decl->setTagKind ((clang::TagDecl::TagKind)kind);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
+bool
+ClangASTContext::SetDefaultAccessForRecordFields (clang::RecordDecl* record_decl,
+                                                  int default_accessibility,
+                                                  int *assigned_accessibilities,
+                                                  size_t num_assigned_accessibilities)
+{
+    if (record_decl)
+    {
+        uint32_t field_idx;
+        clang::RecordDecl::field_iterator field, field_end;
+        for (field = record_decl->field_begin(), field_end = record_decl->field_end(), field_idx = 0;
+             field != field_end;
+             ++field, ++field_idx)
+        {
+            // If no accessibility was assigned, assign the correct one
+            if (field_idx < num_assigned_accessibilities && assigned_accessibilities[field_idx] == clang::AS_none)
+                field->setAccess ((clang::AccessSpecifier)default_accessibility);
+        }
+        return true;
+    }
+    return false;
+}
+
+clang::DeclContext *
+ClangASTContext::GetDeclContextForType (clang::QualType type) const
+{
+    if (type.isNull())
+        return nullptr;
+    
+    clang::QualType qual_type = type.getCanonicalType();
+    const clang::Type::TypeClass type_class = qual_type->getTypeClass();
+    switch (type_class)
+    {
+        case clang::Type::UnaryTransform:           break;
+        case clang::Type::FunctionNoProto:          break;
+        case clang::Type::FunctionProto:            break;
+        case clang::Type::IncompleteArray:          break;
+        case clang::Type::VariableArray:            break;
+        case clang::Type::ConstantArray:            break;
+        case clang::Type::DependentSizedArray:      break;
+        case clang::Type::ExtVector:                break;
+        case clang::Type::DependentSizedExtVector:  break;
+        case clang::Type::Vector:                   break;
+        case clang::Type::Builtin:                  break;
+        case clang::Type::BlockPointer:             break;
+        case clang::Type::Pointer:                  break;
+        case clang::Type::LValueReference:          break;
+        case clang::Type::RValueReference:          break;
+        case clang::Type::MemberPointer:            break;
+        case clang::Type::Complex:                  break;
+        case clang::Type::ObjCObject:               break;
+        case clang::Type::ObjCInterface:            return llvm::cast<clang::ObjCObjectType>(qual_type.getTypePtr())->getInterface();
+        case clang::Type::ObjCObjectPointer:        return GetDeclContextForType (llvm::cast<clang::ObjCObjectPointerType>(qual_type.getTypePtr())->getPointeeType());
+        case clang::Type::Record:                   return llvm::cast<clang::RecordType>(qual_type)->getDecl();
+        case clang::Type::Enum:                     return llvm::cast<clang::EnumType>(qual_type)->getDecl();
+        case clang::Type::Typedef:                  return GetDeclContextForType (llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType());
+        case clang::Type::Elaborated:               return GetDeclContextForType (llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType());
+        case clang::Type::Paren:                    return GetDeclContextForType (llvm::cast<clang::ParenType>(qual_type)->desugar());
+        case clang::Type::TypeOfExpr:               break;
+        case clang::Type::TypeOf:                   break;
+        case clang::Type::Decltype:                 break;
+            //case clang::Type::QualifiedName:          break;
+        case clang::Type::TemplateSpecialization:   break;
+        case clang::Type::DependentTemplateSpecialization:  break;
+        case clang::Type::TemplateTypeParm:         break;
+        case clang::Type::SubstTemplateTypeParm:    break;
+        case clang::Type::SubstTemplateTypeParmPack:break;
+        case clang::Type::PackExpansion:            break;
+        case clang::Type::UnresolvedUsing:          break;
+        case clang::Type::Attributed:               break;
+        case clang::Type::Auto:                     break;
+        case clang::Type::InjectedClassName:        break;
+        case clang::Type::DependentName:            break;
+        case clang::Type::Atomic:                   break;
+        case clang::Type::Adjusted:                 break;
+            
+            // pointer type decayed from an array or function type.
+        case clang::Type::Decayed:                  break;
+    }
+    // No DeclContext in this type...
+    return nullptr;
+}
+
 

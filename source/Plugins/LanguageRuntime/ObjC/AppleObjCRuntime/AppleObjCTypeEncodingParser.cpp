@@ -11,6 +11,7 @@
 
 #include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/ClangASTType.h"
+#include "lldb/Symbol/ClangASTTypeSystem.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/StringLexer.h"
@@ -136,10 +137,11 @@ AppleObjCTypeEncodingParser::BuildAggregate (clang::ASTContext &ast_ctx, lldb_ut
     ClangASTContext *lldb_ctx = ClangASTContext::GetASTContext(&ast_ctx);
     if (!lldb_ctx)
         return clang::QualType();
+    ClangASTTypeSystem* types = lldb_ctx->getTypeSystem();
     ClangASTType union_type(lldb_ctx->CreateRecordType(nullptr, lldb::eAccessPublic, name.c_str(), kind, lldb::eLanguageTypeC));
     if (union_type)
     {
-        union_type.StartTagDeclarationDefinition();
+        types->StartTagDeclarationDefinition(union_type.GetOpaqueQualType());
         
         unsigned int count = 0;
         for (auto element: elements)
@@ -150,11 +152,10 @@ AppleObjCTypeEncodingParser::BuildAggregate (clang::ASTContext &ast_ctx, lldb_ut
                 elem_name.Printf("__unnamed_%u",count);
                 element.name = std::string(elem_name.GetData());
             }
-            union_type.AddFieldToRecordType(element.name.c_str(), ClangASTType(&ast_ctx,element.type.getAsOpaquePtr()), lldb::eAccessPublic, element.bitfield);
+            types->AddFieldToRecordType(union_type.GetOpaqueQualType(), element.name.c_str(), ClangASTType(&ast_ctx,element.type.getAsOpaquePtr()), lldb::eAccessPublic, element.bitfield);
             ++count;
         }
-        
-        union_type.CompleteTagDeclarationDefinition();
+        types->CompleteTagDeclarationDefinition(union_type.GetOpaqueQualType());
     }
     return union_type.GetQualType();
 }

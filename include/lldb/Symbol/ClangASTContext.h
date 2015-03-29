@@ -33,6 +33,7 @@
 
 namespace lldb_private {
 
+class ClangASTTypeSystem;
 class Declaration;
 
 class ClangASTContext
@@ -53,6 +54,9 @@ public:
 
     clang::ASTContext *
     getASTContext();
+    
+    ClangASTTypeSystem*
+    getTypeSystem();
 
     clang::Builtin::Context *
     getBuiltinContext();
@@ -179,6 +183,9 @@ public:
     {
         return ClangASTContext::GetUnknownAnyType(getASTContext());
     }
+    
+    clang::DeclContext *
+    GetDeclContextForType (clang::QualType type) const;
     
     uint32_t
     GetPointerByteSize ();
@@ -361,6 +368,17 @@ public:
                      bool isForwardDecl, 
                      bool isInternal,
                      ClangASTMetadata *metadata = NULL);
+    
+    bool
+    SetTagTypeKind (clang::QualType type, int kind) const;
+    
+    bool
+    SetDefaultAccessForRecordFields (clang::RecordDecl* record_decl,
+                                     int default_accessibility,
+                                     int *assigned_accessibilities,
+                                     size_t num_assigned_accessibilities);
+
+    
 
     // Returns a mask containing bits from the ClangASTContext::eTypeXXX enumerations
 
@@ -488,6 +506,7 @@ protected:
     std::unique_ptr<clang::IdentifierTable>         m_identifier_table_ap;
     std::unique_ptr<clang::SelectorTable>           m_selector_table_ap;
     std::unique_ptr<clang::Builtin::Context>        m_builtins_ap;
+    std::unique_ptr<ClangASTTypeSystem>             m_type_system_ap;
     CompleteTagDeclCallback                         m_callback_tag_decl;
     CompleteObjCInterfaceDeclCallback               m_callback_objc_decl;
     void *                                          m_callback_baton;

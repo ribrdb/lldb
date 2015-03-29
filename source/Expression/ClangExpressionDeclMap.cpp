@@ -27,6 +27,7 @@
 #include "lldb/Expression/Materializer.h"
 #include "lldb/Host/Endian.h"
 #include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/ClangASTTypeSystem.h"
 #include "lldb/Symbol/ClangNamespaceDecl.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/Function.h"
@@ -2064,15 +2065,17 @@ ClangExpressionDeclMap::CopyClassType(TypeFromUser &ut,
         const bool is_attr_used = true;
         const bool is_artificial = false;
 
-        copied_clang_type.AddMethodToCXXRecordType ("$__lldb_expr",
-                                                    method_type,
-                                                    lldb::eAccessPublic,
-                                                    is_virtual,
-                                                    is_static,
-                                                    is_inline,
-                                                    is_explicit,
-                                                    is_attr_used,
-                                                    is_artificial);
+        ClangASTContext::GetASTContext(m_ast_context)->getTypeSystem()->
+            AddMethodToCXXRecordType (copied_clang_type.GetOpaqueQualType(),
+                                      "$__lldb_expr",
+                                      method_type,
+                                      lldb::eAccessPublic,
+                                      is_virtual,
+                                      is_static,
+                                      is_inline,
+                                      is_explicit,
+                                      is_attr_used,
+                                      is_artificial);
     }
 
     return TypeFromParser(copied_clang_type);

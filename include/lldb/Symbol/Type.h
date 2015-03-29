@@ -469,10 +469,10 @@ public:
         return clang_type.GetCanonicalType();
     }
     
-    clang::ASTContext *
-    GetClangASTContext () const
+    TypeSystem *
+    GetTypeSystem () const
     {
-        return clang_type.GetASTContext();
+        return clang_type.GetTypeSystem();
     }
     
     lldb::ModuleSP

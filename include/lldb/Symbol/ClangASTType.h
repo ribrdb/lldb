@@ -17,6 +17,8 @@
 
 namespace lldb_private {
 
+class TypeSystem;
+    
 //----------------------------------------------------------------------
 // A class that can carry around a clang ASTContext and a opaque clang 
 // QualType. A clang::QualType can be easily reconstructed from an
@@ -33,12 +35,7 @@ public:
     //----------------------------------------------------------------------
     // Constructors and Destructors
     //----------------------------------------------------------------------
-    ClangASTType (clang::ASTContext *ast_context, lldb::clang_type_t type) :
-        m_type (type),
-        m_ast  (ast_context) 
-    {
-    }
-
+    ClangASTType (clang::ASTContext *ast_context, lldb::clang_type_t type);
     ClangASTType (clang::ASTContext *ast_context, clang::QualType qual_type);
 
     ClangASTType (const ClangASTType &rhs) :
@@ -227,11 +224,14 @@ public:
     // Accessors
     //----------------------------------------------------------------------
     
-    clang::ASTContext *
-    GetASTContext() const
+    TypeSystem *
+    GetTypeSystem() const
     {
         return m_ast;
     }
+    
+    clang::ASTContext *
+    GetASTContext() const;
     
     ConstString
     GetConstQualifiedTypeName () const;
@@ -251,7 +251,7 @@ public:
     lldb::LanguageType
     GetMinimumLanguage ();
 
-    lldb::clang_type_t
+    void *
     GetOpaqueQualType() const
     {
         return m_type;
@@ -261,12 +261,7 @@ public:
     GetTypeClass () const;
     
     void
-    SetClangType (clang::ASTContext *ast, lldb::clang_type_t type)
-    {
-        m_ast = ast;
-        m_type = type;
-    }
-
+    SetClangType (clang::ASTContext *ast, lldb::clang_type_t type);
     void
     SetClangType (clang::ASTContext *ast, clang::QualType qual_type);
 
@@ -450,112 +445,11 @@ public:
     //----------------------------------------------------------------------
     // Modifying RecordType
     //----------------------------------------------------------------------
-    clang::FieldDecl *
-    AddFieldToRecordType (const char *name,
-                          const ClangASTType &field_type,
-                          lldb::AccessType access,
-                          uint32_t bitfield_bit_size);
-    
-    void
-    BuildIndirectFields ();
-    
-    void
-    SetIsPacked ();
-    
-    clang::VarDecl *
-    AddVariableToRecordType (const char *name,
-                             const ClangASTType &var_type,
-                             lldb::AccessType access);
-
-    clang::CXXMethodDecl *
-    AddMethodToCXXRecordType (const char *name,
-                              const ClangASTType &method_type,
-                              lldb::AccessType access,
-                              bool is_virtual,
-                              bool is_static,
-                              bool is_inline,
-                              bool is_explicit,
-                              bool is_attr_used,
-                              bool is_artificial);
-    
-    // C++ Base Classes
-    clang::CXXBaseSpecifier *
-    CreateBaseClassSpecifier (lldb::AccessType access,
-                              bool is_virtual,
-                              bool base_of_class);
     
     static void
     DeleteBaseClassSpecifiers (clang::CXXBaseSpecifier **base_classes,
                                unsigned num_base_classes);
-    
-    bool
-    SetBaseClassesForClassType (clang::CXXBaseSpecifier const * const *base_classes,
-                                unsigned num_base_classes);
-    
 
-    bool
-    SetObjCSuperClass (const ClangASTType &superclass_clang_type);
-    
-    bool
-    AddObjCClassProperty (const char *property_name,
-                          const ClangASTType &property_clang_type,
-                          clang::ObjCIvarDecl *ivar_decl,
-                          const char *property_setter_name,
-                          const char *property_getter_name,
-                          uint32_t property_attributes,
-                          ClangASTMetadata *metadata);
-
-    clang::ObjCMethodDecl *
-    AddMethodToObjCObjectType (const char *name,  // the full symbol name as seen in the symbol table ("-[NString stringWithCString:]")
-                               const ClangASTType &method_clang_type,
-                               lldb::AccessType access,
-                               bool is_artificial);
-
-    clang::DeclContext *
-    GetDeclContextForType () const;
-
-    
-    bool
-    SetDefaultAccessForRecordFields (int default_accessibility,
-                                     int *assigned_accessibilities,
-                                     size_t num_assigned_accessibilities);
-    
-    bool
-    SetHasExternalStorage (bool has_extern);
-    
-    
-    //------------------------------------------------------------------
-    // clang::TagType
-    //------------------------------------------------------------------
-    
-    bool
-    SetTagTypeKind (int kind) const;
-    
-    //------------------------------------------------------------------
-    // Tag Declarations
-    //------------------------------------------------------------------
-    bool
-    StartTagDeclarationDefinition ();
-    
-    bool
-    CompleteTagDeclarationDefinition ();
-    
-    //----------------------------------------------------------------------
-    // Modifying Enumeration types
-    //----------------------------------------------------------------------
-    bool
-    AddEnumerationValueToEnumerationType (const ClangASTType &enumerator_qual_type,
-                                          const Declaration &decl,
-                                          const char *name,
-                                          int64_t enum_value,
-                                          uint32_t enum_value_bit_size);
-    
-
-    
-    ClangASTType
-    GetEnumerationIntegerType () const;
-
-    
     //------------------------------------------------------------------
     // Pointers & References
     //------------------------------------------------------------------
@@ -636,17 +530,7 @@ public:
 
     clang::EnumDecl *
     GetAsEnumDecl () const;
-
     
-    clang::RecordDecl *
-    GetAsRecordDecl () const;
-    
-    clang::CXXRecordDecl *
-    GetAsCXXRecordDecl () const;
-    
-    clang::ObjCInterfaceDecl *
-    GetAsObjCInterfaceDecl () const;
-
     void
     Clear()
     {
@@ -655,23 +539,13 @@ public:
     }
 
     clang::QualType
-    GetQualType () const
-    {
-        if (m_type)
-            return clang::QualType::getFromOpaquePtr(m_type);
-        return clang::QualType();
-    }
+    GetQualType () const;
     clang::QualType
-    GetCanonicalQualType () const
-    {
-        if (m_type)
-            return clang::QualType::getFromOpaquePtr(m_type).getCanonicalType();
-        return clang::QualType();
-    }
+    GetCanonicalQualType () const;
 
 private:
-    lldb::clang_type_t m_type;
-    clang::ASTContext *m_ast;
+    void* m_type;
+    TypeSystem *m_ast;
     
 };
     
