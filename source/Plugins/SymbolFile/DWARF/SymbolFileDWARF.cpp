@@ -5721,6 +5721,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
         {
             ClangASTContext &ast = GetClangASTContext();
             ClangASTTypeSystem* clang_types = ast.getTypeSystem();
+            //GoASTContext & go = GetGoASTContext();
             if (type_is_new_ptr)
                 *type_is_new_ptr = true;
 
@@ -5758,6 +5759,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                     const size_t num_attributes = die->GetAttributes(this, dwarf_cu, NULL, attributes);
                     uint32_t encoding = 0;
                     lldb::user_id_t encoding_uid = LLDB_INVALID_UID;
+                    uint32_t go_kind = 0;
 
                     if (num_attributes > 0)
                     {
@@ -5788,6 +5790,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                                 case DW_AT_byte_size:   byte_size = form_value.Unsigned(); break;
                                 case DW_AT_encoding:    encoding = form_value.Unsigned(); break;
                                 case DW_AT_type:        encoding_uid = form_value.Reference(); break;
+                                case 0x2900 /* DW_AT_go_kind */: go_kind = form_value.Unsigned(); break;
                                 default:
                                 case DW_AT_sibling:
                                     break;

@@ -945,6 +945,9 @@ public:
 
     ClangASTContext &
     GetClangASTContext ();
+    
+    GoASTContext &
+    GetGoASTContext ();
 
     // Special error functions that can do printf style formatting that will prepend the message with
     // something appropriate for this module (like the architecture, path and object name (if any)). 
@@ -1108,7 +1111,8 @@ protected:
     TimeValue                   m_object_mod_time;
     lldb::ObjectFileSP          m_objfile_sp;   ///< A shared pointer to the object file parser for this module as it may or may not be shared with the SymbolFile
     lldb::SymbolVendorUP        m_symfile_ap;   ///< A pointer to the symbol vendor for this module.
-    lldb::ClangASTContextUP     m_ast;          ///< The AST context for this module.
+    lldb::ClangASTContextUP     m_ast;          ///< The Clang AST context for this module.
+    lldb::GoASTContextUP        m_go_ast;       ///< The Go AST context for this module.
     PathMappingList             m_source_mappings; ///< Module specific source remappings for when you have debug info for a module that doesn't match where the sources currently are
     lldb::SectionListUP         m_sections_ap; ///< Unified section list for module that is used by the ObjectFile and and ObjectFile instances for the debug info
 

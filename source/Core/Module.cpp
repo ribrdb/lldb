@@ -27,6 +27,7 @@
 #include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/CompileUnit.h"
+#include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/SymbolVendor.h"
@@ -149,6 +150,7 @@ Module::Module (const ModuleSpec &module_spec) :
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
+    m_go_ast(new GoASTContext),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
@@ -253,6 +255,7 @@ Module::Module(const FileSpec& file_spec,
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
+    m_go_ast(new GoASTContext),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
@@ -299,6 +302,7 @@ Module::Module () :
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
+    m_go_ast(new GoASTContext),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
@@ -447,6 +451,14 @@ Module::GetClangASTContext ()
         }
     }
     return *m_ast;
+}
+
+
+GoASTContext &
+Module::GetGoASTContext ()
+{
+    Mutex::Locker locker (m_mutex);
+    return *m_go_ast;
 }
 
 void

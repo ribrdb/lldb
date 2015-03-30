@@ -33,105 +33,105 @@ public:
     IsArrayType (void * type,
                  ClangASTType *element_type,
                  uint64_t *size,
-                 bool *is_incomplete) const  = 0;
+                 bool *is_incomplete) const ;
     
     virtual bool
     IsVectorType (void * type,
                   ClangASTType *element_type,
-                  uint64_t *size) const  = 0;
+                  uint64_t *size) const ;
     
     virtual bool
-    IsAggregateType (void * type) const = 0;
+    IsAggregateType (void * type) const;
     
     virtual bool
-    IsBeingDefined (void * type) const = 0;
+    IsBeingDefined (void * type) const;
     
     virtual bool
-    IsCharType (void * type) const = 0;
+    IsCharType (void * type) const;
     
     virtual bool
-    IsCompleteType (void * type) const = 0;
+    IsCompleteType (void * type) const;
     
     virtual bool
-    IsConst(void * type) const = 0;
+    IsConst(void * type) const;
     
     virtual bool
-    IsCStringType (void * type, uint32_t &length) const = 0;
+    IsCStringType (void * type, uint32_t &length) const;
     
     virtual bool
-    IsCXXClassType (void * type) const = 0;
+    IsCXXClassType (void * type) const;
     
     virtual bool
-    IsDefined(void * type) const = 0;
+    IsDefined(void * type) const;
     
     virtual bool
-    IsFloatingPointType (void * type, uint32_t &count, bool &is_complex) const = 0;
+    IsFloatingPointType (void * type, uint32_t &count, bool &is_complex) const;
     
     virtual bool
-    IsFunctionType (void * type, bool *is_variadic_ptr = NULL) const = 0;
+    IsFunctionType (void * type, bool *is_variadic_ptr = NULL) const;
     
     virtual uint32_t
-    IsHomogeneousAggregate (void * type, ClangASTType* base_type_ptr) const = 0;
+    IsHomogeneousAggregate (void * type, ClangASTType* base_type_ptr) const;
     
     virtual size_t
-    GetNumberOfFunctionArguments (void * type) const = 0;
+    GetNumberOfFunctionArguments (void * type) const;
     
     virtual ClangASTType
-    GetFunctionArgumentAtIndex (void * type, const size_t index) const = 0;
+    GetFunctionArgumentAtIndex (void * type, const size_t index) const;
     
     virtual bool
-    IsFunctionPointerType (void * type) const = 0;
+    IsFunctionPointerType (void * type) const;
     
     virtual bool
-    IsIntegerType (void * type, bool &is_signed) const = 0;
+    IsIntegerType (void * type, bool &is_signed) const;
     
     virtual bool
-    IsObjCClassType (void * type) const = 0;
+    IsObjCClassType (void * type) const;
     
     virtual bool
-    IsObjCClassTypeAndHasIVars (void * type, bool check_superclass) const = 0;
+    IsObjCClassTypeAndHasIVars (void * type, bool check_superclass) const;
     
     virtual bool
-    IsObjCObjectOrInterfaceType (void * type) const = 0;
+    IsObjCObjectOrInterfaceType (void * type) const;
     
     virtual bool
-    IsObjCObjectPointerType (void * type, ClangASTType *target_type = NULL) = 0;
+    IsObjCObjectPointerType (void * type, ClangASTType *target_type = NULL);
     
     virtual bool
-    IsPolymorphicClass (void * type) const = 0;
+    IsPolymorphicClass (void * type) const;
     
     virtual bool
     IsPossibleDynamicType (void * type,
                            ClangASTType *target_type, // Can pass NULL
                            bool check_cplusplus,
-                           bool check_objc) const = 0;
+                           bool check_objc) const;
     
     virtual bool
-    IsRuntimeGeneratedType (void * type) const = 0;
+    IsRuntimeGeneratedType (void * type) const;
     
     virtual bool
-    IsPointerType (void * type, ClangASTType *pointee_type = NULL) const = 0;
+    IsPointerType (void * type, ClangASTType *pointee_type = NULL) const;
     
     virtual bool
-    IsPointerOrReferenceType (void * type, ClangASTType *pointee_type = NULL) const = 0;
+    IsPointerOrReferenceType (void * type, ClangASTType *pointee_type = NULL) const;
     
     virtual bool
-    IsReferenceType (void * type, ClangASTType *pointee_type = nullptr, bool* is_rvalue = nullptr) const = 0;
+    IsReferenceType (void * type, ClangASTType *pointee_type = nullptr, bool* is_rvalue = nullptr) const;
     
     virtual bool
-    IsScalarType (void * type) const = 0;
+    IsScalarType (void * type) const;
     
     virtual bool
-    IsTypedefType (void * type) const = 0;
+    IsTypedefType (void * type) const;
     
     virtual bool
-    IsVoidType (void * type) const = 0;
+    IsVoidType (void * type) const;
     
     virtual bool
-    GetCXXClassName (void * type, std::string &class_name) const = 0;
+    GetCXXClassName (void * type, std::string &class_name) const;
     
     virtual bool
-    GetObjCClassName (void * type, std::string &class_name) = 0;
+    GetObjCClassName (void * type, std::string &class_name);
     
     
     //----------------------------------------------------------------------
@@ -139,145 +139,145 @@ public:
     //----------------------------------------------------------------------
     
     virtual bool
-    GetCompleteType (void * type) const = 0;
+    GetCompleteType (void * type) const;
     
     //----------------------------------------------------------------------
     // AST related queries
     //----------------------------------------------------------------------
     
     virtual size_t
-    GetPointerByteSize () const = 0;
+    GetPointerByteSize () const;
     
     //----------------------------------------------------------------------
     // Accessors
     //----------------------------------------------------------------------
     
     virtual ConstString
-    GetTypeName (void * type) const = 0;
+    GetTypeName (void * type) const;
     
     virtual uint32_t
-    GetTypeInfo (void * type, ClangASTType *pointee_or_element_clang_type = NULL) const = 0;
+    GetTypeInfo (void * type, ClangASTType *pointee_or_element_clang_type = NULL) const;
     
     virtual lldb::LanguageType
-    GetMinimumLanguage (void * type) = 0;
+    GetMinimumLanguage (void * type);
     
     virtual lldb::TypeClass
-    GetTypeClass (void * type) const = 0;
+    GetTypeClass (void * type) const;
     
     virtual unsigned
-    GetTypeQualifiers(void * type) const = 0;
+    GetTypeQualifiers(void * type) const;
     
     //----------------------------------------------------------------------
     // Creating related types
     //----------------------------------------------------------------------
     
     virtual ClangASTType
-    AddConstModifier (void * type) const = 0;
+    AddConstModifier (void * type) const;
     
     virtual ClangASTType
-    AddRestrictModifier (void * type) const = 0;
+    AddRestrictModifier (void * type) const;
     
     virtual ClangASTType
-    AddVolatileModifier (void * type) const = 0;
+    AddVolatileModifier (void * type) const;
     
     // Using the current type, create a new typedef to that type using "typedef_name"
     // as the name and "decl_ctx" as the decl context.
     virtual ClangASTType
     CreateTypedefType (void * type, const char *typedef_name,
-                       clang::DeclContext *decl_ctx) const = 0;
+                       clang::DeclContext *decl_ctx) const;
     
     virtual ClangASTType
-    GetArrayElementType (void * type, uint64_t *stride = nullptr) const = 0;
+    GetArrayElementType (void * type, uint64_t *stride = nullptr) const;
     
     virtual ClangASTType
-    GetCanonicalType (void * type) const = 0;
+    GetCanonicalType (void * type) const;
     
     virtual ClangASTType
-    GetFullyUnqualifiedType (void * type) const = 0;
+    GetFullyUnqualifiedType (void * type) const;
     
     // Returns -1 if this isn't a function of if the function doesn't have a prototype
     // Returns a value >= 0 if there is a prototype.
     virtual int
-    GetFunctionArgumentCount (void * type) const = 0;
+    GetFunctionArgumentCount (void * type) const;
     
     virtual ClangASTType
-    GetFunctionArgumentTypeAtIndex (void * type, size_t idx) const = 0;
+    GetFunctionArgumentTypeAtIndex (void * type, size_t idx) const;
     
     virtual ClangASTType
-    GetFunctionReturnType (void * type) const = 0;
+    GetFunctionReturnType (void * type) const;
     
     virtual size_t
-    GetNumMemberFunctions (void * type) const = 0;
+    GetNumMemberFunctions (void * type) const;
     
     virtual TypeMemberFunctionImpl
-    GetMemberFunctionAtIndex (void * type, size_t idx) = 0;
+    GetMemberFunctionAtIndex (void * type, size_t idx);
     
     virtual ClangASTType
-    GetLValueReferenceType (void * type) const = 0;
+    GetLValueReferenceType (void * type) const;
     
     virtual ClangASTType
-    GetNonReferenceType (void * type) const = 0;
+    GetNonReferenceType (void * type) const;
     
     virtual ClangASTType
-    GetPointeeType (void * type) const = 0;
+    GetPointeeType (void * type) const;
     
     virtual ClangASTType
-    GetPointerType (void * type) const = 0;
+    GetPointerType (void * type) const;
     
     virtual ClangASTType
-    GetRValueReferenceType (void * type) const = 0;
+    GetRValueReferenceType (void * type) const;
     
     // If the current object represents a typedef type, get the underlying type
     virtual ClangASTType
-    GetTypedefedType (void * type) const = 0;
+    GetTypedefedType (void * type) const;
     
     virtual ClangASTType
-    RemoveFastQualifiers (void * type) const = 0;
+    RemoveFastQualifiers (void * type) const;
     
     //----------------------------------------------------------------------
     // Create related types using the current type's AST
     //----------------------------------------------------------------------
     virtual ClangASTType
-    GetBasicTypeFromAST (void * type, lldb::BasicType basic_type) const = 0;
+    GetBasicTypeFromAST (void * type, lldb::BasicType basic_type) const;
     
     //----------------------------------------------------------------------
     // Exploring the type
     //----------------------------------------------------------------------
     
     virtual uint64_t
-    GetBitSize (void * type, ExecutionContextScope *exe_scope) const = 0;
+    GetBitSize (void * type, ExecutionContextScope *exe_scope) const;
     
     virtual lldb::Encoding
-    GetEncoding (void * type, uint64_t &count) const = 0;
+    GetEncoding (void * type, uint64_t &count) const;
     
     virtual lldb::Format
-    GetFormat (void * type) const = 0;
+    GetFormat (void * type) const;
     
     virtual size_t
-    GetTypeBitAlign (void * type) const = 0;
+    GetTypeBitAlign (void * type) const;
     
     virtual uint32_t
-    GetNumChildren (void * type, bool omit_empty_base_classes) const = 0;
+    GetNumChildren (void * type, bool omit_empty_base_classes) const;
     
     virtual lldb::BasicType
-    GetBasicTypeEnumeration (void * type) const = 0;
+    GetBasicTypeEnumeration (void * type) const;
     
     virtual uint32_t
-    GetNumDirectBaseClasses (void * type) const = 0;
+    GetNumDirectBaseClasses (void * type) const;
     
     virtual uint32_t
-    GetNumVirtualBaseClasses (void * type) const = 0;
+    GetNumVirtualBaseClasses (void * type) const;
     
     virtual uint32_t
-    GetNumFields (void * type) const = 0;
+    GetNumFields (void * type) const;
     
     virtual ClangASTType
     GetDirectBaseClassAtIndex (void * type, size_t idx,
-                               uint32_t *bit_offset_ptr) const = 0;
+                               uint32_t *bit_offset_ptr) const;
     
     virtual ClangASTType
     GetVirtualBaseClassAtIndex (void * type, size_t idx,
-                                uint32_t *bit_offset_ptr) const = 0;
+                                uint32_t *bit_offset_ptr) const;
     
     virtual ClangASTType
     GetFieldAtIndex (void * type,
@@ -285,10 +285,10 @@ public:
                      std::string& name,
                      uint64_t *bit_offset_ptr,
                      uint32_t *bitfield_bit_size_ptr,
-                     bool *is_bitfield_ptr) const = 0;
+                     bool *is_bitfield_ptr) const;
     
     virtual uint32_t
-    GetNumPointeeChildren (void * type) const = 0;
+    GetNumPointeeChildren (void * type) const;
     
     virtual ClangASTType
     GetChildClangTypeAtIndex (void * type,
@@ -304,14 +304,14 @@ public:
                               uint32_t &child_bitfield_bit_offset,
                               bool &child_is_base_class,
                               bool &child_is_deref_of_parent,
-                              ValueObject *valobj) const = 0;
+                              ValueObject *valobj) const;
     
     // Lookup a child given a name. This function will match base class names
     // and member member names in "clang_type" only, not descendants.
     virtual uint32_t
     GetIndexOfChildWithName (void * type,
                              const char *name,
-                             bool omit_empty_base_classes) const = 0;
+                             bool omit_empty_base_classes) const;
     
     // Lookup a child member given a name. This function will match member names
     // only and will descend into "clang_type" children in search for the first
@@ -322,15 +322,15 @@ public:
     GetIndexOfChildMemberWithName (void * type,
                                    const char *name,
                                    bool omit_empty_base_classes,
-                                   std::vector<uint32_t>& child_indexes) const = 0;
+                                   std::vector<uint32_t>& child_indexes) const;
     
     virtual size_t
-    GetNumTemplateArguments (void * type) const = 0;
+    GetNumTemplateArguments (void * type) const;
     
     virtual ClangASTType
     GetTemplateArgument (void * type,
                          size_t idx,
-                         lldb::TemplateArgumentKind &kind) const = 0;
+                         lldb::TemplateArgumentKind &kind) const;
     
     //------------------------------------------------------------------
     // Pointers & References
@@ -339,7 +339,7 @@ public:
     // Call this function using the class type when you want to make a
     // member pointer type to pointee_type.
     virtual ClangASTType
-    CreateMemberPointerType (void * type, const ClangASTType &pointee_type) const = 0;
+    CreateMemberPointerType (void * type, const ClangASTType &pointee_type) const;
     
     
     // Converts "s" to a floating point value and place resulting floating
@@ -348,7 +348,7 @@ public:
     ConvertStringToFloatValue (void * type,
                                const char *s,
                                uint8_t *dst,
-                               size_t dst_size) const = 0;
+                               size_t dst_size) const;
     //----------------------------------------------------------------------
     // Dumping types
     //----------------------------------------------------------------------
@@ -365,7 +365,7 @@ public:
                bool show_types,
                bool show_summary,
                bool verbose,
-               uint32_t depth) = 0;
+               uint32_t depth);
     
     virtual bool
     DumpTypeValue (void * type,
@@ -376,7 +376,7 @@ public:
                    size_t data_byte_size,
                    uint32_t bitfield_bit_size,
                    uint32_t bitfield_bit_offset,
-                   ExecutionContextScope *exe_scope) = 0;
+                   ExecutionContextScope *exe_scope);
     
     virtual void
     DumpSummary (void * type,
@@ -384,48 +384,48 @@ public:
                  Stream *s,
                  const DataExtractor &data,
                  lldb::offset_t data_offset,
-                 size_t data_byte_size) = 0;
+                 size_t data_byte_size);
     
     virtual void
-    DumpTypeDescription (void * type) const = 0; // Dump to stdout
+    DumpTypeDescription (void * type) const; // Dump to stdout
     
     virtual void
-    DumpTypeDescription (void * type, Stream *s) const = 0;
+    DumpTypeDescription (void * type, Stream *s) const;
     
     virtual bool
     GetValueAsScalar (void * type,
                       const DataExtractor &data,
                       lldb::offset_t data_offset,
                       size_t data_byte_size,
-                      Scalar &value) const = 0;
+                      Scalar &value) const;
     
     virtual bool
     SetValueFromScalar (void * type,
                         const Scalar &value,
-                        Stream &strm) = 0;
+                        Stream &strm);
     
     virtual bool
     ReadFromMemory (void * type,
                     ExecutionContext *exe_ctx,
                     lldb::addr_t addr,
                     AddressType address_type,
-                    DataExtractor &data) = 0;
+                    DataExtractor &data);
     
     virtual bool
     WriteToMemory (void * type,
                    ExecutionContext *exe_ctx,
                    lldb::addr_t addr,
                    AddressType address_type,
-                   StreamString &new_value) = 0;
+                   StreamString &new_value);
     
     virtual clang::EnumDecl *
-    GetAsEnumDecl (void * type) const = 0;
+    GetAsEnumDecl (void * type) const;
     
     virtual clang::QualType
-    GetQualType (void * type) const = 0;
+    GetQualType (void * type) const;
     
     virtual clang::QualType
-    GetCanonicalQualType (void * type) const = 0;
+    GetCanonicalQualType (void * type) const;
     
 private:
     GoASTContext(const GoASTContext&) = delete;
