@@ -1265,7 +1265,7 @@ TypeImpl::GetClangASTContext (bool prefer_dynamic)
             if (m_dynamic_type.IsValid())
                 return m_dynamic_type.GetASTContext();
         }
-        return m_static_type.GetClangASTContext();
+        return m_static_type.GetClangASTType().GetASTContext();
     }
     return NULL;
 }

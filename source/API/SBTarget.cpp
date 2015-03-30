@@ -13,8 +13,9 @@
 
 #include "lldb/lldb-public.h"
 
-#include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBBreakpoint.h"
+#include "lldb/API/SBDebugger.h"
+#include "lldb/API/SBEvent.h"
 #include "lldb/API/SBExpressionOptions.h"
 #include "lldb/API/SBFileSpec.h"
 #include "lldb/API/SBListener.h"
@@ -47,12 +48,16 @@
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/Args.h"
+#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/DeclVendor.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolVendor.h"
 #include "lldb/Symbol/VariableList.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/LanguageRuntime.h"
+#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
-
+#include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/TargetList.h"
 
@@ -65,231 +70,6 @@ using namespace lldb;
 using namespace lldb_private;
 
 #define DEFAULT_DISASM_BYTE_SIZE 32
-
-
-SBAttachInfo::SBAttachInfo () :
-    m_opaque_sp (new ProcessAttachInfo())
-{
-}
-
-SBAttachInfo::SBAttachInfo (lldb::pid_t pid) :
-    m_opaque_sp (new ProcessAttachInfo())
-{
-    m_opaque_sp->SetProcessID (pid);
-}
-
-SBAttachInfo::SBAttachInfo (const char *path, bool wait_for) :
-    m_opaque_sp (new ProcessAttachInfo())
-{
-    if (path && path[0])
-        m_opaque_sp->GetExecutableFile().SetFile(path, false);
-    m_opaque_sp->SetWaitForLaunch (wait_for);
-}
-
-SBAttachInfo::SBAttachInfo (const SBAttachInfo &rhs) :
-    m_opaque_sp (new ProcessAttachInfo())
-{
-    *m_opaque_sp = *rhs.m_opaque_sp;
-}
-
-SBAttachInfo::~SBAttachInfo()
-{
-}
-
-lldb_private::ProcessAttachInfo &
-SBAttachInfo::ref ()
-{
-    return *m_opaque_sp;
-}
-
-SBAttachInfo &
-SBAttachInfo::operator = (const SBAttachInfo &rhs)
-{
-    if (this != &rhs)
-        *m_opaque_sp = *rhs.m_opaque_sp;
-    return *this;
-}
-
-lldb::pid_t
-SBAttachInfo::GetProcessID ()
-{
-    return m_opaque_sp->GetProcessID();
-}
-
-void
-SBAttachInfo::SetProcessID (lldb::pid_t pid)
-{
-    m_opaque_sp->SetProcessID (pid);
-}
-
-
-uint32_t
-SBAttachInfo::GetResumeCount ()
-{
-    return m_opaque_sp->GetResumeCount();
-}
-
-void
-SBAttachInfo::SetResumeCount (uint32_t c)
-{
-    m_opaque_sp->SetResumeCount (c);
-}
-
-const char *
-SBAttachInfo::GetProcessPluginName ()
-{
-    return m_opaque_sp->GetProcessPluginName();
-}
-
-void
-SBAttachInfo::SetProcessPluginName (const char *plugin_name)
-{
-    return m_opaque_sp->SetProcessPluginName (plugin_name);
-}
-
-void
-SBAttachInfo::SetExecutable (const char *path)
-{
-    if (path && path[0])
-        m_opaque_sp->GetExecutableFile().SetFile(path, false);
-    else
-        m_opaque_sp->GetExecutableFile().Clear();
-}
-
-void
-SBAttachInfo::SetExecutable (SBFileSpec exe_file)
-{
-    if (exe_file.IsValid())
-        m_opaque_sp->GetExecutableFile() = exe_file.ref();
-    else
-        m_opaque_sp->GetExecutableFile().Clear();
-}
-
-bool
-SBAttachInfo::GetWaitForLaunch ()
-{
-    return m_opaque_sp->GetWaitForLaunch();
-}
-
-void
-SBAttachInfo::SetWaitForLaunch (bool b)
-{
-    m_opaque_sp->SetWaitForLaunch (b);
-}
-
-bool
-SBAttachInfo::GetIgnoreExisting ()
-{
-    return m_opaque_sp->GetIgnoreExisting();
-}
-
-void
-SBAttachInfo::SetIgnoreExisting (bool b)
-{
-    m_opaque_sp->SetIgnoreExisting (b);
-}
-
-uint32_t
-SBAttachInfo::GetUserID()
-{
-    return m_opaque_sp->GetUserID();
-}
-
-uint32_t
-SBAttachInfo::GetGroupID()
-{
-    return m_opaque_sp->GetGroupID();
-}
-
-bool
-SBAttachInfo::UserIDIsValid ()
-{
-    return m_opaque_sp->UserIDIsValid();
-}
-
-bool
-SBAttachInfo::GroupIDIsValid ()
-{
-    return m_opaque_sp->GroupIDIsValid();
-}
-
-void
-SBAttachInfo::SetUserID (uint32_t uid)
-{
-    m_opaque_sp->SetUserID (uid);
-}
-
-void
-SBAttachInfo::SetGroupID (uint32_t gid)
-{
-    m_opaque_sp->SetGroupID (gid);
-}
-
-uint32_t
-SBAttachInfo::GetEffectiveUserID()
-{
-    return m_opaque_sp->GetEffectiveUserID();
-}
-
-uint32_t
-SBAttachInfo::GetEffectiveGroupID()
-{
-    return m_opaque_sp->GetEffectiveGroupID();
-}
-
-bool
-SBAttachInfo::EffectiveUserIDIsValid ()
-{
-    return m_opaque_sp->EffectiveUserIDIsValid();
-}
-
-bool
-SBAttachInfo::EffectiveGroupIDIsValid ()
-{
-    return m_opaque_sp->EffectiveGroupIDIsValid ();
-}
-
-void
-SBAttachInfo::SetEffectiveUserID (uint32_t uid)
-{
-    m_opaque_sp->SetEffectiveUserID(uid);
-}
-
-void
-SBAttachInfo::SetEffectiveGroupID (uint32_t gid)
-{
-    m_opaque_sp->SetEffectiveGroupID(gid);
-}
-
-lldb::pid_t
-SBAttachInfo::GetParentProcessID ()
-{
-    return m_opaque_sp->GetParentProcessID();
-}
-
-void
-SBAttachInfo::SetParentProcessID (lldb::pid_t pid)
-{
-    m_opaque_sp->SetParentProcessID (pid);
-}
-
-bool
-SBAttachInfo::ParentProcessIDIsValid()
-{
-    return m_opaque_sp->ParentProcessIDIsValid();
-}
-
-SBListener
-SBAttachInfo::GetListener ()
-{
-    return SBListener(m_opaque_sp->GetListener());
-}
-
-void
-SBAttachInfo::SetListener (SBListener &listener)
-{
-    m_opaque_sp->SetListener(listener.GetSP());
-}
 
 namespace {
 
@@ -348,6 +128,32 @@ SBTarget::operator = (const SBTarget& rhs)
 //----------------------------------------------------------------------
 SBTarget::~SBTarget()
 {
+}
+
+bool
+SBTarget::EventIsTargetEvent (const SBEvent &event)
+{
+    return Target::TargetEventData::GetEventDataFromEvent(event.get()) != NULL;
+}
+
+SBTarget
+SBTarget::GetTargetFromEvent (const SBEvent &event)
+{
+    return Target::TargetEventData::GetTargetFromEvent (event.get());
+}
+
+uint32_t
+SBTarget::GetNumModulesFromEvent (const SBEvent &event)
+{
+    const ModuleList module_list = Target::TargetEventData::GetModuleListFromEvent (event.get());
+    return module_list.GetSize();
+}
+
+SBModule
+SBTarget::GetModuleAtIndexFromEvent (const uint32_t idx, const SBEvent &event)
+{
+    const ModuleList module_list = Target::TargetEventData::GetModuleListFromEvent (event.get());
+    return SBModule(module_list.GetModuleAtIndex(idx));
 }
 
 const char *
@@ -1277,9 +1083,9 @@ SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
 }
 
 lldb::SBBreakpoint
-SBTarget::BreakpointCreateBySourceRegex (const char *source_regex, 
-                                         const SBFileSpecList &module_list,
-                                         const lldb::SBFileSpecList &source_file_list)
+SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
+                                                 const SBFileSpecList &module_list,
+                                                 const lldb::SBFileSpecList &source_file_list)
 {
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
 
@@ -2567,4 +2373,22 @@ SBTarget::GetStackRedZoneSize()
             return abi_sp->GetRedZoneSize();
     }
     return 0;
+}
+
+lldb::SBLaunchInfo
+SBTarget::GetLaunchInfo () const
+{
+    lldb::SBLaunchInfo launch_info(NULL);
+    TargetSP target_sp(GetSP());
+    if (target_sp)
+        launch_info.ref() = m_opaque_sp->GetProcessLaunchInfo();
+    return launch_info;
+}
+
+void
+SBTarget::SetLaunchInfo (const lldb::SBLaunchInfo &launch_info)
+{
+    TargetSP target_sp(GetSP());
+    if (target_sp)
+        m_opaque_sp->SetProcessLaunchInfo(launch_info.ref());
 }

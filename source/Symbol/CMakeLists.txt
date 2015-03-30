@@ -5,6 +5,7 @@ add_lldb_library(lldbSymbol
   ClangASTContext.cpp
   ClangASTImporter.cpp
   ClangASTType.cpp
+  ClangASTTypeSystem.cpp
   ClangExternalASTSourceCallbacks.cpp
   ClangExternalASTSourceCommon.cpp
   ClangNamespaceDecl.cpp
@@ -24,6 +25,7 @@ add_lldb_library(lldbSymbol
   Symtab.cpp
   Type.cpp
   TypeList.cpp
+  TypeSystem.cpp
   UnwindPlan.cpp
   UnwindTable.cpp
   Variable.cpp

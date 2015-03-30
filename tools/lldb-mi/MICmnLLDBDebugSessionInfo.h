@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnLLDBDebugSessionInfo.h
-//
-// Overview:    CMICmnLLDBDebugSessionInfo interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // Third party headers:
@@ -87,7 +75,7 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
         CMIUtilString m_strType;        // Break point type.
         bool m_bDisp;                   // True = "del", false = "keep".
         bool m_bEnabled;                // True = enabled, false = disabled break point.
-        MIuint m_pc;                    // Address number.
+        lldb::addr_t m_pc;              // Address number.
         CMIUtilString m_fnName;         // Function name.
         CMIUtilString m_fileName;       // File name text.
         CMIUtilString m_path;           // Full file name and path text.
@@ -163,8 +151,6 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
                                     const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList);
     bool MIResponseFormVariableInfo2(const lldb::SBFrame &vrFrame, const MIuint vMaskVarTypes,
                                      const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList);
-    bool MIResponseFormVariableInfo3(const lldb::SBFrame &vrFrame, const MIuint vMaskVarTypes,
-                                     const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList);
     bool MIResponseFormBrkPtFrameInfo(const SBrkPtInfo &vrBrkPtInfo, CMICmnMIValueTuple &vwrMiValueTuple);
     bool MIResponseFormBrkPtInfo(const SBrkPtInfo &vrBrkPtInfo, CMICmnMIValueTuple &vwrMiValueTuple);
     bool GetBrkPtInfo(const lldb::SBBreakpoint &vBrkPt, SBrkPtInfo &vrwBrkPtInfo) const;
@@ -202,9 +188,7 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
     void operator=(const CMICmnLLDBDebugSessionInfo &);
     //
     bool GetVariableInfo(const MIuint vnMaxDepth, const lldb::SBValue &vrValue, const bool vbIsChildValue,
-                         const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList, MIuint &vrwnDepth);
-    bool GetVariableInfo2(const MIuint vnMaxDepth, const lldb::SBValue &vrValue, const bool vbIsChildValue,
-                          const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList, MIuint &vrwnDepth);
+                         const MIuint vnDepth, CMICmnMIValueList &vwrMiValueList);
 
     // Overridden:
   private:

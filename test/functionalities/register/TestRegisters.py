@@ -17,6 +17,10 @@ class RegisterCommandsTestCase(TestBase):
         TestBase.setUp(self)
         self.has_teardown = False
 
+    def tearDown(self):
+        self.dbg.GetSelectedTarget().GetProcess().Destroy()
+        TestBase.tearDown(self)
+
     def test_register_commands(self):
         """Test commands related to registers, in particular vector registers."""
         if not self.getArchitecture() in ['amd64', 'i386', 'x86_64']:
@@ -252,12 +256,7 @@ class RegisterCommandsTestCase(TestBase):
         exe = os.path.join(os.getcwd(), "a.out")
 
         # Spawn a new process
-        pid = 0
-        if sys.platform.startswith('linux'):
-            pid = self.forkSubprocess(exe, ['wait_for_attach'])
-        else:
-            proc = self.spawnSubprocess(exe, ['wait_for_attach'])
-            pid = proc.pid
+        pid = self.spawnSubprocess(exe, ['wait_for_attach']).pid
         self.addTearDownHook(self.cleanupSubprocesses)
 
         if self.TraceOn():

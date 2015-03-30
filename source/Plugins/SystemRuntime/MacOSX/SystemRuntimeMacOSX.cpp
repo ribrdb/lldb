@@ -20,6 +20,8 @@
 #include "lldb/Expression/ClangFunction.h"
 #include "lldb/Expression/ClangUtilityFunction.h"
 #include "lldb/Host/FileSpec.h"
+#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/ClangASTTypeSystem.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "Plugins/Process/Utility/HistoryThread.h"
@@ -447,12 +449,16 @@ SystemRuntimeMacOSX::ReadLibdispatchTSDIndexes ()
         {
             ClangASTType uint16 = ast_ctx->GetIntTypeFromBitSize(16, false);
             ClangASTType dispatch_tsd_indexes_s = ast_ctx->CreateRecordType(nullptr, lldb::eAccessPublic, "__lldb_dispatch_tsd_indexes_s", clang::TTK_Struct, lldb::eLanguageTypeC);
-            dispatch_tsd_indexes_s.StartTagDeclarationDefinition();
-            dispatch_tsd_indexes_s.AddFieldToRecordType ("dti_version", uint16, lldb::eAccessPublic, 0);
-            dispatch_tsd_indexes_s.AddFieldToRecordType ("dti_queue_index", uint16, lldb::eAccessPublic, 0);
-            dispatch_tsd_indexes_s.AddFieldToRecordType ("dti_voucher_index", uint16, lldb::eAccessPublic, 0);
-            dispatch_tsd_indexes_s.AddFieldToRecordType ("dti_qos_class_index", uint16, lldb::eAccessPublic, 0);
-            dispatch_tsd_indexes_s.CompleteTagDeclarationDefinition();
+
+            ClangASTTypeSystem* types = ast_ctx->getTypeSystem();
+            void *type = dispatch_tsd_indexes_s.GetOpaqueQualType();
+
+            types->StartTagDeclarationDefinition(type);
+            types->AddFieldToRecordType (type, "dti_version", uint16, lldb::eAccessPublic, 0);
+            types->AddFieldToRecordType (type, "dti_queue_index", uint16, lldb::eAccessPublic, 0);
+            types->AddFieldToRecordType (type, "dti_voucher_index", uint16, lldb::eAccessPublic, 0);
+            types->AddFieldToRecordType (type, "dti_qos_class_index", uint16, lldb::eAccessPublic, 0);
+            types->CompleteTagDeclarationDefinition(type);
 
             ProcessStructReader struct_reader (m_process, m_dispatch_tsd_indexes_addr, dispatch_tsd_indexes_s);
 

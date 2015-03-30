@@ -77,7 +77,7 @@ public:
                                           StringExtractorGDBRemote &response);
 
     bool
-    GetThreadSuffixSupported ();
+    GetThreadSuffixSupported () override;
 
     // This packet is usually sent first and the boolean return value
     // indicates if the packet was send and any response was received
@@ -383,7 +383,7 @@ public:
         case eWatchpointWrite:      return m_supports_z2;
         case eWatchpointRead:       return m_supports_z3;
         case eWatchpointReadWrite:  return m_supports_z4;
-        case eStoppointInvalid:     return false;
+        default:                    return false;
         }
     }
     uint8_t
@@ -533,6 +533,11 @@ public:
 
     bool
     GetThreadExtendedInfoSupported();
+
+    bool
+    GetModuleInfo (const lldb_private::FileSpec& module_file_spec,
+                   const lldb_private::ArchSpec& arch_spec,
+                   lldb_private::ModuleSpec &module_spec);
 
 protected:
 

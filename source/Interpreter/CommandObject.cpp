@@ -25,6 +25,7 @@
 // FIXME: Make a separate file for the completers.
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Core/FileSpecList.h"
+#include "lldb/DataFormatters/FormatManager.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 
@@ -120,6 +121,12 @@ void
 CommandObject::SetHelp (const char *cstr)
 {
     m_cmd_help_short = cstr;
+}
+
+void
+CommandObject::SetHelp (std::string str)
+{
+    m_cmd_help_short = str;
 }
 
 void

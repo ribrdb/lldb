@@ -15,7 +15,6 @@
 
 // Other libraries and framework includes
 // Project includes
-#include "lldb/lldb-private-log.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Breakpoint/BreakpointID.h"
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
@@ -23,6 +22,8 @@
 #include "lldb/Core/Log.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/StreamString.h"
+#include "lldb/Core/ValueObject.h"
+#include "lldb/Expression/ClangUserExpression.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/Target.h"
@@ -590,7 +591,7 @@ BreakpointLocation::GetDescription (Stream *s, lldb::DescriptionLevel level)
                 s->PutCString ("re-exported target = ");
             else
                 s->PutCString("where = ");
-            sc.DumpStopContext (s, m_owner.GetTarget().GetProcessSP().get(), m_address, false, true, false, true);
+            sc.DumpStopContext (s, m_owner.GetTarget().GetProcessSP().get(), m_address, false, true, false, true, true);
         }
         else
         {

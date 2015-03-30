@@ -51,7 +51,7 @@ namespace lldb {
                                                    ///< set this flag so lldb & the handee don't race to set its exit status.
         eLaunchFlagDetachOnError = (1u << 9),     ///< If set, then the client stub should detach rather than killing the debugee
                                                    ///< if it loses connection with lldb.
-        eLaunchFlagGlobArguments  = (1u << 10),       ///< Glob arguments without going through a shell
+        eLaunchFlagShellExpandArguments  = (1u << 10),       ///< Perform shell-style argument expansion
         eLaunchFlagCloseTTYOnExit = (1u << 11),    ///< Close the open TTY on exit
     } LaunchFlags;
         
@@ -860,14 +860,15 @@ namespace lldb {
     //----------------------------------------------------------------------
     typedef enum PathType
     {
-        ePathTypeLLDBShlibDir,          // The directory where the lldb.so (unix) or LLDB mach-o file in LLDB.framework (MacOSX) exists
-        ePathTypeSupportExecutableDir,  // Find LLDB support executable directory (debugserver, etc)
-        ePathTypeHeaderDir,             // Find LLDB header file directory
-        ePathTypePythonDir,             // Find Python modules (PYTHONPATH) directory
-        ePathTypeLLDBSystemPlugins,     // System plug-ins directory
-        ePathTypeLLDBUserPlugins,       // User plug-ins directory
-        ePathTypeLLDBTempSystemDir,     // The LLDB temp directory for this system that will be cleaned up on exit
-        ePathTypeClangDir               // Find path to Clang builtin headers
+        ePathTypeLLDBShlibDir,            // The directory where the lldb.so (unix) or LLDB mach-o file in LLDB.framework (MacOSX) exists
+        ePathTypeSupportExecutableDir,    // Find LLDB support executable directory (debugserver, etc)
+        ePathTypeHeaderDir,               // Find LLDB header file directory
+        ePathTypePythonDir,               // Find Python modules (PYTHONPATH) directory
+        ePathTypeLLDBSystemPlugins,       // System plug-ins directory
+        ePathTypeLLDBUserPlugins,         // User plug-ins directory
+        ePathTypeLLDBTempSystemDir,       // The LLDB temp directory for this system that will be cleaned up on exit
+        ePathTypeGlobalLLDBTempSystemDir, // The LLDB temp directory for this system, NOT cleaned up on a process exit.
+        ePathTypeClangDir                 // Find path to Clang builtin headers
     } PathType;
     
     //----------------------------------------------------------------------

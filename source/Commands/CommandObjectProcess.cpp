@@ -32,6 +32,7 @@
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
+#include "lldb/Target/UnixSignals.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -249,9 +250,7 @@ protected:
 
         if (launch_args.GetArgumentCount() == 0)
         {
-            Args target_setting_args;
-            if (target->GetRunArguments(target_setting_args))
-                m_options.launch_info.GetArguments().AppendArguments (target_setting_args);
+            m_options.launch_info.GetArguments().AppendArguments (target->GetProcessLaunchInfo().GetArguments());
         }
         else
         {

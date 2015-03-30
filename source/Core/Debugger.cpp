@@ -38,7 +38,9 @@
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/Terminal.h"
 #include "lldb/Host/ThreadLauncher.h"
+#include "lldb/Initialization/InitializeLLDB.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Interpreter/OptionValueSInt64.h"
 #include "lldb/Interpreter/OptionValueString.h"
 #include "lldb/Symbol/ClangASTContext.h"
@@ -126,7 +128,21 @@ g_language_enumerators[] =
     FILE_AND_LINE\
     "\\n"
 
-#define DEFAULT_DISASSEMBLY_FORMAT "${current-pc-arrow}${addr-file-or-load}{ <${function.name-without-args}${function.concrete-only-addr-offset-no-padding}>}: "
+// Three parts to this disassembly format specification:
+//   1. If this is a new function/symbol (no previous symbol/function), print
+//      dylib`funcname:\n
+//   2. If this is a symbol context change (different from previous symbol/function), print
+//      dylib`funcname:\n
+//   3. print 
+//      address <+offset>: 
+#define DEFAULT_DISASSEMBLY_FORMAT "{${function.initial-function}{${module.file.basename}`}{${function.name-without-args}}:\n}{${function.changed}\n{${module.file.basename}`}{${function.name-without-args}}:\n}{${current-pc-arrow} }${addr-file-or-load}{ <${function.concrete-only-addr-offset-no-padding}>}: "
+
+// gdb's disassembly format can be emulated with
+// ${current-pc-arrow}${addr-file-or-load}{ <${function.name-without-args}${function.concrete-only-addr-offset-no-padding}>}: 
+
+// lldb's original format for disassembly would look like this format string -
+// {${function.initial-function}{${module.file.basename}`}{${function.name-without-args}}:\n}{${function.changed}\n{${module.file.basename}`}{${function.name-without-args}}:\n}{${current-pc-arrow} }{${addr-file-or-load}}: 
+
 
 static PropertyDefinition
 g_properties[] =
@@ -170,7 +186,7 @@ enum
     ePropertyEscapeNonPrintables
 };
 
-Debugger::LoadPluginCallbackType Debugger::g_load_plugin_callback = NULL;
+LoadPluginCallbackType Debugger::g_load_plugin_callback = NULL;
 
 Error
 Debugger::SetPropertyValue (const ExecutionContext *exe_ctx,
@@ -397,15 +413,16 @@ Debugger::TestDebuggerRefCount ()
     return g_shared_debugger_refcount;
 }
 
+static bool lldb_initialized = true;
 void
-Debugger::Initialize (LoadPluginCallbackType load_plugin_callback)
+Debugger::Initialize(LoadPluginCallbackType load_plugin_callback)
 {
+    lldb_initialized = true;
+    g_shared_debugger_refcount++;
     g_load_plugin_callback = load_plugin_callback;
-    if (g_shared_debugger_refcount++ == 0)
-        lldb_private::Initialize();
 }
 
-void
+int
 Debugger::Terminate ()
 {
     if (g_shared_debugger_refcount > 0)
@@ -413,14 +430,12 @@ Debugger::Terminate ()
         g_shared_debugger_refcount--;
         if (g_shared_debugger_refcount == 0)
         {
-            lldb_private::WillTerminate();
-            lldb_private::Terminate();
-
             // Clear our master list of debugger objects
             Mutex::Locker locker (GetDebuggerListMutex ());
             GetDebuggerList().clear();
         }
     }
+    return g_shared_debugger_refcount;
 }
 
 void
@@ -682,6 +697,10 @@ Debugger::Debugger(lldb::LogOutputCallback log_callback, void *baton) :
                                      ConstString("Settings specify to debugging targets."),
                                      true,
                                      Target::GetGlobalProperties()->GetValueProperties());
+    m_collection_sp->AppendProperty (ConstString("platform"),
+                                     ConstString("Platform settings."),
+                                     true,
+                                     Platform::GetGlobalPlatformProperties()->GetValueProperties());
     if (m_command_interpreter_ap.get())
     {
         m_collection_sp->AppendProperty (ConstString("interpreter"),
@@ -888,7 +907,7 @@ Debugger::ClearIOHandlers ()
 }
 
 void
-Debugger::ExecuteIOHanders()
+Debugger::ExecuteIOHandlers()
 {
     
     while (1)
@@ -1312,7 +1331,12 @@ Debugger::EnableLog (const char *channel, const char **categories, const char *l
             log_stream_sp = pos->second.lock();
         if (!log_stream_sp)
         {
-            log_stream_sp.reset (new StreamFile (log_file));
+            uint32_t options = File::eOpenOptionWrite | File::eOpenOptionCanCreate
+                                | File::eOpenOptionCloseOnExec | File::eOpenOptionAppend;
+            if (! (log_options & LLDB_LOG_OPTION_APPEND))
+                options |= File::eOpenOptionTruncate;
+
+            log_stream_sp.reset (new StreamFile (log_file, options));
             m_log_streams[log_file] = log_stream_sp;
         }
     }
@@ -1729,7 +1753,7 @@ lldb::thread_result_t
 Debugger::IOHandlerThread (lldb::thread_arg_t arg)
 {
     Debugger *debugger = (Debugger *)arg;
-    debugger->ExecuteIOHanders();
+    debugger->ExecuteIOHandlers();
     debugger->StopEventHandlerThread();
     return NULL;
 }

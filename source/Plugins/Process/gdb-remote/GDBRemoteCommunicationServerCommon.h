@@ -35,26 +35,6 @@ public:
     virtual
     ~GDBRemoteCommunicationServerCommon();
 
-    virtual bool
-    GetThreadSuffixSupported () override
-    {
-        return true;
-    }
-
-    //------------------------------------------------------------------
-    /// Launch a process with the current launch settings.
-    ///
-    /// This method supports running an lldb-gdbserver or similar
-    /// server in a situation where the startup code has been provided
-    /// with all the information for a child process to be launched.
-    ///
-    /// @return
-    ///     An Error object indicating the success or failure of the
-    ///     launch.
-    //------------------------------------------------------------------
-    virtual lldb_private::Error
-    LaunchProcess () = 0;
-
 protected:
     std::set<lldb::pid_t> m_spawned_pids;
     lldb_private::Mutex m_spawned_pids_mutex;
@@ -126,6 +106,9 @@ protected:
     Handle_vFile_MD5 (StringExtractorGDBRemote &packet);
 
     PacketResult
+    Handle_qModuleInfo (StringExtractorGDBRemote &packet);
+
+    PacketResult
     Handle_qPlatform_shell (StringExtractorGDBRemote &packet);
 
     PacketResult
@@ -179,12 +162,9 @@ protected:
                                                 lldb_private::StreamString &response);
 
     template <typename T>
-    using MemberFunctionPacketHandler = PacketResult (T::*) (StringExtractorGDBRemote& packet);
-
-    template <typename T>
     void
-    RegisterMemberFunctionHandler(StringExtractorGDBRemote::ServerPacketType packet_type,
-                                  MemberFunctionPacketHandler<T> handler)
+    RegisterMemberFunctionHandler (StringExtractorGDBRemote::ServerPacketType packet_type,
+                                   PacketResult (T::*handler) (StringExtractorGDBRemote& packet))
     {
         RegisterPacketHandler(packet_type,
                               [this, handler] (StringExtractorGDBRemote packet,
@@ -195,6 +175,29 @@ protected:
                                   return (static_cast<T*>(this)->*handler) (packet);
                               });
     }
+
+    bool
+    GetThreadSuffixSupported () override
+    {
+        return true;
+    }
+
+    //------------------------------------------------------------------
+    /// Launch a process with the current launch settings.
+    ///
+    /// This method supports running an lldb-gdbserver or similar
+    /// server in a situation where the startup code has been provided
+    /// with all the information for a child process to be launched.
+    ///
+    /// @return
+    ///     An Error object indicating the success or failure of the
+    ///     launch.
+    //------------------------------------------------------------------
+    virtual lldb_private::Error
+    LaunchProcess () = 0;
+
+    virtual lldb_private::FileSpec
+    FindModuleFile (const std::string& module_path, const lldb_private::ArchSpec& arch);
 };
 
 #endif  // liblldb_GDBRemoteCommunicationServerCommon_h_

@@ -16,7 +16,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
-#include "llvm/PassManager.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/ValueSymbolTable.h"
@@ -59,7 +59,8 @@ IRForTarget::FunctionValueCache::~FunctionValueCache()
 {
 }
 
-llvm::Value *IRForTarget::FunctionValueCache::GetValue(llvm::Function *function)
+llvm::Value *
+IRForTarget::FunctionValueCache::GetValue(llvm::Function *function)
 {
     if (!m_values.count(function))
     {
@@ -70,7 +71,8 @@ llvm::Value *IRForTarget::FunctionValueCache::GetValue(llvm::Function *function)
     return m_values[function];
 }
 
-lldb::addr_t IRForTarget::StaticDataAllocator::Allocate()
+lldb::addr_t
+IRForTarget::StaticDataAllocator::Allocate()
 {
     lldb_private::Error err;
 
@@ -85,7 +87,14 @@ lldb::addr_t IRForTarget::StaticDataAllocator::Allocate()
     return m_allocation;
 }
 
-static llvm::Value *FindEntryInstruction (llvm::Function *function)
+lldb::TargetSP
+IRForTarget::StaticDataAllocator::GetTarget()
+{
+    return m_execution_unit.GetTarget();
+}
+
+static llvm::Value *
+FindEntryInstruction (llvm::Function *function)
 {
     if (function->empty())
         return NULL;
@@ -590,7 +599,10 @@ IRForTarget::CreateResultVariable (llvm::Function &llvm_function)
                                                      &result_decl->getASTContext());
     }
 
-    if (m_result_type.GetBitSize(nullptr) == 0)
+
+    lldb::TargetSP target_sp (m_data_allocator.GetTarget());
+    lldb_private::ExecutionContext exe_ctx (target_sp, true);
+    if (m_result_type.GetBitSize(exe_ctx.GetBestExecutionContextScope()) == 0)
     {
         lldb_private::StreamString type_desc_stream;
         m_result_type.DumpTypeDescription(&type_desc_stream);
@@ -2194,7 +2206,7 @@ IRForTarget::UnfoldConstant(Constant *old_constant,
 
                             ArrayRef <Value*> indices(index_vector);
 
-                            return GetElementPtrInst::Create(ptr, indices, "", llvm::cast<Instruction>(entry_instruction_finder.GetValue(function)));
+                            return GetElementPtrInst::Create(nullptr, ptr, indices, "", llvm::cast<Instruction>(entry_instruction_finder.GetValue(function)));
                         });
 
                         if (!UnfoldConstant(constant_expr, get_element_pointer_maker, entry_instruction_finder))
@@ -2381,7 +2393,8 @@ IRForTarget::ReplaceVariables (Function &llvm_function)
                 llvm::Instruction *entry_instruction = llvm::cast<Instruction>(m_entry_instruction_finder.GetValue(function));
 
                 ConstantInt *offset_int(ConstantInt::get(offset_type, offset, true));
-                GetElementPtrInst *get_element_ptr = GetElementPtrInst::Create(argument,
+                GetElementPtrInst *get_element_ptr = GetElementPtrInst::Create(nullptr,
+                                                                               argument,
                                                                                offset_int,
                                                                                "",
                                                                                entry_instruction);

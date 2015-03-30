@@ -24,6 +24,7 @@
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
+#include "lldb/Target/Process.h"
 #include "lldb/Target/ProcessLaunchInfo.h"
 
 using namespace lldb;
@@ -47,6 +48,17 @@ m_remote_platform_sp ()
 //------------------------------------------------------------------
 PlatformPOSIX::~PlatformPOSIX()
 {
+}
+
+bool
+PlatformPOSIX::GetModuleSpec (const FileSpec& module_file_spec,
+                              const ArchSpec& arch,
+                              ModuleSpec &module_spec)
+{
+    if (m_remote_platform_sp)
+        return m_remote_platform_sp->GetModuleSpec (module_file_spec, arch, module_spec);
+
+    return Platform::GetModuleSpec (module_file_spec, arch, module_spec);
 }
 
 lldb_private::OptionGroupOptions*
@@ -712,6 +724,18 @@ PlatformPOSIX::LaunchProcess (ProcessLaunchInfo &launch_info)
             error.SetErrorString ("the platform is not currently connected");
     }
     return error;
+}
+
+lldb_private::Error
+PlatformPOSIX::KillProcess (const lldb::pid_t pid)
+{
+    if (IsHost())
+        return Platform::KillProcess (pid);
+
+    if (m_remote_platform_sp)
+        return m_remote_platform_sp->KillProcess (pid);
+
+    return Error ("the platform is not currently connected");
 }
 
 lldb::ProcessSP

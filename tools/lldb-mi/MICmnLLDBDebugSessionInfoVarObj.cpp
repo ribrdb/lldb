@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnLLDBDebugSessionInfoVarObj.cpp
-//
-// Overview:    CMICmnLLDBDebugSessionInfoVarObj implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmnLLDBDebugSessionInfoVarObj.h"
 #include "MICmnLLDBProxySBValue.h"
@@ -506,6 +494,19 @@ CMICmnLLDBDebugSessionInfoVarObj::GetValueFormatted(void) const
 // Type:    Method.
 // Args:    None.
 // Returns: lldb::SBValue & - LLDB Value object.
+// Throws:  None.
+//--
+lldb::SBValue &
+CMICmnLLDBDebugSessionInfoVarObj::GetValue(void)
+{
+    return m_SBValue;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: Retrieve the LLDB Value object.
+// Type:    Method.
+// Args:    None.
+// Returns: lldb::SBValue & - Constant LLDB Value object.
 // Throws:  None.
 //--
 const lldb::SBValue &

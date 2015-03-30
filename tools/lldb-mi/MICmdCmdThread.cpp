@@ -7,17 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdThread.cpp
-//
 // Overview:    CMICmdCmdThreadInfo     implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 // Third Party Headers:
 #include "lldb/API/SBBreakpointLocation.h"
@@ -105,8 +95,8 @@ CMICmdCmdThreadInfo::Execute(void)
     if (m_bSingleThread)
     {
         thread = sbProcess.GetThreadByIndexID(nThreadId);
-        m_bThreadInvalid = thread.IsValid();
-        if (!m_bThreadInvalid)
+        m_bThreadInvalid = !thread.IsValid();
+        if (m_bThreadInvalid)
             return MIstatus::success;
 
         CMICmnMIValueTuple miTuple;
@@ -151,7 +141,7 @@ CMICmdCmdThreadInfo::Acknowledge(void)
 {
     if (m_bSingleThread)
     {
-        if (!m_bThreadInvalid)
+        if (m_bThreadInvalid)
         {
             const CMICmnMIValueConst miValueConst("invalid thread id");
             const CMICmnMIValueResult miValueResult("msg", miValueConst);

@@ -23,6 +23,7 @@
 // Other libraries and framework includes
 #include "llvm/ADT/Triple.h"
 #include "lldb/Interpreter/Args.h"
+#include "lldb/Core/DataBuffer.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Log.h"
 #include "lldb/Core/State.h"
@@ -37,6 +38,7 @@
 #include "lldb/Host/StringConvert.h"
 #include "lldb/Host/TimeValue.h"
 #include "lldb/Target/FileAction.h"
+#include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Target/Platform.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Host/common/NativeRegisterContext.h"
@@ -99,13 +101,18 @@ GDBRemoteCommunicationServerLLGS::GDBRemoteCommunicationServerLLGS(
 //----------------------------------------------------------------------
 GDBRemoteCommunicationServerLLGS::~GDBRemoteCommunicationServerLLGS()
 {
+    Mutex::Locker locker (m_debugged_process_mutex);
+
+    if (m_debugged_process_sp)
+    {
+        m_debugged_process_sp->Terminate ();
+        m_debugged_process_sp.reset ();
+    }
 }
 
 void
 GDBRemoteCommunicationServerLLGS::RegisterPacketHandlers()
 {
-    RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_A,
-                                  &GDBRemoteCommunicationServerLLGS::Handle_A);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_C,
                                   &GDBRemoteCommunicationServerLLGS::Handle_C);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_c,
@@ -223,11 +230,21 @@ GDBRemoteCommunicationServerLLGS::LaunchProcess ()
         return error;
     }
 
-    // Handle mirroring of inferior stdout/stderr over the gdb-remote protocol as needed.
-    // llgs local-process debugging may specify PTYs, which will eliminate the need to reflect inferior
-    // stdout/stderr over the gdb-remote protocol.
-    if (ShouldRedirectInferiorOutputOverGdbRemote (m_process_launch_info))
+    // Handle mirroring of inferior stdout/stderr over the gdb-remote protocol
+    // as needed.
+    // llgs local-process debugging may specify PTY paths, which will make these
+    // file actions non-null
+    // process launch -i/e/o will also make these file actions non-null
+    // nullptr means that the traffic is expected to flow over gdb-remote protocol
+    if (
+        m_process_launch_info.GetFileActionForFD(STDIN_FILENO) == nullptr  ||
+        m_process_launch_info.GetFileActionForFD(STDOUT_FILENO) == nullptr  ||
+        m_process_launch_info.GetFileActionForFD(STDERR_FILENO) == nullptr
+        )
     {
+        // nullptr means it's not redirected to file or pty (in case of LLGS local)
+        // at least one of stdio will be transferred pty<->gdb-remote
+        // we need to give the pty master handle to this object to read and/or write
         if (log)
             log->Printf ("GDBRemoteCommunicationServerLLGS::%s pid %" PRIu64 " setting up stdout/stderr redirection via $O gdb-remote commands", __FUNCTION__, m_debugged_process_sp->GetID ());
 
@@ -267,27 +284,6 @@ GDBRemoteCommunicationServerLLGS::LaunchProcess ()
     }
 
     return error;
-}
-
-bool
-GDBRemoteCommunicationServerLLGS::ShouldRedirectInferiorOutputOverGdbRemote (const lldb_private::ProcessLaunchInfo &launch_info) const
-{
-    // Retrieve the file actions specified for stdout and stderr.
-    auto stdout_file_action = launch_info.GetFileActionForFD (STDOUT_FILENO);
-    auto stderr_file_action = launch_info.GetFileActionForFD (STDERR_FILENO);
-
-    // If neither stdout and stderr file actions are specified, we're not doing anything special, so
-    // assume we want to redirect stdout/stderr over gdb-remote $O messages.
-    if ((stdout_file_action == nullptr) && (stderr_file_action == nullptr))
-    {
-        // Send stdout/stderr over the gdb-remote protocol.
-        return true;
-    }
-
-    // Any other setting for either stdout or stderr implies we are either suppressing
-    // it (with /dev/null) or we've got it set to a PTY.  Either way, we don't want the
-    // output over gdb-remote.
-    return false;
 }
 
 lldb_private::Error
@@ -457,24 +453,6 @@ WriteRegisterValueInHexFixedWidth (StreamString &response,
     }
 }
 
-static void
-WriteGdbRegnumWithFixedWidthHexRegisterValue (StreamString &response,
-                                              NativeRegisterContextSP &reg_ctx_sp,
-                                              const RegisterInfo &reg_info,
-                                              const RegisterValue &reg_value)
-{
-    // Output the register number as 'NN:VVVVVVVV;' where NN is a 2 bytes HEX
-    // gdb register number, and VVVVVVVV is the correct number of hex bytes
-    // as ASCII for the register value.
-    if (reg_info.kinds[eRegisterKindGDB] == LLDB_INVALID_REGNUM)
-        return;
-
-    response.Printf ("%.02x:", reg_info.kinds[eRegisterKindGDB]);
-    WriteRegisterValueInHexFixedWidth (response, reg_ctx_sp, reg_info, &reg_value);
-    response.PutChar (';');
-}
-
-
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerLLGS::SendStopReplyPacketForThread (lldb::tid_t tid)
 {
@@ -599,7 +577,11 @@ GDBRemoteCommunicationServerLLGS::SendStopReplyPacketForThread (lldb::tid_t tid)
                     RegisterValue reg_value;
                     Error error = reg_ctx_sp->ReadRegister (reg_info_p, reg_value);
                     if (error.Success ())
-                        WriteGdbRegnumWithFixedWidthHexRegisterValue (response, reg_ctx_sp, *reg_info_p, reg_value);
+                    {
+                        response.Printf ("%.02x:", *reg_num_p);
+                        WriteRegisterValueInHexFixedWidth(response, reg_ctx_sp, *reg_info_p, &reg_value);
+                        response.PutChar (';');
+                    }
                     else
                     {
                         if (log)
@@ -824,6 +806,7 @@ GDBRemoteCommunicationServerLLGS::SetSTDIOFileDescriptor (int fd)
         return error;
     }
 
+    m_stdio_communication.SetCloseOnEOF (false);
     m_stdio_communication.SetConnection (conn_up.release());
     if (!m_stdio_communication.IsConnected ())
     {
@@ -831,8 +814,20 @@ GDBRemoteCommunicationServerLLGS::SetSTDIOFileDescriptor (int fd)
         return error;
     }
 
-    m_stdio_communication.SetReadThreadBytesReceivedCallback (STDIOReadThreadBytesReceived, this);
-    m_stdio_communication.StartReadThread();
+    // llgs local-process debugging may specify PTY paths, which will make these
+    // file actions non-null
+    // process launch -e/o will also make these file actions non-null
+    // nullptr means that the traffic is expected to flow over gdb-remote protocol
+    if (
+        m_process_launch_info.GetFileActionForFD(STDOUT_FILENO) == nullptr ||
+        m_process_launch_info.GetFileActionForFD(STDERR_FILENO) == nullptr
+        )
+    {
+        // output from the process must be forwarded over gdb-remote
+        // create a thread to read the handle and send the data
+        m_stdio_communication.SetReadThreadBytesReceivedCallback (STDIOReadThreadBytesReceived, this);
+        m_stdio_communication.StartReadThread();
+    }
 
     return error;
 }
@@ -2109,8 +2104,8 @@ GDBRemoteCommunicationServerLLGS::Handle_Z (StringExtractorGDBRemote &packet)
     {
         uint32_t watch_flags =
             stoppoint_type == eWatchpointWrite
-            ? watch_flags = 0x1  // Write
-            : watch_flags = 0x3; // ReadWrite
+            ? 0x1  // Write
+            : 0x3; // ReadWrite
 
         // Try to set the watchpoint.
         const Error error = m_debugged_process_sp->SetWatchpoint (
@@ -2739,4 +2734,21 @@ GDBRemoteCommunicationServerLLGS::ClearProcessSpecificData ()
                      m_active_auxv_buffer_sp ? "was set" : "was not set");
     m_active_auxv_buffer_sp.reset ();
 #endif
+}
+
+FileSpec
+GDBRemoteCommunicationServerLLGS::FindModuleFile(const std::string& module_path,
+                                                 const ArchSpec& arch)
+{
+    if (m_debugged_process_sp)
+    {
+        FileSpec file_spec;
+        if (m_debugged_process_sp->GetLoadedModuleFileSpec(module_path.c_str(), file_spec).Success())
+        {
+            if (file_spec.Exists())
+                return file_spec;
+        }
+    }
+
+    return GDBRemoteCommunicationServerCommon::FindModuleFile(module_path, arch);
 }

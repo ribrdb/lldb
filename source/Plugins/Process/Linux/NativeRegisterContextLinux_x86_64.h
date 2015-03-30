@@ -30,6 +30,9 @@ namespace lldb_private
         const RegisterSet *
         GetRegisterSet (uint32_t set_index) const override;
 
+        uint32_t
+        GetUserRegisterCount() const override;
+
         Error
         ReadRegister (const RegisterInfo *reg_info, RegisterValue &reg_value) override;
 
@@ -43,16 +46,19 @@ namespace lldb_private
         WriteAllRegisterValues (const lldb::DataBufferSP &data_sp) override;
 
         Error
-        IsWatchpointHit(uint8_t wp_index);
+        IsWatchpointHit(uint32_t wp_index, bool &is_hit) override;
 
         Error
-        IsWatchpointVacant(uint32_t wp_index);
+        GetWatchpointHitIndex(uint32_t &wp_index) override;
+
+        Error
+        IsWatchpointVacant(uint32_t wp_index, bool &is_vacant) override;
 
         bool
-        ClearHardwareWatchpoint(uint32_t wp_index);
+        ClearHardwareWatchpoint(uint32_t wp_index) override;
 
         Error
-        ClearAllHardwareWatchpoints ();
+        ClearAllHardwareWatchpoints () override;
 
         Error
         SetHardwareWatchpointWithIndex(lldb::addr_t addr, size_t size,
@@ -60,13 +66,13 @@ namespace lldb_private
 
         uint32_t
         SetHardwareWatchpoint(lldb::addr_t addr, size_t size,
-                uint32_t watch_flags);
+                uint32_t watch_flags) override;
 
         lldb::addr_t
-        GetWatchpointAddress(uint32_t wp_index);
+        GetWatchpointAddress(uint32_t wp_index) override;
 
         uint32_t
-        NumSupportedHardwareWatchpoints();
+        NumSupportedHardwareWatchpoints() override;
 
     private:
 

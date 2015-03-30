@@ -390,7 +390,7 @@ static bool ReadIntegerArgument(Scalar           &scalar,
 
 bool
 ABISysV_ppc::GetArgumentValues (Thread &thread,
-                                   ValueList &values) const
+                                ValueList &values) const
 {
     unsigned int num_values = values.GetSize();
     unsigned int value_index;
@@ -444,7 +444,7 @@ ABISysV_ppc::GetArgumentValues (Thread &thread,
         if (clang_type.IsIntegerType (is_signed))
         {
             ReadIntegerArgument(value->GetScalar(),
-                                clang_type.GetBitSize(nullptr),
+                                clang_type.GetBitSize(&thread),
                                 is_signed,
                                 thread,
                                 argument_register_ids,
@@ -454,7 +454,7 @@ ABISysV_ppc::GetArgumentValues (Thread &thread,
         else if (clang_type.IsPointerType ())
         {
             ReadIntegerArgument(value->GetScalar(),
-                                clang_type.GetBitSize(nullptr),
+                                clang_type.GetBitSize(&thread),
                                 false,
                                 thread,
                                 argument_register_ids,
@@ -524,7 +524,7 @@ ABISysV_ppc::SetReturnValueObject(lldb::StackFrameSP &frame_sp, lldb::ValueObjec
             error.SetErrorString ("We don't support returning complex values at present");
         else
         {
-            size_t bit_width = clang_type.GetBitSize(nullptr);
+            size_t bit_width = clang_type.GetBitSize(frame_sp.get());
             if (bit_width <= 64)
             {
                 DataExtractor data;
@@ -740,7 +740,7 @@ ABISysV_ppc::GetReturnValueObjectImpl (Thread &thread, ClangASTType &return_clan
     if (!reg_ctx_sp)
         return return_valobj_sp;
 
-    const size_t bit_width = return_clang_type.GetBitSize(nullptr);
+    const size_t bit_width = return_clang_type.GetBitSize(&thread);
     if (return_clang_type.IsAggregateType())
     {
         Target *target = exe_ctx.GetTargetPtr();
@@ -782,7 +782,7 @@ ABISysV_ppc::GetReturnValueObjectImpl (Thread &thread, ClangASTType &return_clan
                 uint32_t count;
 
                 ClangASTType field_clang_type = return_clang_type.GetFieldAtIndex (idx, name, &field_bit_offset, NULL, NULL);
-                const size_t field_bit_width = field_clang_type.GetBitSize(nullptr);
+                const size_t field_bit_width = field_clang_type.GetBitSize(&thread);
 
                 // If there are any unaligned fields, this is stored in memory.
                 if (field_bit_offset % field_bit_width != 0)
@@ -985,7 +985,7 @@ ABISysV_ppc::CreateFunctionEntryUnwindPlan (UnwindPlan &unwind_plan)
     UnwindPlan::RowSP row(new UnwindPlan::Row);
 
     // Our Call Frame Address is the stack pointer value
-    row->SetCFARegister (sp_reg_num);
+    row->GetCFAValue().SetIsRegisterPlusOffset (sp_reg_num, 0);
 
     // The previous PC is in the LR
     row->SetRegisterLocationToRegister(pc_reg_num, lr_reg_num, true);
@@ -1011,8 +1011,7 @@ ABISysV_ppc::CreateDefaultUnwindPlan (UnwindPlan &unwind_plan)
     UnwindPlan::RowSP row(new UnwindPlan::Row);
 
     const int32_t ptr_size = 4;
-    row->SetCFARegister (sp_reg_num);
-    row->SetCFAType(lldb_private::UnwindPlan::Row::CFAIsRegisterDereferenced);
+    row->GetCFAValue().SetIsRegisterDereferenced (sp_reg_num);
 
     row->SetRegisterLocationToAtCFAPlusOffset(pc_reg_num, ptr_size * 1, true);
     row->SetRegisterLocationToIsCFAPlusOffset(sp_reg_num, 0, true);

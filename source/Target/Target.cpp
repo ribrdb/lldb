@@ -34,7 +34,9 @@
 #include "lldb/Core/Timer.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Expression/ClangASTSource.h"
+#include "lldb/Expression/ClangPersistentVariables.h"
 #include "lldb/Expression/ClangUserExpression.h"
+#include "lldb/Expression/ClangModulesDeclVendor.h"
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -42,8 +44,10 @@
 #include "lldb/Interpreter/OptionGroupWatchpoint.h"
 #include "lldb/Interpreter/OptionValues.h"
 #include "lldb/Interpreter/Property.h"
-#include "lldb/lldb-private-log.h"
+#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/ObjectFile.h"
+#include "lldb/Target/LanguageRuntime.h"
+#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/StackFrame.h"
@@ -83,7 +87,7 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch, const lldb::Plat
     m_scratch_ast_context_ap (),
     m_scratch_ast_source_ap (),
     m_ast_importer_ap (),
-    m_persistent_variables (),
+    m_persistent_variables (new ClangPersistentVariables),
     m_source_manager_ap(),
     m_stop_hooks (),
     m_stop_hook_next_id (0),
@@ -226,7 +230,7 @@ Target::Destroy()
     m_last_created_watchpoint.reset();
     m_search_filter_sp.reset();
     m_image_search_paths.Clear(notify);
-    m_persistent_variables.Clear();
+    m_persistent_variables->Clear();
     m_stop_hooks.clear();
     m_stop_hook_next_id = 0;
     m_suppress_stop_hooks = false;
@@ -1184,6 +1188,30 @@ Target::SetArchitecture (const ArchSpec &arch_spec)
     return false;
 }
 
+bool
+Target::MergeArchitecture (const ArchSpec &arch_spec)
+{
+    if (arch_spec.IsValid())
+    {
+        if (m_arch.IsCompatibleMatch(arch_spec))
+        {
+            // The current target arch is compatible with "arch_spec", see if we
+            // can improve our current architecture using bits from "arch_spec"
+
+            // Merge bits from arch_spec into "merged_arch" and set our architecture
+            ArchSpec merged_arch (m_arch);
+            merged_arch.MergeFrom (arch_spec);
+            return SetArchitecture(merged_arch);
+        }
+        else
+        {
+            // The new architecture is different, we just need to replace it
+            return SetArchitecture(arch_spec);
+        }
+    }
+    return false;
+}
+
 void
 Target::WillClearList (const ModuleList& module_list)
 {
@@ -1231,9 +1259,26 @@ Target::ModulesDidLoad (ModuleList &module_list)
         if (m_process_sp)
         {
             m_process_sp->ModulesDidLoad (module_list);
+
+            // This assumes there can only be one libobjc loaded.
+            ObjCLanguageRuntime *objc_runtime = m_process_sp->GetObjCLanguageRuntime ();
+            if (objc_runtime && !objc_runtime->HasReadObjCLibrary ())
+            {
+                Mutex::Locker locker (module_list.GetMutex ());
+
+                size_t num_modules = module_list.GetSize();
+                for (size_t i = 0; i < num_modules; i++)
+                {
+                    auto mod = module_list.GetModuleAtIndex (i);
+                    if (objc_runtime->IsModuleObjCLibrary (mod))
+                    {
+                        objc_runtime->ReadObjCLibrary (mod);
+                        break;
+                    }
+                }
+            }
         }
-        // TODO: make event data that packages up the module_list
-        BroadcastEvent (eBroadcastBitModulesLoaded, NULL);
+        BroadcastEvent (eBroadcastBitModulesLoaded, new TargetEventData (this->shared_from_this(), module_list));
     }
 }
 
@@ -1253,7 +1298,7 @@ Target::SymbolsDidLoad (ModuleList &module_list)
         }
         
         m_breakpoint_list.UpdateBreakpoints (module_list, true, false);
-        BroadcastEvent(eBroadcastBitSymbolsLoaded, NULL);
+        BroadcastEvent (eBroadcastBitSymbolsLoaded, new TargetEventData (this->shared_from_this(), module_list));
     }
 }
 
@@ -1264,8 +1309,7 @@ Target::ModulesDidUnload (ModuleList &module_list, bool delete_locations)
     {
         UnloadModuleSections (module_list);
         m_breakpoint_list.UpdateBreakpoints (module_list, false, delete_locations);
-        // TODO: make event data that packages up the module_list
-        BroadcastEvent (eBroadcastBitModulesUnloaded, NULL);
+        BroadcastEvent (eBroadcastBitModulesUnloaded, new TargetEventData (this->shared_from_this(), module_list));
     }
 }
 
@@ -1683,9 +1727,9 @@ Target::GetSharedModule (const ModuleSpec &module_spec, Error *error_ptr)
                 // module in the shared module cache.
                 if (m_platform_sp)
                 {
-                    FileSpec platform_file_spec;        
-                    error = m_platform_sp->GetSharedModule (module_spec, 
-                                                            module_sp, 
+                    error = m_platform_sp->GetSharedModule (module_spec,
+                                                            m_process_sp.get(),
+                                                            module_sp,
                                                             &GetExecutableSearchPaths(),
                                                             &old_module_sp,
                                                             &did_create_module);
@@ -1953,7 +1997,7 @@ Target::EvaluateExpression
     lldb::ClangExpressionVariableSP persistent_var_sp;
     // Only check for persistent variables the expression starts with a '$' 
     if (expr_cstr[0] == '$')
-        persistent_var_sp = m_persistent_variables.GetVariable (expr_cstr);
+        persistent_var_sp = m_persistent_variables->GetVariable (expr_cstr);
 
     if (persistent_var_sp)
     {
@@ -1975,6 +2019,12 @@ Target::EvaluateExpression
     m_suppress_stop_hooks = old_suppress_value;
     
     return execution_results;
+}
+
+ClangPersistentVariables &
+Target::GetPersistentVariables()
+{
+    return *m_persistent_variables;
 }
 
 lldb::addr_t
@@ -2542,41 +2592,67 @@ Target::Launch (ProcessLaunchInfo &launch_info, Stream *stream)
 
     if (error.Success())
     {
-        if (launch_info.GetFlags().Test(eLaunchFlagStopAtEntry) == false)
+        if (synchronous_execution || launch_info.GetFlags().Test(eLaunchFlagStopAtEntry) == false)
         {
+            EventSP event_sp;
             ListenerSP hijack_listener_sp (launch_info.GetHijackListener());
+            if (!hijack_listener_sp)
+            {
+                hijack_listener_sp.reset(new Listener("lldb.Target.Launch.hijack"));
+                launch_info.SetHijackListener(hijack_listener_sp);
+                m_process_sp->HijackProcessEvents(hijack_listener_sp.get());
+            }
 
-            StateType state = m_process_sp->WaitForProcessToStop (NULL, NULL, false, hijack_listener_sp.get(), NULL);
+            StateType state = m_process_sp->WaitForProcessToStop (NULL, &event_sp, false, hijack_listener_sp.get(), NULL);
             
             if (state == eStateStopped)
             {
-                if (!synchronous_execution)
-                    m_process_sp->RestoreProcessEvents ();
-
-                error = m_process_sp->PrivateResume();
-
-                if (error.Success())
+                if (!launch_info.GetFlags().Test(eLaunchFlagStopAtEntry))
                 {
-                    // there is a race condition where this thread will return up the call stack to the main command
-                    // handler and show an (lldb) prompt before HandlePrivateEvent (from PrivateStateThread) has
-                    // a chance to call PushProcessIOHandler()
-                    m_process_sp->SyncIOHandler(2000);
-
                     if (synchronous_execution)
                     {
-                        state = m_process_sp->WaitForProcessToStop (NULL, NULL, true, hijack_listener_sp.get(), stream);
-                        const bool must_be_alive = false; // eStateExited is ok, so this must be false
-                        if (!StateIsStoppedState(state, must_be_alive))
+                        error = m_process_sp->PrivateResume();
+                        if (error.Success())
                         {
-                            error.SetErrorStringWithFormat("process isn't stopped: %s", StateAsCString(state));
+                            state = m_process_sp->WaitForProcessToStop (NULL, NULL, true, hijack_listener_sp.get(), stream);
+                            const bool must_be_alive = false; // eStateExited is ok, so this must be false
+                            if (!StateIsStoppedState(state, must_be_alive))
+                            {
+                                error.SetErrorStringWithFormat("process isn't stopped: %s", StateAsCString(state));
+                            }
                         }
+                    }
+                    else
+                    {
+                        m_process_sp->RestoreProcessEvents();
+                        error = m_process_sp->PrivateResume();
+                        if (error.Success())
+                        {
+                            // there is a race condition where this thread will return up the call stack to the main command
+                            // handler and show an (lldb) prompt before HandlePrivateEvent (from PrivateStateThread) has
+                            // a chance to call PushProcessIOHandler()
+                            m_process_sp->SyncIOHandler(2000);
+                        }
+                    }
+                    if (!error.Success())
+                    {
+                        Error error2;
+                        error2.SetErrorStringWithFormat("process resume at entry point failed: %s", error.AsCString());
+                        error = error2;
                     }
                 }
                 else
                 {
-                    Error error2;
-                    error2.SetErrorStringWithFormat("process resume at entry point failed: %s", error.AsCString());
-                    error = error2;
+                    assert(synchronous_execution && launch_info.GetFlags().Test(eLaunchFlagStopAtEntry));
+
+                    // Target was stopped at entry as was intended. Need to notify the listeners about it.
+                    m_process_sp->RestoreProcessEvents();
+                    m_process_sp->HandlePrivateEvent(event_sp);
+
+                    // there is a race condition where this thread will return up the call stack to the main command
+                    // handler and show an (lldb) prompt before HandlePrivateEvent (from PrivateStateThread) has
+                    // a chance to call PushProcessIOHandler()
+                    m_process_sp->SyncIOHandler(2000);
                 }
             }
             else if (state == eStateExited)
@@ -2720,6 +2796,12 @@ Target::StopHook::StopHook (const StopHook &rhs) :
 
 Target::StopHook::~StopHook ()
 {
+}
+
+void
+Target::StopHook::SetSpecifier(SymbolContextSpecifier *specifier)
+{
+    m_specifier_sp.reset(specifier);
 }
 
 void
@@ -3040,11 +3122,34 @@ protected:
 // TargetProperties
 //----------------------------------------------------------------------
 TargetProperties::TargetProperties (Target *target) :
-    Properties ()
+    Properties (),
+    m_launch_info ()
 {
     if (target)
     {
         m_collection_sp.reset (new TargetOptionValueProperties(target, Target::GetGlobalProperties()));
+
+        // Set callbacks to update launch_info whenever "settins set" updated any of these properties
+        m_collection_sp->SetValueChangedCallback(ePropertyArg0, TargetProperties::Arg0ValueChangedCallback, this);
+        m_collection_sp->SetValueChangedCallback(ePropertyRunArgs, TargetProperties::RunArgsValueChangedCallback, this);
+        m_collection_sp->SetValueChangedCallback(ePropertyEnvVars, TargetProperties::EnvVarsValueChangedCallback, this);
+        m_collection_sp->SetValueChangedCallback(ePropertyInputPath, TargetProperties::InputPathValueChangedCallback, this);
+        m_collection_sp->SetValueChangedCallback(ePropertyOutputPath, TargetProperties::OutputPathValueChangedCallback, this);
+        m_collection_sp->SetValueChangedCallback(ePropertyErrorPath, TargetProperties::ErrorPathValueChangedCallback, this);
+        m_collection_sp->SetValueChangedCallback(ePropertyDetachOnError, TargetProperties::DetachOnErrorValueChangedCallback, this);
+        m_collection_sp->SetValueChangedCallback(ePropertyDisableASLR, TargetProperties::DisableASLRValueChangedCallback, this);
+        m_collection_sp->SetValueChangedCallback(ePropertyDisableSTDIO, TargetProperties::DisableSTDIOValueChangedCallback, this);
+    
+        // Update m_launch_info once it was created
+        Arg0ValueChangedCallback(this, NULL);
+        RunArgsValueChangedCallback(this, NULL);
+        //EnvVarsValueChangedCallback(this, NULL); // FIXME: cause segfault in Target::GetPlatform()
+        InputPathValueChangedCallback(this, NULL);
+        OutputPathValueChangedCallback(this, NULL);
+        ErrorPathValueChangedCallback(this, NULL);
+        DetachOnErrorValueChangedCallback(this, NULL);
+        DisableASLRValueChangedCallback(this, NULL);
+        DisableSTDIOValueChangedCallback(this, NULL);
     }
     else
     {
@@ -3055,6 +3160,7 @@ TargetProperties::TargetProperties (Target *target) :
                                         true,
                                         Process::GetGlobalProperties()->GetValueProperties());
     }
+
 }
 
 TargetProperties::~TargetProperties ()
@@ -3156,6 +3262,7 @@ TargetProperties::SetArg0 (const char *arg)
 {
     const uint32_t idx = ePropertyArg0;
     m_collection_sp->SetPropertyAtIndexAsString (NULL, idx, arg);
+    m_launch_info.SetArg0(arg);
 }
 
 bool
@@ -3170,6 +3277,7 @@ TargetProperties::SetRunArguments (const Args &args)
 {
     const uint32_t idx = ePropertyRunArgs;
     m_collection_sp->SetPropertyAtIndexFromArgs (NULL, idx, args);
+    m_launch_info.GetArguments() = args;
 }
 
 size_t
@@ -3177,6 +3285,14 @@ TargetProperties::GetEnvironmentAsArgs (Args &env) const
 {
     const uint32_t idx = ePropertyEnvVars;
     return m_collection_sp->GetPropertyAtIndexAsArgs (NULL, idx, env);
+}
+
+void
+TargetProperties::SetEnvironmentFromArgs (const Args &env)
+{
+    const uint32_t idx = ePropertyEnvVars;
+    m_collection_sp->SetPropertyAtIndexFromArgs (NULL, idx, env);
+    m_launch_info.GetEnvironmentEntries() = env;
 }
 
 bool
@@ -3375,9 +3491,144 @@ TargetProperties::SetDisplayRuntimeSupportValues (bool b)
     m_collection_sp->SetPropertyAtIndexAsBoolean (NULL, idx, b);
 }
 
+const ProcessLaunchInfo &
+TargetProperties::GetProcessLaunchInfo ()
+{
+    m_launch_info.SetArg0(GetArg0()); // FIXME: Arg0 callback doesn't work
+    return m_launch_info;
+}
+
+void
+TargetProperties::SetProcessLaunchInfo(const ProcessLaunchInfo &launch_info)
+{
+    m_launch_info = launch_info;
+    SetArg0(launch_info.GetArg0());
+    SetRunArguments(launch_info.GetArguments());
+    SetEnvironmentFromArgs(launch_info.GetEnvironmentEntries());
+    const FileAction *input_file_action = launch_info.GetFileActionForFD(STDIN_FILENO);
+    if (input_file_action)
+    {
+        const char *input_path = input_file_action->GetPath();
+        if (input_path)
+            SetStandardInputPath(input_path);
+    }
+    const FileAction *output_file_action = launch_info.GetFileActionForFD(STDOUT_FILENO);
+    if (output_file_action)
+    {
+        const char *output_path = output_file_action->GetPath();
+        if (output_path)
+            SetStandardOutputPath(output_path);
+    }
+    const FileAction *error_file_action = launch_info.GetFileActionForFD(STDERR_FILENO);
+    if (error_file_action)
+    {
+        const char *error_path = error_file_action->GetPath();
+        if (error_path)
+            SetStandardErrorPath(error_path);
+    }
+    SetDetachOnError(launch_info.GetFlags().Test(lldb::eLaunchFlagDetachOnError));
+    SetDisableASLR(launch_info.GetFlags().Test(lldb::eLaunchFlagDisableASLR));
+    SetDisableSTDIO(launch_info.GetFlags().Test(lldb::eLaunchFlagDisableSTDIO));
+}
+
+void
+TargetProperties::Arg0ValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    this_->m_launch_info.SetArg0(this_->GetArg0());
+}
+
+void
+TargetProperties::RunArgsValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    Args args;
+    if (this_->GetRunArguments(args))
+        this_->m_launch_info.GetArguments() = args;
+}
+
+void
+TargetProperties::EnvVarsValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    Args args;
+    if (this_->GetEnvironmentAsArgs(args))
+        this_->m_launch_info.GetEnvironmentEntries() = args;
+}
+
+void
+TargetProperties::InputPathValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    this_->m_launch_info.AppendOpenFileAction(STDIN_FILENO, this_->GetStandardInputPath().GetPath().c_str(), true, false);
+}
+
+void
+TargetProperties::OutputPathValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    this_->m_launch_info.AppendOpenFileAction(STDOUT_FILENO, this_->GetStandardOutputPath().GetPath().c_str(), false, true);
+}
+
+void
+TargetProperties::ErrorPathValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    this_->m_launch_info.AppendOpenFileAction(STDERR_FILENO, this_->GetStandardErrorPath().GetPath().c_str(), false, true);
+}
+
+void
+TargetProperties::DetachOnErrorValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    if (this_->GetDetachOnError())
+        this_->m_launch_info.GetFlags().Set(lldb::eLaunchFlagDetachOnError);
+    else
+        this_->m_launch_info.GetFlags().Clear(lldb::eLaunchFlagDetachOnError);
+}
+
+void
+TargetProperties::DisableASLRValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    if (this_->GetDisableASLR())
+        this_->m_launch_info.GetFlags().Set(lldb::eLaunchFlagDisableASLR);
+    else
+        this_->m_launch_info.GetFlags().Clear(lldb::eLaunchFlagDisableASLR);
+}
+
+void
+TargetProperties::DisableSTDIOValueChangedCallback(void *target_property_ptr, OptionValue *)
+{
+    TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
+    if (this_->GetDisableSTDIO())
+        this_->m_launch_info.GetFlags().Set(lldb::eLaunchFlagDisableSTDIO);
+    else
+        this_->m_launch_info.GetFlags().Clear(lldb::eLaunchFlagDisableSTDIO);
+}
+
 //----------------------------------------------------------------------
 // Target::TargetEventData
 //----------------------------------------------------------------------
+
+Target::TargetEventData::TargetEventData (const lldb::TargetSP &target_sp) :
+    EventData (),
+    m_target_sp (target_sp),
+    m_module_list ()
+{
+}
+
+Target::TargetEventData::TargetEventData (const lldb::TargetSP &target_sp, const ModuleList &module_list) :
+    EventData (),
+    m_target_sp (target_sp),
+    m_module_list (module_list)
+{
+}
+
+Target::TargetEventData::~TargetEventData()
+{
+}
+
 const ConstString &
 Target::TargetEventData::GetFlavorString ()
 {
@@ -3385,39 +3636,9 @@ Target::TargetEventData::GetFlavorString ()
     return g_flavor;
 }
 
-const ConstString &
-Target::TargetEventData::GetFlavor () const
-{
-    return TargetEventData::GetFlavorString ();
-}
-
-Target::TargetEventData::TargetEventData (const lldb::TargetSP &new_target_sp) :
-    EventData(),
-    m_target_sp (new_target_sp)
-{
-}
-
-Target::TargetEventData::~TargetEventData()
-{
-
-}
-
 void
 Target::TargetEventData::Dump (Stream *s) const
 {
-
-}
-
-const TargetSP
-Target::TargetEventData::GetTargetFromEvent (const lldb::EventSP &event_sp)
-{
-    TargetSP target_sp;
-
-    const TargetEventData *data = GetEventDataFromEvent (event_sp.get());
-    if (data)
-        target_sp = data->m_target_sp;
-
-    return target_sp;
 }
 
 const Target::TargetEventData *
@@ -3432,3 +3653,22 @@ Target::TargetEventData::GetEventDataFromEvent (const Event *event_ptr)
     return NULL;
 }
 
+TargetSP
+Target::TargetEventData::GetTargetFromEvent (const Event *event_ptr)
+{
+    TargetSP target_sp;
+    const TargetEventData *event_data = GetEventDataFromEvent (event_ptr);
+    if (event_data)
+        target_sp = event_data->m_target_sp;
+    return target_sp;
+}
+
+ModuleList
+Target::TargetEventData::GetModuleListFromEvent (const Event *event_ptr)
+{
+    ModuleList module_list;
+    const TargetEventData *event_data = GetEventDataFromEvent (event_ptr);
+    if (event_data)
+        module_list = event_data->m_module_list;
+    return module_list;
+}

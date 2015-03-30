@@ -19,7 +19,7 @@ class ValueLocker;
 
 namespace lldb {
 
-class SBValue
+class LLDB_API SBValue
 {
 friend class ValueLocker;
 
@@ -84,6 +84,7 @@ public:
     ValueType
     GetValueType ();
 
+    // If you call this on a newly created ValueObject, it will always return false.
     bool
     GetValueDidChange ();
 

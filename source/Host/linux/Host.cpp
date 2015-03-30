@@ -26,6 +26,7 @@
 #include "lldb/Target/Process.h"
 
 #include "lldb/Host/Host.h"
+#include "lldb/Host/HostInfo.h"
 #ifdef __ANDROID_NDK__
 #include "lldb/Host/android/Android.h"
 #endif
@@ -322,6 +323,7 @@ GetProcessAndStatInfo (lldb::pid_t pid, ProcessInstanceInfo &process_info, Proce
 
     process_info.SetProcessID(pid);
     process_info.GetExecutableFile().SetFile(exe_path, false);
+    process_info.GetArchitecture().MergeFrom(HostInfo::GetArchitecture());
 
     lldb::DataBufferSP buf_sp;
 
@@ -377,28 +379,6 @@ Host::GetProcessInfo (lldb::pid_t pid, ProcessInstanceInfo &process_info)
     return GetProcessAndStatInfo (pid, process_info, stat_info, tracerpid);
 }
 
-void
-Host::Backtrace (Stream &strm, uint32_t max_frames)
-{
-#ifndef __ANDROID__
-    if (max_frames > 0)
-    {
-        std::vector<void *> frame_buffer (max_frames, NULL);
-        int num_frames = ::backtrace (&frame_buffer[0], frame_buffer.size());
-        char** strs = ::backtrace_symbols (&frame_buffer[0], num_frames);
-        if (strs)
-        {
-            // Start at 1 to skip the "Host::Backtrace" frame
-            for (int i = 1; i < num_frames; ++i)
-                strm.Printf("%s\n", strs[i]);
-            ::free (strs);
-        }
-    }
-#else
-    assert(false && "::backtrace() not supported on Android");
-#endif
-}
-
 size_t
 Host::GetEnvironment (StringList &env)
 {
@@ -417,3 +397,8 @@ Host::GetUnixSignals ()
     return s_unix_signals_sp;
 }
 
+Error
+Host::ShellExpandArguments (ProcessLaunchInfo &launch_info)
+{
+    return Error("unimplemented");
+}
