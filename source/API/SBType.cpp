@@ -30,7 +30,7 @@ SBType::SBType() :
 }
 
 SBType::SBType (const ClangASTType &type) :
-    m_opaque_sp(new TypeImpl(ClangASTType(type.GetASTContext(),
+    m_opaque_sp(new TypeImpl(ClangASTType(type.GetTypeSystem(),
                                           type.GetOpaqueQualType())))
 {
 }
@@ -342,8 +342,13 @@ SBType::GetBasicType()
 SBType
 SBType::GetBasicType(lldb::BasicType basic_type)
 {
-    if (IsValid())
-        return SBType (ClangASTContext::GetBasicType (m_opaque_sp->GetClangASTContext(false), basic_type));
+    if (IsValid() && m_opaque_sp->IsValid())
+    {
+        ClangASTContext* ast = m_opaque_sp->GetTypeSystem(false)->AsClangASTContext();
+        if (ast)
+            return SBType (ClangASTContext::GetBasicType (ast->getASTContext(), basic_type));
+    }
+    
     return SBType();
 }
 
@@ -442,7 +447,7 @@ SBType::GetEnumMembers ()
             for (enum_pos = enum_decl->enumerator_begin(), enum_end_pos = enum_decl->enumerator_end(); enum_pos != enum_end_pos; ++enum_pos)
             {
                 SBTypeEnumMember enum_member;
-                enum_member.reset(new TypeEnumMemberImpl(*enum_pos, ClangASTType(m_opaque_sp->GetClangASTContext(true), enum_decl->getIntegerType())));
+                enum_member.reset(new TypeEnumMemberImpl(*enum_pos, ClangASTType(m_opaque_sp->GetTypeSystem(true), enum_decl->getIntegerType().getAsOpaquePtr())));
                 sb_enum_member_list.Append(enum_member);
             }
         }

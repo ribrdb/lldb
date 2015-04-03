@@ -568,8 +568,8 @@ public:
     ClangASTType
     GetClangASTType (bool prefer_dynamic);
     
-    clang::ASTContext *
-    GetClangASTContext (bool prefer_dynamic);
+    TypeSystem *
+    GetTypeSystem (bool prefer_dynamic);
     
     bool
     GetDescription (lldb_private::Stream &strm, 

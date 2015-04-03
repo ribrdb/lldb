@@ -1254,8 +1254,8 @@ TypeImpl::GetClangASTType (bool prefer_dynamic)
     return ClangASTType();
 }
 
-clang::ASTContext *
-TypeImpl::GetClangASTContext (bool prefer_dynamic)
+TypeSystem *
+TypeImpl::GetTypeSystem (bool prefer_dynamic)
 {
     ModuleSP module_sp;
     if (CheckModule (module_sp))
@@ -1263,9 +1263,9 @@ TypeImpl::GetClangASTContext (bool prefer_dynamic)
         if (prefer_dynamic)
         {
             if (m_dynamic_type.IsValid())
-                return m_dynamic_type.GetASTContext();
+                return m_dynamic_type.GetTypeSystem();
         }
-        return m_static_type.GetClangASTType().GetASTContext();
+        return m_static_type.GetClangASTType().GetTypeSystem();
     }
     return NULL;
 }
@@ -1376,7 +1376,7 @@ TypeMemberFunctionImpl::GetReturnType () const
     if (m_type)
         return m_type.GetFunctionReturnType();
     if (m_objc_method_decl)
-        return ClangASTType(&m_objc_method_decl->getASTContext(),m_objc_method_decl->getReturnType().getAsOpaquePtr());
+        return ClangASTType(&m_objc_method_decl->getASTContext(), m_objc_method_decl->getReturnType());
     return ClangASTType();
 }
 
@@ -1398,7 +1398,7 @@ TypeMemberFunctionImpl::GetArgumentAtIndex (size_t idx) const
     if (m_objc_method_decl)
     {
         if (idx < m_objc_method_decl->param_size())
-            return ClangASTType(&m_objc_method_decl->getASTContext(), m_objc_method_decl->parameters()[idx]->getOriginalType().getAsOpaquePtr());
+            return ClangASTType(&m_objc_method_decl->getASTContext(), m_objc_method_decl->parameters()[idx]->getOriginalType());
     }
     return ClangASTType();
 }

@@ -17,8 +17,6 @@
 
 namespace lldb_private {
 
-class TypeSystem;
-    
 //----------------------------------------------------------------------
 // A class that can carry around a clang ASTContext and a opaque clang 
 // QualType. A clang::QualType can be easily reconstructed from an
@@ -35,18 +33,18 @@ public:
     //----------------------------------------------------------------------
     // Constructors and Destructors
     //----------------------------------------------------------------------
-    ClangASTType (clang::ASTContext *ast_context, lldb::clang_type_t type);
+    ClangASTType (TypeSystem *type_system, void *type);
     ClangASTType (clang::ASTContext *ast_context, clang::QualType qual_type);
 
     ClangASTType (const ClangASTType &rhs) :
         m_type (rhs.m_type),
-        m_ast  (rhs.m_ast)
+        m_type_system  (rhs.m_type_system)
     {
     }
     
     ClangASTType () :
         m_type (0),
-        m_ast  (0)
+        m_type_system  (0)
     {
     }
     
@@ -60,7 +58,7 @@ public:
     operator= (const ClangASTType &rhs)
     {
         m_type = rhs.m_type;
-        m_ast = rhs.m_ast;
+        m_type_system = rhs.m_type_system;
         return *this;
     }
     
@@ -71,21 +69,21 @@ public:
 
     explicit operator bool () const
     {
-        return m_type != NULL && m_ast != NULL;
+        return m_type != NULL && m_type_system != NULL;
     }
     
     bool
     operator < (const ClangASTType &rhs) const
     {
-        if (m_ast == rhs.m_ast)
+        if (m_type_system == rhs.m_type_system)
             return m_type < rhs.m_type;
-        return m_ast < rhs.m_ast;
+        return m_type_system < rhs.m_type_system;
     }
 
     bool
     IsValid () const
     {
-        return m_type != NULL && m_ast != NULL;
+        return m_type != NULL && m_type_system != NULL;
     }
     
     bool
@@ -227,11 +225,8 @@ public:
     TypeSystem *
     GetTypeSystem() const
     {
-        return m_ast;
+        return m_type_system;
     }
-    
-    clang::ASTContext *
-    GetASTContext() const;
     
     ConstString
     GetConstQualifiedTypeName () const;
@@ -261,7 +256,7 @@ public:
     GetTypeClass () const;
     
     void
-    SetClangType (clang::ASTContext *ast, lldb::clang_type_t type);
+    SetClangType (TypeSystem* type_system, void* type);
     void
     SetClangType (clang::ASTContext *ast, clang::QualType qual_type);
 
@@ -535,17 +530,11 @@ public:
     Clear()
     {
         m_type = NULL;
-        m_ast = NULL;
+        m_type_system = NULL;
     }
-
-    clang::QualType
-    GetQualType () const;
-    clang::QualType
-    GetCanonicalQualType () const;
-
 private:
     void* m_type;
-    TypeSystem *m_ast;
+    TypeSystem *m_type_system;
     
 };
     
