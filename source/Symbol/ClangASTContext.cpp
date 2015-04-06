@@ -3077,7 +3077,7 @@ ClangASTContext::IsDefined(void* type)
 }
 
 bool
-ClangASTContext::IsObjCClassType (void* type)
+ClangASTContext::IsObjCClassType (const ClangASTType& type)
 {
     if (type)
     {
@@ -3092,7 +3092,7 @@ ClangASTContext::IsObjCClassType (void* type)
 }
 
 bool
-ClangASTContext::IsObjCObjectOrInterfaceType (void* type)
+ClangASTContext::IsObjCObjectOrInterfaceType (const ClangASTType& type)
 {
     if (type)
         return GetCanonicalQualType(type)->isObjCObjectOrInterfaceType();
@@ -3336,7 +3336,7 @@ ClangASTContext::IsVoidType (void* type)
 }
 
 bool
-ClangASTContext::GetCXXClassName (void* type, std::string &class_name)
+ClangASTContext::GetCXXClassName (const ClangASTType& type, std::string &class_name)
 {
     if (type)
     {
@@ -3355,7 +3355,7 @@ ClangASTContext::GetCXXClassName (void* type, std::string &class_name)
 
 
 bool
-ClangASTContext::IsCXXClassType (void* type)
+ClangASTContext::IsCXXClassType (const ClangASTType& type)
 {
     if (!type)
         return false;
@@ -3379,11 +3379,11 @@ ClangASTContext::IsBeingDefined (void* type)
 }
 
 bool
-ClangASTContext::IsObjCObjectPointerType (void* type, ClangASTType *class_type_ptr)
+ClangASTContext::IsObjCObjectPointerType (const ClangASTType& type, ClangASTType *class_type_ptr)
 {
     if (!type)
         return false;
-    
+
     clang::QualType qual_type (GetCanonicalQualType(type));
     
     if (qual_type->isObjCObjectPointerType())
@@ -3397,7 +3397,7 @@ ClangASTContext::IsObjCObjectPointerType (void* type, ClangASTType *class_type_p
                 if (obj_pointer_type == nullptr)
                     class_type_ptr->Clear();
                 else
-                    class_type_ptr->SetClangType (getASTContext(), clang::QualType(obj_pointer_type->getInterfaceType(), 0));
+                    class_type_ptr->SetClangType (type.GetTypeSystem(), clang::QualType(obj_pointer_type->getInterfaceType(), 0).getAsOpaquePtr());
             }
         }
         return true;
@@ -3408,7 +3408,7 @@ ClangASTContext::IsObjCObjectPointerType (void* type, ClangASTType *class_type_p
 }
 
 bool
-ClangASTContext::GetObjCClassName (void* type, std::string &class_name)
+ClangASTContext::GetObjCClassName (const ClangASTType& type, std::string &class_name)
 {
     if (!type)
         return false;
@@ -3820,37 +3820,37 @@ ClangASTContext::GetTypeQualifiers(void* type)
 //----------------------------------------------------------------------
 
 ClangASTType
-ClangASTContext::AddConstModifier (void* type)
+ClangASTContext::AddConstModifier (const ClangASTType& type)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
     {
         clang::QualType result(GetQualType(type));
         result.addConst();
-        return ClangASTType (getASTContext(), result);
+        return ClangASTType (type.GetTypeSystem(), result.getAsOpaquePtr());
     }
     return ClangASTType();
 }
 
 ClangASTType
-ClangASTContext::AddRestrictModifier (void* type)
+ClangASTContext::AddRestrictModifier (const ClangASTType& type)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
     {
         clang::QualType result(GetQualType(type));
         result.getQualifiers().setRestrict (true);
-        return ClangASTType (getASTContext(), result);
+        return ClangASTType (type.GetTypeSystem(), result.getAsOpaquePtr());
     }
     return ClangASTType();
 }
 
 ClangASTType
-ClangASTContext::AddVolatileModifier (void* type)
+ClangASTContext::AddVolatileModifier (const ClangASTType& type)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
     {
         clang::QualType result(GetQualType(type));
         result.getQualifiers().setVolatile (true);
-        return ClangASTType (getASTContext(), result);
+        return ClangASTType (type.GetTypeSystem(), result.getAsOpaquePtr());
     }
     return ClangASTType();
 }
@@ -4145,21 +4145,25 @@ ClangASTContext::GetMemberFunctionAtIndex (void* type, size_t idx)
 }
 
 ClangASTType
-ClangASTContext::GetLValueReferenceType (void* type)
+ClangASTContext::GetLValueReferenceType (const ClangASTType& type)
 {
     if (type)
     {
-        return ClangASTType(getASTContext(), getASTContext()->getLValueReferenceType(GetQualType(type)));
+        ClangASTContext* ast = type.GetTypeSystem()->AsClangASTContext();
+        if (ast)
+            return ClangASTType(ast->getASTContext(), ast->getASTContext()->getLValueReferenceType(GetQualType(type)));
     }
     return ClangASTType();
 }
 
 ClangASTType
-ClangASTContext::GetRValueReferenceType (void* type)
+ClangASTContext::GetRValueReferenceType (const ClangASTType& type)
 {
     if (type)
     {
-        return ClangASTType(getASTContext(), getASTContext()->getRValueReferenceType(GetQualType(type)));
+        ClangASTContext* ast = type.GetTypeSystem()->AsClangASTContext();
+        if (ast)
+            return ClangASTType(ast->getASTContext(), ast->getASTContext()->getRValueReferenceType(GetQualType(type)));
     }
     return ClangASTType();
 }
@@ -4173,25 +4177,30 @@ ClangASTContext::GetNonReferenceType (void* type)
 }
 
 ClangASTType
-ClangASTContext::CreateTypedefType (void* type, const char *typedef_name,
-                                       clang::DeclContext *decl_ctx)
+ClangASTContext::CreateTypedefType (const ClangASTType& type,
+                                    const char *typedef_name,
+                                    clang::DeclContext *decl_ctx)
 {
     if (type && typedef_name && typedef_name[0])
     {
+        ClangASTContext* ast = type.GetTypeSystem()->AsClangASTContext();
+        if (!ast)
+            return ClangASTType();
+        clang::ASTContext* clang_ast = ast->getASTContext();
         clang::QualType qual_type (GetQualType(type));
         if (decl_ctx == nullptr)
-            decl_ctx = getASTContext()->getTranslationUnitDecl();
-        clang::TypedefDecl *decl = clang::TypedefDecl::Create (*getASTContext(),
+            decl_ctx = ast->getASTContext()->getTranslationUnitDecl();
+        clang::TypedefDecl *decl = clang::TypedefDecl::Create (*clang_ast,
                                                                decl_ctx,
                                                                clang::SourceLocation(),
                                                                clang::SourceLocation(),
-                                                               &getASTContext()->Idents.get(typedef_name),
-                                                               getASTContext()->getTrivialTypeSourceInfo(qual_type));
+                                                               &clang_ast->Idents.get(typedef_name),
+                                                               clang_ast->getTrivialTypeSourceInfo(qual_type));
         
         decl->setAccess(clang::AS_public); // TODO respect proper access specifier
         
         // Get a uniqued clang::QualType for the typedef decl type
-        return ClangASTType (getASTContext(), getASTContext()->getTypedefType (decl));
+        return ClangASTType (clang_ast, clang_ast->getTypedefType (decl));
     }
     return ClangASTType();
     
@@ -4242,15 +4251,15 @@ ClangASTContext::GetTypedefedType (void* type)
 }
 
 ClangASTType
-ClangASTContext::RemoveFastQualifiers (void* type)
+ClangASTContext::RemoveFastQualifiers (const ClangASTType& type)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
     {
         clang::QualType qual_type(GetQualType(type));
         qual_type.getQualifiers().removeFastQualifiers();
-        return ClangASTType (getASTContext(), qual_type);
+        return ClangASTType (type.GetTypeSystem(), qual_type.getAsOpaquePtr());
     }
-    return ClangASTType();
+    return type;
 }
 
 
@@ -4751,7 +4760,7 @@ ClangASTContext::GetNumChildren (void* type, bool omit_empty_base_classes)
             {
                 // We have a pointer to a pointee type that claims it has no children.
                 // We will want to look at
-                num_children = ClangASTType (getASTContext(), pointee_type).GetNumPointeeChildren();
+                num_children = GetNumPointeeChildren (pointee_type);
             }
             else
                 num_children = num_pointee_children;
@@ -4857,9 +4866,12 @@ ClangASTContext::GetBasicTypeEnumeration (void* type)
 #pragma mark Aggregate Types
 
 uint32_t
-ClangASTContext::GetNumDirectBaseClasses (void* type)
+ClangASTContext::GetNumDirectBaseClasses (const ClangASTType& type)
 {
     if (!type)
+        return 0;
+    ClangASTContext *ast = type.GetTypeSystem()->AsClangASTContext();
+    if (!ast)
         return 0;
     
     uint32_t count = 0;
@@ -4868,7 +4880,7 @@ ClangASTContext::GetNumDirectBaseClasses (void* type)
     switch (type_class)
     {
         case clang::Type::Record:
-            if (GetCompleteType(type))
+            if (ast->GetCompleteType(type.GetOpaqueQualType()))
             {
                 const clang::CXXRecordDecl *cxx_record_decl = qual_type->getAsCXXRecordDecl();
                 if (cxx_record_decl)
@@ -4877,11 +4889,11 @@ ClangASTContext::GetNumDirectBaseClasses (void* type)
             break;
             
         case clang::Type::ObjCObjectPointer:
-            count = GetPointeeType(type).GetNumDirectBaseClasses();
+            count = GetNumDirectBaseClasses(ast->GetPointeeType(type.GetOpaqueQualType()));
             break;
             
         case clang::Type::ObjCObject:
-            if (GetCompleteType(type))
+            if (ast->GetCompleteType(type.GetOpaqueQualType()))
             {
                 const clang::ObjCObjectType *objc_class_type = qual_type->getAsObjCQualifiedInterfaceType();
                 if (objc_class_type)
@@ -4894,7 +4906,7 @@ ClangASTContext::GetNumDirectBaseClasses (void* type)
             }
             break;
         case clang::Type::ObjCInterface:
-            if (GetCompleteType(type))
+            if (ast->GetCompleteType(type.GetOpaqueQualType()))
             {
                 const clang::ObjCInterfaceType *objc_interface_type = qual_type->getAs<clang::ObjCInterfaceType>();
                 if (objc_interface_type)
@@ -4909,15 +4921,15 @@ ClangASTContext::GetNumDirectBaseClasses (void* type)
             
             
         case clang::Type::Typedef:
-            count = ClangASTType (getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetNumDirectBaseClasses ();
+            count = GetNumDirectBaseClasses(ClangASTType (ast->getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()));
             break;
             
         case clang::Type::Elaborated:
-            count = ClangASTType (getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetNumDirectBaseClasses ();
+            count = GetNumDirectBaseClasses(ClangASTType (ast->getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()));
             break;
             
         case clang::Type::Paren:
-            return ClangASTType (getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()).GetNumDirectBaseClasses ();
+            return GetNumDirectBaseClasses(ClangASTType (ast->getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()));
             
         default:
             break;
@@ -4926,9 +4938,12 @@ ClangASTContext::GetNumDirectBaseClasses (void* type)
 }
 
 uint32_t
-ClangASTContext::GetNumVirtualBaseClasses (void* type)
+ClangASTContext::GetNumVirtualBaseClasses (const ClangASTType& type)
 {
     if (!type)
+        return 0;
+    ClangASTContext *ast = type.GetTypeSystem()->AsClangASTContext();
+    if (!ast)
         return 0;
     
     uint32_t count = 0;
@@ -4937,7 +4952,7 @@ ClangASTContext::GetNumVirtualBaseClasses (void* type)
     switch (type_class)
     {
         case clang::Type::Record:
-            if (GetCompleteType(type))
+            if (ast->GetCompleteType(type.GetOpaqueQualType()))
             {
                 const clang::CXXRecordDecl *cxx_record_decl = qual_type->getAsCXXRecordDecl();
                 if (cxx_record_decl)
@@ -4946,15 +4961,15 @@ ClangASTContext::GetNumVirtualBaseClasses (void* type)
             break;
             
         case clang::Type::Typedef:
-            count = ClangASTType (getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetNumVirtualBaseClasses();
+            count = GetNumVirtualBaseClasses(ClangASTType (ast->getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()));
             break;
             
         case clang::Type::Elaborated:
-            count = ClangASTType (getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetNumVirtualBaseClasses();
+            count = GetNumVirtualBaseClasses(ClangASTType (ast->getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()));
             break;
             
         case clang::Type::Paren:
-            count = ClangASTType (getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()).GetNumVirtualBaseClasses();
+            count = GetNumVirtualBaseClasses(ClangASTType (ast->getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()));
             break;
             
         default:
@@ -5041,9 +5056,12 @@ ClangASTContext::GetNumFields (void* type)
 }
 
 ClangASTType
-ClangASTContext::GetDirectBaseClassAtIndex (void* type, size_t idx, uint32_t *bit_offset_ptr)
+ClangASTContext::GetDirectBaseClassAtIndex (const ClangASTType& type, size_t idx, uint32_t *bit_offset_ptr)
 {
     if (!type)
+        return ClangASTType();
+    ClangASTContext *ast = type.GetTypeSystem()->AsClangASTContext();
+    if (!ast)
         return ClangASTType();
     
     clang::QualType qual_type(GetCanonicalQualType(type));
@@ -5051,7 +5069,7 @@ ClangASTContext::GetDirectBaseClassAtIndex (void* type, size_t idx, uint32_t *bi
     switch (type_class)
     {
         case clang::Type::Record:
-            if (GetCompleteType(type))
+            if (ast->GetCompleteType(type.GetOpaqueQualType()))
             {
                 const clang::CXXRecordDecl *cxx_record_decl = qual_type->getAsCXXRecordDecl();
                 if (cxx_record_decl)
@@ -5066,14 +5084,14 @@ ClangASTContext::GetDirectBaseClassAtIndex (void* type, size_t idx, uint32_t *bi
                         {
                             if (bit_offset_ptr)
                             {
-                                const clang::ASTRecordLayout &record_layout = getASTContext()->getASTRecordLayout(cxx_record_decl);
+                                const clang::ASTRecordLayout &record_layout = ast->getASTContext()->getASTRecordLayout(cxx_record_decl);
                                 const clang::CXXRecordDecl *base_class_decl = llvm::cast<clang::CXXRecordDecl>(base_class->getType()->getAs<clang::RecordType>()->getDecl());
                                 if (base_class->isVirtual())
                                     *bit_offset_ptr = record_layout.getVBaseClassOffset(base_class_decl).getQuantity() * 8;
                                 else
                                     *bit_offset_ptr = record_layout.getBaseClassOffset(base_class_decl).getQuantity() * 8;
                             }
-                            return ClangASTType (getASTContext(), base_class->getType());
+                            return ClangASTType (ast, base_class->getType().getAsOpaquePtr());
                         }
                     }
                 }
@@ -5081,10 +5099,10 @@ ClangASTContext::GetDirectBaseClassAtIndex (void* type, size_t idx, uint32_t *bi
             break;
             
         case clang::Type::ObjCObjectPointer:
-            return GetPointeeType(type).GetDirectBaseClassAtIndex(idx,bit_offset_ptr);
+            return GetDirectBaseClassAtIndex(ast->GetPointeeType(type.GetOpaqueQualType()), idx, bit_offset_ptr);
             
         case clang::Type::ObjCObject:
-            if (idx == 0 && GetCompleteType(type))
+            if (idx == 0 && ast->GetCompleteType(type.GetOpaqueQualType()))
             {
                 const clang::ObjCObjectType *objc_class_type = qual_type->getAsObjCQualifiedInterfaceType();
                 if (objc_class_type)
@@ -5098,14 +5116,14 @@ ClangASTContext::GetDirectBaseClassAtIndex (void* type, size_t idx, uint32_t *bi
                         {
                             if (bit_offset_ptr)
                                 *bit_offset_ptr = 0;
-                            return ClangASTType (getASTContext(), getASTContext()->getObjCInterfaceType(superclass_interface_decl));
+                            return ClangASTType (ast->getASTContext(), ast->getASTContext()->getObjCInterfaceType(superclass_interface_decl));
                         }
                     }
                 }
             }
             break;
         case clang::Type::ObjCInterface:
-            if (idx == 0 && GetCompleteType(type))
+            if (idx == 0 && ast->GetCompleteType(type.GetOpaqueQualType()))
             {
                 const clang::ObjCObjectType *objc_interface_type = qual_type->getAs<clang::ObjCInterfaceType>();
                 if (objc_interface_type)
@@ -5119,7 +5137,7 @@ ClangASTContext::GetDirectBaseClassAtIndex (void* type, size_t idx, uint32_t *bi
                         {
                             if (bit_offset_ptr)
                                 *bit_offset_ptr = 0;
-                            return ClangASTType (getASTContext(), getASTContext()->getObjCInterfaceType(superclass_interface_decl));
+                            return ClangASTType (ast->getASTContext(), ast->getASTContext()->getObjCInterfaceType(superclass_interface_decl));
                         }
                     }
                 }
@@ -5128,13 +5146,13 @@ ClangASTContext::GetDirectBaseClassAtIndex (void* type, size_t idx, uint32_t *bi
             
             
         case clang::Type::Typedef:
-            return ClangASTType (getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetDirectBaseClassAtIndex (idx, bit_offset_ptr);
+            return GetDirectBaseClassAtIndex (ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType().getAsOpaquePtr()), idx, bit_offset_ptr);
             
         case clang::Type::Elaborated:
-            return ClangASTType (getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetDirectBaseClassAtIndex (idx, bit_offset_ptr);
+            return GetDirectBaseClassAtIndex (ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType().getAsOpaquePtr()), idx, bit_offset_ptr);
             
         case clang::Type::Paren:
-            return ClangASTType (getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()).GetDirectBaseClassAtIndex (idx, bit_offset_ptr);
+            return GetDirectBaseClassAtIndex (ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr()), idx, bit_offset_ptr);
             
         default:
             break;
@@ -5143,9 +5161,12 @@ ClangASTContext::GetDirectBaseClassAtIndex (void* type, size_t idx, uint32_t *bi
 }
 
 ClangASTType
-ClangASTContext::GetVirtualBaseClassAtIndex (void* type, size_t idx, uint32_t *bit_offset_ptr)
+ClangASTContext::GetVirtualBaseClassAtIndex (const ClangASTType& type, size_t idx, uint32_t *bit_offset_ptr)
 {
     if (!type)
+        return ClangASTType();
+    ClangASTContext *ast = type.GetTypeSystem()->AsClangASTContext();
+    if (!ast)
         return ClangASTType();
     
     clang::QualType qual_type(GetCanonicalQualType(type));
@@ -5153,7 +5174,7 @@ ClangASTContext::GetVirtualBaseClassAtIndex (void* type, size_t idx, uint32_t *b
     switch (type_class)
     {
         case clang::Type::Record:
-            if (GetCompleteType(type))
+            if (ast->GetCompleteType(type.GetOpaqueQualType()))
             {
                 const clang::CXXRecordDecl *cxx_record_decl = qual_type->getAsCXXRecordDecl();
                 if (cxx_record_decl)
@@ -5168,12 +5189,12 @@ ClangASTContext::GetVirtualBaseClassAtIndex (void* type, size_t idx, uint32_t *b
                         {
                             if (bit_offset_ptr)
                             {
-                                const clang::ASTRecordLayout &record_layout = getASTContext()->getASTRecordLayout(cxx_record_decl);
+                                const clang::ASTRecordLayout &record_layout = ast->getASTContext()->getASTRecordLayout(cxx_record_decl);
                                 const clang::CXXRecordDecl *base_class_decl = llvm::cast<clang::CXXRecordDecl>(base_class->getType()->getAs<clang::RecordType>()->getDecl());
                                 *bit_offset_ptr = record_layout.getVBaseClassOffset(base_class_decl).getQuantity() * 8;
                                 
                             }
-                            return ClangASTType (getASTContext(), base_class->getType());
+                            return ClangASTType (ast, base_class->getType().getAsOpaquePtr());
                         }
                     }
                 }
@@ -5181,13 +5202,13 @@ ClangASTContext::GetVirtualBaseClassAtIndex (void* type, size_t idx, uint32_t *b
             break;
             
         case clang::Type::Typedef:
-            return ClangASTType (getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetVirtualBaseClassAtIndex (idx, bit_offset_ptr);
+            return GetVirtualBaseClassAtIndex (ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType().getAsOpaquePtr()), idx, bit_offset_ptr);
             
         case clang::Type::Elaborated:
-            return ClangASTType (getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetVirtualBaseClassAtIndex (idx, bit_offset_ptr);
+            return GetVirtualBaseClassAtIndex (ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType().getAsOpaquePtr()), idx, bit_offset_ptr);
             
         case clang::Type::Paren:
-            return  ClangASTType (getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()).GetVirtualBaseClassAtIndex (idx, bit_offset_ptr);
+            return  GetVirtualBaseClassAtIndex (ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr()), idx, bit_offset_ptr);
             
         default:
             break;
@@ -5379,12 +5400,12 @@ ClangASTContext::GetFieldAtIndex (void* type, size_t idx,
 // but a function pointer doesn't have any children. Likewise if a Record type
 // claims it has no children, then there really is nothing to show.
 uint32_t
-ClangASTContext::GetNumPointeeChildren (void* type)
+ClangASTContext::GetNumPointeeChildren (clang::QualType type)
 {
-    if (!type)
+    if (type.isNull())
         return 0;
     
-    clang::QualType qual_type(GetCanonicalQualType(type));
+    clang::QualType qual_type(type.getCanonicalType());
     const clang::Type::TypeClass type_class = qual_type->getTypeClass();
     switch (type_class)
     {
@@ -5455,9 +5476,9 @@ ClangASTContext::GetNumPointeeChildren (void* type)
         case clang::Type::FunctionProto:            return 0;   // When we function pointers, they have no children...
         case clang::Type::FunctionNoProto:          return 0;   // When we function pointers, they have no children...
         case clang::Type::UnresolvedUsing:          return 0;
-        case clang::Type::Paren:                    return ClangASTType (getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()).GetNumPointeeChildren ();
-        case clang::Type::Typedef:                  return ClangASTType (getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetNumPointeeChildren ();
-        case clang::Type::Elaborated:               return ClangASTType (getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetNumPointeeChildren ();
+        case clang::Type::Paren:                    return GetNumPointeeChildren (llvm::cast<clang::ParenType>(qual_type)->desugar());
+        case clang::Type::Typedef:                  return GetNumPointeeChildren (llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType());
+        case clang::Type::Elaborated:               return GetNumPointeeChildren (llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType());
         case clang::Type::TypeOfExpr:               return 0;
         case clang::Type::TypeOf:                   return 0;
         case clang::Type::Decltype:                 return 0;
@@ -6595,9 +6616,12 @@ ClangASTContext::GetIndexOfChildWithName (void* type, const char *name, bool omi
 
 
 size_t
-ClangASTContext::GetNumTemplateArguments (void* type)
+ClangASTContext::GetNumTemplateArguments (const ClangASTType& type)
 {
-    if (type)
+    if (!type)
+        return 0;
+    ClangASTContext* ast = type.GetTypeSystem()->AsClangASTContext();
+    if (ast)
     {
         clang::QualType qual_type (GetCanonicalQualType(type));
         
@@ -6605,7 +6629,7 @@ ClangASTContext::GetNumTemplateArguments (void* type)
         switch (type_class)
         {
             case clang::Type::Record:
-                if (GetCompleteType(type))
+                if (ast->GetCompleteType(type.GetOpaqueQualType()))
                 {
                     const clang::CXXRecordDecl *cxx_record_decl = qual_type->getAsCXXRecordDecl();
                     if (cxx_record_decl)
@@ -6618,13 +6642,13 @@ ClangASTContext::GetNumTemplateArguments (void* type)
                 break;
                 
             case clang::Type::Typedef:
-                return ClangASTType (getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetNumTemplateArguments();
+                return GetNumTemplateArguments(ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType().getAsOpaquePtr()));
                 
             case clang::Type::Elaborated:
-                return ClangASTType (getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetNumTemplateArguments();
+                return GetNumTemplateArguments(ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType().getAsOpaquePtr()));
                 
             case clang::Type::Paren:
-                return ClangASTType (getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()).GetNumTemplateArguments();
+                return GetNumTemplateArguments(ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr()));
                 
             default:
                 break;
@@ -6634,9 +6658,12 @@ ClangASTContext::GetNumTemplateArguments (void* type)
 }
 
 ClangASTType
-ClangASTContext::GetTemplateArgument (void* type, size_t arg_idx, lldb::TemplateArgumentKind &kind)
+ClangASTContext::GetTemplateArgument (const ClangASTType& type, size_t arg_idx, lldb::TemplateArgumentKind &kind)
 {
-    if (type)
+    if (!type)
+        return ClangASTType();
+    ClangASTContext* ast = type.GetTypeSystem()->AsClangASTContext();
+    if (ast)
     {
         clang::QualType qual_type (GetCanonicalQualType(type));
         
@@ -6644,7 +6671,7 @@ ClangASTContext::GetTemplateArgument (void* type, size_t arg_idx, lldb::Template
         switch (type_class)
         {
             case clang::Type::Record:
-                if (GetCompleteType(type))
+                if (ast->GetCompleteType(type.GetOpaqueQualType()))
                 {
                     const clang::CXXRecordDecl *cxx_record_decl = qual_type->getAsCXXRecordDecl();
                     if (cxx_record_decl)
@@ -6661,7 +6688,7 @@ ClangASTContext::GetTemplateArgument (void* type, size_t arg_idx, lldb::Template
                                     
                                 case clang::TemplateArgument::Type:
                                     kind = eTemplateArgumentKindType;
-                                    return ClangASTType(getASTContext(), template_arg.getAsType());
+                                    return ClangASTType(ast, template_arg.getAsType().getAsOpaquePtr());
                                     
                                 case clang::TemplateArgument::Declaration:
                                     kind = eTemplateArgumentKindDeclaration;
@@ -6669,7 +6696,7 @@ ClangASTContext::GetTemplateArgument (void* type, size_t arg_idx, lldb::Template
                                     
                                 case clang::TemplateArgument::Integral:
                                     kind = eTemplateArgumentKindIntegral;
-                                    return ClangASTType(getASTContext(), template_arg.getIntegralType());
+                                    return ClangASTType(ast, template_arg.getIntegralType().getAsOpaquePtr());
                                     
                                 case clang::TemplateArgument::Template:
                                     kind = eTemplateArgumentKindTemplate;
@@ -6697,13 +6724,13 @@ ClangASTContext::GetTemplateArgument (void* type, size_t arg_idx, lldb::Template
                 break;
                 
             case clang::Type::Typedef:
-                return ClangASTType (getASTContext(), llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType()).GetTemplateArgument (arg_idx, kind);
+                return GetTemplateArgument(ClangASTType (ast, llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType().getAsOpaquePtr()), arg_idx, kind);
                 
             case clang::Type::Elaborated:
-                return ClangASTType (getASTContext(), llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType()).GetTemplateArgument (arg_idx, kind);
+                return GetTemplateArgument(ClangASTType (ast, llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType().getAsOpaquePtr()), arg_idx, kind);
                 
             case clang::Type::Paren:
-                return ClangASTType (getASTContext(), llvm::cast<clang::ParenType>(qual_type)->desugar()).GetTemplateArgument (arg_idx, kind);
+                return GetTemplateArgument(ClangASTType (ast, llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr()), arg_idx, kind);
                 
             default:
                 break;
@@ -6930,7 +6957,7 @@ IsOperator (const char *name, clang::OverloadedOperatorKind &op_kind)
 }
 
 clang::EnumDecl *
-ClangASTContext::GetAsEnumDecl (void* type)
+ClangASTContext::GetAsEnumDecl (const ClangASTType& type)
 {
     const clang::EnumType *enutype = llvm::dyn_cast<clang::EnumType>(GetCanonicalQualType(type));
     if (enutype)
@@ -6954,7 +6981,7 @@ ClangASTContext::GetAsCXXRecordDecl (void* type)
 }
 
 clang::ObjCInterfaceDecl *
-ClangASTContext::GetAsObjCInterfaceDecl (void* type)
+ClangASTContext::GetAsObjCInterfaceDecl (const ClangASTType& type)
 {
     const clang::ObjCObjectType *objc_class_type = llvm::dyn_cast<clang::ObjCObjectType>(GetCanonicalQualType(type));
     if (objc_class_type)
@@ -7025,7 +7052,7 @@ ClangASTContext::AddFieldToRecordType (const ClangASTType& type, const char *nam
     }
     else
     {
-        clang::ObjCInterfaceDecl *class_interface_decl = ast->GetAsObjCInterfaceDecl (type.GetOpaqueQualType());
+        clang::ObjCInterfaceDecl *class_interface_decl = ast->GetAsObjCInterfaceDecl (type);
         
         if (class_interface_decl)
         {
@@ -7443,7 +7470,7 @@ ClangASTContext::CreateBaseClassSpecifier (void* type, AccessType access, bool i
 }
 
 void
-ClangASTContext::DeleteBaseClassSpecifiers (void* type, clang::CXXBaseSpecifier **base_classes, unsigned num_base_classes)
+ClangASTContext::DeleteBaseClassSpecifiers (clang::CXXBaseSpecifier **base_classes, unsigned num_base_classes)
 {
     for (unsigned i=0; i<num_base_classes; ++i)
     {
@@ -7469,12 +7496,12 @@ ClangASTContext::SetBaseClassesForClassType (void* type, clang::CXXBaseSpecifier
 }
 
 bool
-ClangASTContext::SetObjCSuperClass (void* type, const ClangASTType &superclass_clang_type)
+ClangASTContext::SetObjCSuperClass (const ClangASTType& type, const ClangASTType &superclass_clang_type)
 {
-    if (type && superclass_clang_type.IsValid() && superclass_clang_type.GetTypeSystem() == this)
+    if (type && superclass_clang_type.IsValid() && superclass_clang_type.GetTypeSystem() == type.GetTypeSystem())
     {
         clang::ObjCInterfaceDecl *class_interface_decl = GetAsObjCInterfaceDecl (type);
-        clang::ObjCInterfaceDecl *super_interface_decl = GetAsObjCInterfaceDecl (superclass_clang_type.GetOpaqueQualType());
+        clang::ObjCInterfaceDecl *super_interface_decl = GetAsObjCInterfaceDecl (superclass_clang_type);
         if (class_interface_decl && super_interface_decl)
         {
             class_interface_decl->setSuperClass(super_interface_decl);
@@ -7485,16 +7512,21 @@ ClangASTContext::SetObjCSuperClass (void* type, const ClangASTType &superclass_c
 }
 
 bool
-ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
-                                          const ClangASTType &property_clang_type,
-                                          clang::ObjCIvarDecl *ivar_decl,
-                                          const char *property_setter_name,
-                                          const char *property_getter_name,
-                                          uint32_t property_attributes,
-                                          ClangASTMetadata *metadata)
+ClangASTContext::AddObjCClassProperty (const ClangASTType& type,
+                                       const char *property_name,
+                                       const ClangASTType &property_clang_type,
+                                       clang::ObjCIvarDecl *ivar_decl,
+                                       const char *property_setter_name,
+                                       const char *property_getter_name,
+                                       uint32_t property_attributes,
+                                       ClangASTMetadata *metadata)
 {
     if (!type || !property_clang_type.IsValid() || property_name == nullptr || property_name[0] == '\0')
         return false;
+    ClangASTContext* ast = type.GetTypeSystem()->AsClangASTContext();
+    if (!ast)
+        return false;
+    clang::ASTContext* clang_ast = ast->getASTContext();
     
     clang::ObjCInterfaceDecl *class_interface_decl = GetAsObjCInterfaceDecl (type);
     
@@ -7505,20 +7537,20 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
         if (property_clang_type.IsValid())
             property_clang_type_to_access = property_clang_type;
         else if (ivar_decl)
-            property_clang_type_to_access = ClangASTType (getASTContext(), ivar_decl->getType());
+            property_clang_type_to_access = ClangASTType (clang_ast, ivar_decl->getType());
         
         if (class_interface_decl && property_clang_type_to_access.IsValid())
         {
             clang::TypeSourceInfo *prop_type_source;
             if (ivar_decl)
-                prop_type_source = getASTContext()->getTrivialTypeSourceInfo (ivar_decl->getType());
+                prop_type_source = clang_ast->getTrivialTypeSourceInfo (ivar_decl->getType());
             else
-                prop_type_source = getASTContext()->getTrivialTypeSourceInfo (GetQualType(property_clang_type));
+                prop_type_source = clang_ast->getTrivialTypeSourceInfo (GetQualType(property_clang_type));
             
-            clang::ObjCPropertyDecl *property_decl = clang::ObjCPropertyDecl::Create (*getASTContext(),
+            clang::ObjCPropertyDecl *property_decl = clang::ObjCPropertyDecl::Create (*clang_ast,
                                                                                       class_interface_decl,
                                                                                       clang::SourceLocation(), // Source Location
-                                                                                      &getASTContext()->Idents.get(property_name),
+                                                                                      &clang_ast->Idents.get(property_name),
                                                                                       clang::SourceLocation(), //Source Location for AT
                                                                                       clang::SourceLocation(), //Source location for (
                                                                                       prop_type_source);
@@ -7526,7 +7558,7 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
             if (property_decl)
             {
                 if (metadata)
-                    ClangASTContext::SetMetadata(getASTContext(), property_decl, *metadata);
+                    ClangASTContext::SetMetadata(clang_ast, property_decl, *metadata);
                 
                 class_interface_decl->addDecl (property_decl);
                 
@@ -7535,29 +7567,29 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
                 if (property_setter_name != nullptr)
                 {
                     std::string property_setter_no_colon(property_setter_name, strlen(property_setter_name) - 1);
-                    clang::IdentifierInfo *setter_ident = &getASTContext()->Idents.get(property_setter_no_colon.c_str());
-                    setter_sel = getASTContext()->Selectors.getSelector(1, &setter_ident);
+                    clang::IdentifierInfo *setter_ident = &clang_ast->Idents.get(property_setter_no_colon.c_str());
+                    setter_sel = clang_ast->Selectors.getSelector(1, &setter_ident);
                 }
                 else if (!(property_attributes & DW_APPLE_PROPERTY_readonly))
                 {
                     std::string setter_sel_string("set");
                     setter_sel_string.push_back(::toupper(property_name[0]));
                     setter_sel_string.append(&property_name[1]);
-                    clang::IdentifierInfo *setter_ident = &getASTContext()->Idents.get(setter_sel_string.c_str());
-                    setter_sel = getASTContext()->Selectors.getSelector(1, &setter_ident);
+                    clang::IdentifierInfo *setter_ident = &clang_ast->Idents.get(setter_sel_string.c_str());
+                    setter_sel = clang_ast->Selectors.getSelector(1, &setter_ident);
                 }
                 property_decl->setSetterName(setter_sel);
                 property_decl->setPropertyAttributes (clang::ObjCPropertyDecl::OBJC_PR_setter);
                 
                 if (property_getter_name != nullptr)
                 {
-                    clang::IdentifierInfo *getter_ident = &getASTContext()->Idents.get(property_getter_name);
-                    getter_sel = getASTContext()->Selectors.getSelector(0, &getter_ident);
+                    clang::IdentifierInfo *getter_ident = &clang_ast->Idents.get(property_getter_name);
+                    getter_sel = clang_ast->Selectors.getSelector(0, &getter_ident);
                 }
                 else
                 {
-                    clang::IdentifierInfo *getter_ident = &getASTContext()->Idents.get(property_name);
-                    getter_sel = getASTContext()->Selectors.getSelector(0, &getter_ident);
+                    clang::IdentifierInfo *getter_ident = &clang_ast->Idents.get(property_name);
+                    getter_sel = clang_ast->Selectors.getSelector(0, &getter_ident);
                 }
                 property_decl->setGetterName(getter_sel);
                 property_decl->setPropertyAttributes (clang::ObjCPropertyDecl::OBJC_PR_getter);
@@ -7588,7 +7620,7 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
                     const clang::ObjCMethodDecl::ImplementationControl impControl = clang::ObjCMethodDecl::None;
                     const bool HasRelatedResultType = false;
                     
-                    clang::ObjCMethodDecl *getter = clang::ObjCMethodDecl::Create (*getASTContext(),
+                    clang::ObjCMethodDecl *getter = clang::ObjCMethodDecl::Create (*clang_ast,
                                                                                    clang::SourceLocation(),
                                                                                    clang::SourceLocation(),
                                                                                    getter_sel,
@@ -7604,11 +7636,11 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
                                                                                    HasRelatedResultType);
                     
                     if (getter && metadata)
-                        ClangASTContext::SetMetadata(getASTContext(), getter, *metadata);
+                        ClangASTContext::SetMetadata(clang_ast, getter, *metadata);
                     
                     if (getter)
                     {
-                        getter->setMethodParams(*getASTContext(), llvm::ArrayRef<clang::ParmVarDecl*>(), llvm::ArrayRef<clang::SourceLocation>());
+                        getter->setMethodParams(*clang_ast, llvm::ArrayRef<clang::ParmVarDecl*>(), llvm::ArrayRef<clang::SourceLocation>());
                         
                         class_interface_decl->addDecl(getter);
                     }
@@ -7616,7 +7648,7 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
                 
                 if (!setter_sel.isNull() && !class_interface_decl->lookupInstanceMethod(setter_sel))
                 {
-                    clang::QualType result_type = getASTContext()->VoidTy;
+                    clang::QualType result_type = clang_ast->VoidTy;
                     
                     const bool isInstance = true;
                     const bool isVariadic = false;
@@ -7626,7 +7658,7 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
                     const clang::ObjCMethodDecl::ImplementationControl impControl = clang::ObjCMethodDecl::None;
                     const bool HasRelatedResultType = false;
                     
-                    clang::ObjCMethodDecl *setter = clang::ObjCMethodDecl::Create (*getASTContext(),
+                    clang::ObjCMethodDecl *setter = clang::ObjCMethodDecl::Create (*clang_ast,
                                                                                    clang::SourceLocation(),
                                                                                    clang::SourceLocation(),
                                                                                    setter_sel,
@@ -7642,11 +7674,11 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
                                                                                    HasRelatedResultType);
                     
                     if (setter && metadata)
-                        ClangASTContext::SetMetadata(getASTContext(), setter, *metadata);
+                        ClangASTContext::SetMetadata(clang_ast, setter, *metadata);
                     
                     llvm::SmallVector<clang::ParmVarDecl *, 1> params;
                     
-                    params.push_back (clang::ParmVarDecl::Create (*getASTContext(),
+                    params.push_back (clang::ParmVarDecl::Create (*clang_ast,
                                                                   setter,
                                                                   clang::SourceLocation(),
                                                                   clang::SourceLocation(),
@@ -7658,7 +7690,7 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
                     
                     if (setter)
                     {
-                        setter->setMethodParams(*getASTContext(), llvm::ArrayRef<clang::ParmVarDecl*>(params), llvm::ArrayRef<clang::SourceLocation>());
+                        setter->setMethodParams(*clang_ast, llvm::ArrayRef<clang::ParmVarDecl*>(params), llvm::ArrayRef<clang::SourceLocation>());
                         
                         class_interface_decl->addDecl(setter);
                     }
@@ -7672,7 +7704,7 @@ ClangASTContext::AddObjCClassProperty (void* type, const char *property_name,
 }
 
 bool
-ClangASTContext::IsObjCClassTypeAndHasIVars (void* type, bool check_superclass)
+ClangASTContext::IsObjCClassTypeAndHasIVars (const ClangASTType& type, bool check_superclass)
 {
     clang::ObjCInterfaceDecl *class_interface_decl = GetAsObjCInterfaceDecl (type);
     if (class_interface_decl)
@@ -7682,11 +7714,11 @@ ClangASTContext::IsObjCClassTypeAndHasIVars (void* type, bool check_superclass)
 
 
 clang::ObjCMethodDecl *
-ClangASTContext::AddMethodToObjCObjectType (void* type,
-                                               const char *name,  // the full symbol name as seen in the symbol table (void* type, "-[NString stringWithCString:]")
-                                               const ClangASTType &method_clang_type,
-                                               lldb::AccessType access,
-                                               bool is_artificial)
+ClangASTContext::AddMethodToObjCObjectType (const ClangASTType& type,
+                                            const char *name,  // the full symbol name as seen in the symbol table (void* type, "-[NString stringWithCString:]")
+                                            const ClangASTType &method_clang_type,
+                                            lldb::AccessType access,
+                                            bool is_artificial)
 {
     if (!type || !method_clang_type.IsValid())
         return nullptr;
@@ -7695,6 +7727,7 @@ ClangASTContext::AddMethodToObjCObjectType (void* type,
     
     if (class_interface_decl == nullptr)
         return nullptr;
+    clang::ASTContext* ast = type.GetTypeSystem()->AsClangASTContext()->getASTContext();
     
     const char *selector_start = ::strchr (name, ' ');
     if (selector_start == nullptr)
@@ -7716,7 +7749,7 @@ ClangASTContext::AddMethodToObjCObjectType (void* type,
         bool has_arg = (start[len] == ':');
         if (has_arg)
             ++num_selectors_with_args;
-        selector_idents.push_back (&getASTContext()->Idents.get (llvm::StringRef (start, len)));
+        selector_idents.push_back (&ast->Idents.get (llvm::StringRef (start, len)));
         if (has_arg)
             len += 1;
     }
@@ -7725,7 +7758,7 @@ ClangASTContext::AddMethodToObjCObjectType (void* type,
     if (selector_idents.size() == 0)
         return nullptr;
     
-    clang::Selector method_selector = getASTContext()->Selectors.getSelector (num_selectors_with_args ? selector_idents.size() : 0,
+    clang::Selector method_selector = ast->Selectors.getSelector (num_selectors_with_args ? selector_idents.size() : 0,
                                                                     selector_idents.data());
     
     clang::QualType method_qual_type (GetQualType(method_clang_type));
@@ -7752,13 +7785,13 @@ ClangASTContext::AddMethodToObjCObjectType (void* type,
     if (num_args != num_selectors_with_args)
         return nullptr; // some debug information is corrupt.  We are not going to deal with it.
     
-    clang::ObjCMethodDecl *objc_method_decl = clang::ObjCMethodDecl::Create (*getASTContext(),
+    clang::ObjCMethodDecl *objc_method_decl = clang::ObjCMethodDecl::Create (*ast,
                                                                              clang::SourceLocation(), // beginLoc,
                                                                              clang::SourceLocation(), // endLoc,
                                                                              method_selector,
                                                                              method_function_prototype->getReturnType(),
                                                                              nullptr, // TypeSourceInfo *ResultTInfo,
-                                                                             ClangASTContext::GetASTContext(getASTContext())->GetDeclContextForType(GetQualType(type)),
+                                                                             ClangASTContext::GetASTContext(ast)->GetDeclContextForType(GetQualType(type)),
                                                                              name[0] == '-',
                                                                              is_variadic,
                                                                              is_synthesized,
@@ -7777,7 +7810,7 @@ ClangASTContext::AddMethodToObjCObjectType (void* type,
         
         for (unsigned param_index = 0; param_index < num_args; ++param_index)
         {
-            params.push_back (clang::ParmVarDecl::Create (*getASTContext(),
+            params.push_back (clang::ParmVarDecl::Create (*ast,
                                                           objc_method_decl,
                                                           clang::SourceLocation(),
                                                           clang::SourceLocation(),
@@ -7788,7 +7821,7 @@ ClangASTContext::AddMethodToObjCObjectType (void* type,
                                                           nullptr));
         }
         
-        objc_method_decl->setMethodParams(*getASTContext(), llvm::ArrayRef<clang::ParmVarDecl*>(params), llvm::ArrayRef<clang::SourceLocation>());
+        objc_method_decl->setMethodParams(*ast, llvm::ArrayRef<clang::ParmVarDecl*>(params), llvm::ArrayRef<clang::SourceLocation>());
     }
     
     class_interface_decl->addDecl (objc_method_decl);
@@ -8034,12 +8067,16 @@ ClangASTContext::GetEnumerationIntegerType (void* type)
 }
 
 ClangASTType
-ClangASTContext::CreateMemberPointerType (void* type, const ClangASTType &pointee_type)
+ClangASTContext::CreateMemberPointerType (const ClangASTType& type, const ClangASTType &pointee_type)
 {
-    if (type && pointee_type.IsValid())
+    if (type && pointee_type.IsValid() && type.GetTypeSystem() == pointee_type.GetTypeSystem())
     {
-        return ClangASTType (getASTContext(), getASTContext()->getMemberPointerType (GetQualType(pointee_type),
-                                                                 GetQualType(type).getTypePtr()));
+        ClangASTContext* ast = type.GetTypeSystem()->AsClangASTContext();
+        if (!ast)
+            return ClangASTType();
+        return ClangASTType (ast->getASTContext(),
+                             ast->getASTContext()->getMemberPointerType (GetQualType(pointee_type),
+                                                                         GetQualType(type).getTypePtr()));
     }
     return ClangASTType();
 }

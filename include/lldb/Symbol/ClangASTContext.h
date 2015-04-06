@@ -532,8 +532,8 @@ public:
     bool
     IsCStringType (void* type, uint32_t &length);
     
-    bool
-    IsCXXClassType (void* type);
+    static bool
+    IsCXXClassType (const ClangASTType& type);
     
     bool
     IsDefined(void* type);
@@ -559,17 +559,17 @@ public:
     bool
     IsIntegerType (void* type, bool &is_signed);
     
-    bool
-    IsObjCClassType (void* type);
+    static bool
+    IsObjCClassType (const ClangASTType& type);
     
-    bool
-    IsObjCClassTypeAndHasIVars (void* type, bool check_superclass);
+    static bool
+    IsObjCClassTypeAndHasIVars (const ClangASTType& type, bool check_superclass);
     
-    bool
-    IsObjCObjectOrInterfaceType (void* type);
+    static bool
+    IsObjCObjectOrInterfaceType (const ClangASTType& type);
     
-    bool
-    IsObjCObjectPointerType (void* type, ClangASTType *target_type = NULL);
+    static bool
+    IsObjCObjectPointerType (const ClangASTType& type, ClangASTType *target_type = NULL);
     
     bool
     IsPolymorphicClass (void* type);
@@ -601,11 +601,11 @@ public:
     bool
     IsVoidType (void* type);
     
-    bool
-    GetCXXClassName (void* type, std::string &class_name);
+    static bool
+    GetCXXClassName (const ClangASTType& type, std::string &class_name);
     
-    bool
-    GetObjCClassName (void* type, std::string &class_name);
+    static bool
+    GetObjCClassName (const ClangASTType& type, std::string &class_name);
     
     
     //----------------------------------------------------------------------
@@ -638,19 +638,20 @@ public:
     // Creating related types
     //----------------------------------------------------------------------
     
-    ClangASTType
-    AddConstModifier (void* type);
+    static ClangASTType
+    AddConstModifier (const ClangASTType& type);
     
-    ClangASTType
-    AddRestrictModifier (void* type);
+    static ClangASTType
+    AddRestrictModifier (const ClangASTType& type);
     
-    ClangASTType
-    AddVolatileModifier (void* type);
+    static ClangASTType
+    AddVolatileModifier (const ClangASTType& type);
     
     // Using the current type, create a new typedef to that type using "typedef_name"
     // as the name and "decl_ctx" as the decl context.
-    ClangASTType
-    CreateTypedefType (void* type, const char *typedef_name,
+    static ClangASTType
+    CreateTypedefType (const ClangASTType& type,
+                       const char *typedef_name,
                        clang::DeclContext *decl_ctx);
     
     ClangASTType
@@ -679,8 +680,8 @@ public:
     TypeMemberFunctionImpl
     GetMemberFunctionAtIndex (void* type, size_t idx);
     
-    ClangASTType
-    GetLValueReferenceType (void* type);
+    static ClangASTType
+    GetLValueReferenceType (const ClangASTType& type);
     
     ClangASTType
     GetNonReferenceType (void* type);
@@ -691,15 +692,15 @@ public:
     ClangASTType
     GetPointerType (void* type);
     
-    ClangASTType
-    GetRValueReferenceType (void* type);
+    static ClangASTType
+    GetRValueReferenceType (const ClangASTType& type);
     
     // If the current object represents a typedef type, get the underlying type
     ClangASTType
     GetTypedefedType (void* type);
     
-    ClangASTType
-    RemoveFastQualifiers (void* type);
+    static ClangASTType
+    RemoveFastQualifiers (const ClangASTType& type);
     
     //----------------------------------------------------------------------
     // Create related types using the current type's AST
@@ -738,21 +739,23 @@ public:
     static lldb::BasicType
     GetBasicTypeEnumeration (void* type, const ConstString &name);
     
-    uint32_t
-    GetNumDirectBaseClasses (void* type);
+    static uint32_t
+    GetNumDirectBaseClasses (const ClangASTType& type);
     
-    uint32_t
-    GetNumVirtualBaseClasses (void* type);
+    static uint32_t
+    GetNumVirtualBaseClasses (const ClangASTType& type);
     
     uint32_t
     GetNumFields (void* type);
     
-    ClangASTType
-    GetDirectBaseClassAtIndex (void* type, size_t idx,
+    static ClangASTType
+    GetDirectBaseClassAtIndex (const ClangASTType& type,
+                               size_t idx,
                                uint32_t *bit_offset_ptr);
     
-    ClangASTType
-    GetVirtualBaseClassAtIndex (void* type, size_t idx,
+    static ClangASTType
+    GetVirtualBaseClassAtIndex (const ClangASTType& type,
+                                size_t idx,
                                 uint32_t *bit_offset_ptr);
     
     ClangASTType
@@ -763,8 +766,8 @@ public:
                      uint32_t *bitfield_bit_size_ptr,
                      bool *is_bitfield_ptr);
     
-    uint32_t
-    GetNumPointeeChildren (void* type);
+    static uint32_t
+    GetNumPointeeChildren (clang::QualType type);
     
     ClangASTType
     GetChildClangTypeAtIndex (void* type,
@@ -800,11 +803,11 @@ public:
                                    bool omit_empty_base_classes,
                                    std::vector<uint32_t>& child_indexes);
     
-    size_t
-    GetNumTemplateArguments (void* type);
+    static size_t
+    GetNumTemplateArguments (const ClangASTType& type);
     
-    ClangASTType
-    GetTemplateArgument (void* type,
+    static ClangASTType
+    GetTemplateArgument (const ClangASTType& type,
                          size_t idx,
                          lldb::TemplateArgumentKind &kind);
     
@@ -851,8 +854,7 @@ public:
                               bool base_of_class);
     
     static void
-    DeleteBaseClassSpecifiers (void* type,
-                               clang::CXXBaseSpecifier **base_classes,
+    DeleteBaseClassSpecifiers (clang::CXXBaseSpecifier **base_classes,
                                unsigned num_base_classes);
     
     bool
@@ -861,12 +863,12 @@ public:
                                 unsigned num_base_classes);
     
     
-    bool
-    SetObjCSuperClass (void* type,
+    static bool
+    SetObjCSuperClass (const ClangASTType& type,
                        const ClangASTType &superclass_clang_type);
     
-    bool
-    AddObjCClassProperty (void* type,
+    static bool
+    AddObjCClassProperty (const ClangASTType& type,
                           const char *property_name,
                           const ClangASTType &property_clang_type,
                           clang::ObjCIvarDecl *ivar_decl,
@@ -875,8 +877,8 @@ public:
                           uint32_t property_attributes,
                           ClangASTMetadata *metadata);
     
-    clang::ObjCMethodDecl *
-    AddMethodToObjCObjectType (void* type,
+    static clang::ObjCMethodDecl *
+    AddMethodToObjCObjectType (const ClangASTType& type,
                                const char *name,  // the full symbol name as seen in the symbol table (void* type, "-[NString stringWithCString:]")
                                const ClangASTType &method_clang_type,
                                lldb::AccessType access,
@@ -918,8 +920,8 @@ public:
     
     // Call this function using the class type when you want to make a
     // member pointer type to pointee_type.
-    ClangASTType
-    CreateMemberPointerType (void* type, const ClangASTType &pointee_type);
+    static ClangASTType
+    CreateMemberPointerType (const ClangASTType& type, const ClangASTType &pointee_type);
     
     
     // Converts "s" to a floating point value and place resulting floating
@@ -998,8 +1000,8 @@ public:
                    AddressType address_type,
                    StreamString &new_value);
     
-    clang::EnumDecl *
-    GetAsEnumDecl (void* type);
+    static clang::EnumDecl *
+    GetAsEnumDecl (const ClangASTType& type);
     
     
     static clang::RecordDecl *
@@ -1008,8 +1010,8 @@ public:
     clang::CXXRecordDecl *
     GetAsCXXRecordDecl (void* type);
     
-    clang::ObjCInterfaceDecl *
-    GetAsObjCInterfaceDecl (void* type);
+    static clang::ObjCInterfaceDecl *
+    GetAsObjCInterfaceDecl (const ClangASTType& type);
     
     static clang::QualType
     GetQualType (const ClangASTType& type)

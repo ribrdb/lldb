@@ -117,9 +117,6 @@ public:
     IsCStringType (uint32_t &length) const;
 
     bool
-    IsCXXClassType () const;
-    
-    bool
     IsDefined() const;
     
     bool
@@ -145,18 +142,6 @@ public:
     
     bool
     IsIntegerType (bool &is_signed) const;
-
-    bool
-    IsObjCClassType () const;
-    
-    bool
-    IsObjCClassTypeAndHasIVars (bool check_superclass) const;
-    
-    bool
-    IsObjCObjectOrInterfaceType () const;
-
-    bool
-    IsObjCObjectPointerType (ClangASTType *target_type = NULL);
     
     bool
     IsPolymorphicClass () const;
@@ -196,13 +181,6 @@ public:
 
     bool
     IsVoidType () const;
-
-    bool
-    GetCXXClassName (std::string &class_name) const;
-    
-    bool
-    GetObjCClassName (std::string &class_name);
-    
 
     //----------------------------------------------------------------------
     // Type Completion
@@ -266,21 +244,6 @@ public:
     //----------------------------------------------------------------------
     // Creating related types
     //----------------------------------------------------------------------
-
-    ClangASTType
-    AddConstModifier () const;
-
-    ClangASTType
-    AddRestrictModifier () const;
-
-    ClangASTType
-    AddVolatileModifier () const;
-    
-    // Using the current type, create a new typedef to that type using "typedef_name"
-    // as the name and "decl_ctx" as the decl context.
-    ClangASTType
-    CreateTypedefType (const char *typedef_name,
-                       clang::DeclContext *decl_ctx) const;
     
     ClangASTType
     GetArrayElementType (uint64_t *stride = nullptr) const;
@@ -309,9 +272,6 @@ public:
     GetMemberFunctionAtIndex (size_t idx);
     
     ClangASTType
-    GetLValueReferenceType () const;
-    
-    ClangASTType
     GetNonReferenceType () const;
 
     ClangASTType
@@ -319,16 +279,10 @@ public:
     
     ClangASTType
     GetPointerType () const;
-    
-    ClangASTType
-    GetRValueReferenceType () const;
 
     // If the current object represents a typedef type, get the underlying type
     ClangASTType
     GetTypedefedType () const;
-
-    ClangASTType
-    RemoveFastQualifiers () const;
     
     //----------------------------------------------------------------------
     // Create related types using the current type's AST
@@ -363,23 +317,9 @@ public:
 
     static lldb::BasicType
     GetBasicTypeEnumeration (const ConstString &name);
-
-    uint32_t
-    GetNumDirectBaseClasses () const;
-    
-    uint32_t
-    GetNumVirtualBaseClasses () const;
     
     uint32_t
     GetNumFields () const;
-    
-    ClangASTType
-    GetDirectBaseClassAtIndex (size_t idx,
-                               uint32_t *bit_offset_ptr) const;
-    
-    ClangASTType
-    GetVirtualBaseClassAtIndex (size_t idx,
-                                uint32_t *bit_offset_ptr) const;
     
     ClangASTType
     GetFieldAtIndex (size_t idx,
@@ -394,9 +334,6 @@ public:
                              uint64_t *bit_offset_ptr = NULL,
                              uint32_t *bitfield_bit_size_ptr = NULL,
                              bool *is_bitfield_ptr = NULL) const;
-    
-    uint32_t
-    GetNumPointeeChildren () const;
     
     ClangASTType
     GetChildClangTypeAtIndex (ExecutionContext *exe_ctx,
@@ -429,32 +366,10 @@ public:
                                    bool omit_empty_base_classes,
                                    std::vector<uint32_t>& child_indexes) const;
     
-    size_t
-    GetNumTemplateArguments () const;
-    
-    ClangASTType
-    GetTemplateArgument (size_t idx,
-                         lldb::TemplateArgumentKind &kind) const;
-
-
-    //----------------------------------------------------------------------
-    // Modifying RecordType
-    //----------------------------------------------------------------------
-    
-    static void
-    DeleteBaseClassSpecifiers (clang::CXXBaseSpecifier **base_classes,
-                               unsigned num_base_classes);
-
     //------------------------------------------------------------------
     // Pointers & References
     //------------------------------------------------------------------
 
-    // Call this function using the class type when you want to make a
-    // member pointer type to pointee_type.
-    ClangASTType
-    CreateMemberPointerType (const ClangASTType &pointee_type) const;
-    
-    
     // Converts "s" to a floating point value and place resulting floating
     // point bytes in the "dst" buffer.
     size_t
@@ -522,9 +437,6 @@ public:
                    lldb::addr_t addr,
                    AddressType address_type,
                    StreamString &new_value);
-
-    clang::EnumDecl *
-    GetAsEnumDecl () const;
     
     void
     Clear()

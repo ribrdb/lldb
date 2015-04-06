@@ -1713,7 +1713,7 @@ public:
     {
         ClangASTContext* ast = m_class_opaque_type.GetTypeSystem()->AsClangASTContext();
         assert(ast);
-        return ast->AddObjCClassProperty (m_class_opaque_type.GetOpaqueQualType(),
+        return ast->AddObjCClassProperty (m_class_opaque_type,
                                           m_property_name,
                                           m_property_opaque_type,
                                           m_ivar_decl,
@@ -2324,7 +2324,7 @@ SymbolFileDWARF::ParseChildMembers
                     assert (base_class_clang_type);
                     if (class_language == eLanguageTypeObjC)
                     {
-                        ast->SetObjCSuperClass(class_clang_type.GetOpaqueQualType(), base_class_clang_type);
+                        ast->SetObjCSuperClass(class_clang_type, base_class_clang_type);
                     }
                     else
                     {
@@ -2467,7 +2467,7 @@ SymbolFileDWARF::ResolveTypeUID (DWARFCompileUnit* cu, const DWARFDebugInfoEntry
 bool
 SymbolFileDWARF::HasForwardDeclForClangType (const ClangASTType &clang_type)
 {
-    ClangASTType clang_type_no_qualifiers = clang_type.RemoveFastQualifiers();
+    ClangASTType clang_type_no_qualifiers = ClangASTContext::RemoveFastQualifiers(clang_type);
     const DWARFDebugInfoEntry* die = m_forward_decl_clang_type_to_die.lookup (clang_type_no_qualifiers.GetOpaqueQualType());
     return die != NULL;
 }
@@ -2477,7 +2477,7 @@ bool
 SymbolFileDWARF::ResolveClangOpaqueTypeDefinition (ClangASTType &clang_type)
 {
     // We have a struct/union/class/enum that needs to be fully resolved.
-    ClangASTType clang_type_no_qualifiers = clang_type.RemoveFastQualifiers();
+    ClangASTType clang_type_no_qualifiers = ClangASTContext::RemoveFastQualifiers(clang_type);
     const DWARFDebugInfoEntry* die = m_forward_decl_clang_type_to_die.lookup (clang_type_no_qualifiers.GetOpaqueQualType());
     if (die == NULL)
     {
@@ -2530,7 +2530,7 @@ SymbolFileDWARF::ResolveClangOpaqueTypeDefinition (ClangASTType &clang_type)
                 if (die->HasChildren())
                 {
                     LanguageType class_language = eLanguageTypeUnknown;
-                    if (clang_type.IsObjCObjectOrInterfaceType())
+                    if (ClangASTContext::IsObjCObjectOrInterfaceType(clang_type))
                     {
                         class_language = eLanguageTypeObjC;
                         // For objective C we don't start the definition when
@@ -2705,8 +2705,8 @@ SymbolFileDWARF::ResolveClangOpaqueTypeDefinition (ClangASTType &clang_type)
 
                         // Clang will copy each CXXBaseSpecifier in "base_classes"
                         // so we have to free them all.
-                        ClangASTType::DeleteBaseClassSpecifiers (&base_classes.front(),
-                                                                 base_classes.size());
+                        ClangASTContext::DeleteBaseClassSpecifiers (&base_classes.front(),
+                                                                    base_classes.size());
                     }
                 }
             }
@@ -6339,7 +6339,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                             // "SymbolFileDWARF::ResolveClangOpaqueTypeDefinition(Type *)"
                             // When the definition needs to be defined.
                             m_forward_decl_die_to_clang_type[die] = clang_type.GetOpaqueQualType();
-                            m_forward_decl_clang_type_to_die[clang_type.RemoveFastQualifiers().GetOpaqueQualType()] = die;
+                            m_forward_decl_clang_type_to_die[ClangASTContext::RemoveFastQualifiers(clang_type).GetOpaqueQualType()] = die;
                             ast.SetHasExternalStorage (clang_type.GetOpaqueQualType(), true);
                         }
                     }
@@ -6632,7 +6632,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                                     if (complete_objc_class_type_sp)
                                     {
                                         ClangASTType type_clang_forward_type = complete_objc_class_type_sp->GetClangForwardType();
-                                        if (type_clang_forward_type.IsObjCObjectOrInterfaceType ())
+                                        if (ClangASTContext::IsObjCObjectOrInterfaceType(type_clang_forward_type))
                                             class_opaque_type = type_clang_forward_type;
                                     }
                                 }
@@ -6644,11 +6644,11 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                                     if (accessibility == eAccessNone)
                                         accessibility = eAccessPublic;
 
-                                    clang::ObjCMethodDecl *objc_method_decl = ast.AddMethodToObjCObjectType (class_opaque_type.GetOpaqueQualType(),
-                                                                                                              type_name_cstr,
-                                                                                                              clang_type,
-                                                                                                              accessibility,
-                                                                                                              is_artificial);
+                                    clang::ObjCMethodDecl *objc_method_decl = ast.AddMethodToObjCObjectType (class_opaque_type,
+                                                                                                             type_name_cstr,
+                                                                                                             clang_type,
+                                                                                                             accessibility,
+                                                                                                             is_artificial);
                                     type_handled = objc_method_decl != NULL;
                                     if (type_handled)
                                     {
@@ -6768,7 +6768,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                                     else
                                     {
                                         ClangASTType class_opaque_type = class_type->GetClangForwardType();
-                                        if (class_opaque_type.IsCXXClassType ())
+                                        if (ClangASTContext::IsCXXClassType(class_opaque_type))
                                         {
                                             if (class_opaque_type.IsBeingDefined ())
                                             {
@@ -7058,7 +7058,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                         ClangASTType pointee_clang_type = pointee_type->GetClangForwardType();
                         ClangASTType class_clang_type = class_type->GetClangLayoutType();
 
-                        clang_type = pointee_clang_type.CreateMemberPointerType(class_clang_type);
+                        clang_type = ClangASTContext::CreateMemberPointerType(pointee_clang_type, class_clang_type);
 
                         byte_size = clang_type.GetByteSize(nullptr);
 

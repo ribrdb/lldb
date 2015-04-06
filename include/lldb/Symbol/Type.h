@@ -14,6 +14,7 @@
 #include "lldb/Core/ClangForward.h"
 #include "lldb/Core/ConstString.h"
 #include "lldb/Core/UserID.h"
+#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/ClangASTType.h"
 #include "lldb/Symbol/Declaration.h"
 
@@ -433,8 +434,8 @@ public:
     GetReferenceType () const
     {
         if (type_sp)
-            return type_sp->GetClangLayoutType().GetLValueReferenceType();
-        return clang_type.GetLValueReferenceType();
+            return ClangASTContext::GetLValueReferenceType(type_sp->GetClangLayoutType());
+        return ClangASTContext::GetLValueReferenceType(clang_type);
     }
 
     ClangASTType

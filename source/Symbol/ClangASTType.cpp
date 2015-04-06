@@ -264,24 +264,6 @@ ClangASTType::IsDefined() const
 }
 
 bool
-ClangASTType::IsObjCClassType () const
-{
-    if (IsValid())
-    {
-        m_type_system->IsObjCClassType(m_type);
-    }
-    return false;
-}
-
-bool
-ClangASTType::IsObjCObjectOrInterfaceType () const
-{
-    if (IsValid())
-        return m_type_system->IsObjCObjectOrInterfaceType(m_type);
-    return false;
-}
-
-bool
 ClangASTType::IsPolymorphicClass () const
 {
     if (IsValid())
@@ -345,28 +327,6 @@ ClangASTType::IsArrayOfScalarType () const
     return false;
 }
 
-
-bool
-ClangASTType::GetCXXClassName (std::string &class_name) const
-{
-    if (IsValid())
-    {
-        return m_type_system->GetCXXClassName(m_type, class_name);
-    }
-    class_name.clear();
-    return false;
-}
-
-
-bool
-ClangASTType::IsCXXClassType () const
-{
-    if (!IsValid())
-        return false;
-    
-    return m_type_system->IsCXXClassType(m_type);
-}
-
 bool
 ClangASTType::IsBeingDefined () const
 {
@@ -374,25 +334,6 @@ ClangASTType::IsBeingDefined () const
         return false;
     return m_type_system->IsBeingDefined(m_type);
 }
-
-bool
-ClangASTType::IsObjCObjectPointerType (ClangASTType *class_type_ptr)
-{
-    if (!IsValid())
-        return false;
-    
-    return m_type_system->IsObjCObjectPointerType(m_type, class_type_ptr);
-}
-
-bool
-ClangASTType::GetObjCClassName (std::string &class_name)
-{
-    if (!IsValid())
-        return false;
-    
-    return m_type_system->GetObjCClassName(m_type, class_name);
-}
-
 
 //----------------------------------------------------------------------
 // Type Completion
@@ -509,30 +450,6 @@ ClangASTType::GetTypeQualifiers() const
 //----------------------------------------------------------------------
 
 ClangASTType
-ClangASTType::AddConstModifier () const
-{
-    if (IsValid())
-        return m_type_system->AddConstModifier(m_type);
-    return ClangASTType();
-}
-
-ClangASTType
-ClangASTType::AddRestrictModifier () const
-{
-    if (IsValid())
-        return m_type_system->AddRestrictModifier(m_type);
-    return ClangASTType();
-}
-
-ClangASTType
-ClangASTType::AddVolatileModifier () const
-{
-    if (IsValid())
-        return m_type_system->AddVolatileModifier(m_type);
-    return ClangASTType();
-}
-
-ClangASTType
 ClangASTType::GetArrayElementType (uint64_t *stride) const
 {
     if (IsValid())
@@ -611,43 +528,11 @@ ClangASTType::GetMemberFunctionAtIndex (size_t idx)
 }
 
 ClangASTType
-ClangASTType::GetLValueReferenceType () const
-{
-    if (IsValid())
-    {
-        m_type_system->GetLValueReferenceType(m_type);
-    }
-    return ClangASTType();
-}
-
-ClangASTType
-ClangASTType::GetRValueReferenceType () const
-{
-    if (IsValid())
-    {
-        return m_type_system->GetRValueReferenceType(m_type);
-    }
-    return ClangASTType();
-}
-
-ClangASTType
 ClangASTType::GetNonReferenceType () const
 {
     if (IsValid())
         return m_type_system->GetNonReferenceType(m_type);
     return ClangASTType();
-}
-
-ClangASTType
-ClangASTType::CreateTypedefType (const char *typedef_name,
-                                 clang::DeclContext *decl_ctx) const
-{
-    if (IsValid() && typedef_name && typedef_name[0])
-    {
-        return m_type_system->CreateTypedefType(m_type, typedef_name, decl_ctx);
-    }
-    return ClangASTType();
-
 }
 
 ClangASTType
@@ -676,16 +561,6 @@ ClangASTType::GetTypedefedType () const
     if (IsValid())
     {
         return m_type_system->GetTypedefedType(m_type);
-    }
-    return ClangASTType();
-}
-
-ClangASTType
-ClangASTType::RemoveFastQualifiers () const
-{
-    if (IsValid())
-    {
-        return m_type_system->RemoveFastQualifiers(m_type);
     }
     return ClangASTType();
 }
@@ -768,24 +643,7 @@ ClangASTType::GetBasicTypeEnumeration () const
     return eBasicTypeInvalid;
 }
 
-
 #pragma mark Aggregate Types
-
-uint32_t
-ClangASTType::GetNumDirectBaseClasses () const
-{
-    if (!IsValid())
-        return 0;
-    return m_type_system->GetNumDirectBaseClasses(m_type);
-}
-
-uint32_t
-ClangASTType::GetNumVirtualBaseClasses () const
-{
-    if (!IsValid())
-        return 0;
-    return m_type_system->GetNumVirtualBaseClasses(m_type);
-}
 
 uint32_t
 ClangASTType::GetNumFields () const
@@ -793,22 +651,6 @@ ClangASTType::GetNumFields () const
     if (!IsValid())
         return 0;
     return m_type_system->GetNumFields(m_type);
-}
-
-ClangASTType
-ClangASTType::GetDirectBaseClassAtIndex (size_t idx, uint32_t *bit_offset_ptr) const
-{
-    if (!IsValid())
-        return ClangASTType();
-    return m_type_system->GetDirectBaseClassAtIndex(m_type, idx, bit_offset_ptr);
-}
-
-ClangASTType
-ClangASTType::GetVirtualBaseClassAtIndex (size_t idx, uint32_t *bit_offset_ptr) const
-{
-    if (!IsValid())
-        return ClangASTType();
-    return m_type_system->GetVirtualBaseClassAtIndex(m_type, idx, bit_offset_ptr);
 }
 
 ClangASTType
@@ -844,15 +686,6 @@ ClangASTType::GetIndexOfFieldWithName (const char* name,
     }
     return UINT32_MAX;
 }
-
-uint32_t
-ClangASTType::GetNumPointeeChildren () const
-{
-    if (!IsValid())
-        return 0;
-    return m_type_system->GetNumPointeeChildren(m_type);
-}
-
 
 ClangASTType
 ClangASTType::GetChildClangTypeAtIndex (ExecutionContext *exe_ctx,
@@ -901,64 +734,7 @@ ClangASTType::GetIndexOfChildWithName (const char *name, bool omit_empty_base_cl
     return UINT32_MAX;
 }
 
-
-size_t
-ClangASTType::GetNumTemplateArguments () const
-{
-    if (IsValid())
-        return m_type_system->GetNumTemplateArguments(m_type);
-    return 0;
-}
-
-ClangASTType
-ClangASTType::GetTemplateArgument (size_t arg_idx, lldb::TemplateArgumentKind &kind) const
-{
-    if (IsValid())
-        return m_type_system->GetTemplateArgument(m_type, arg_idx, kind);
-    kind = eTemplateArgumentKindNull;
-    return ClangASTType ();
-}
-
-clang::EnumDecl *
-ClangASTType::GetAsEnumDecl () const
-{
-    if (IsValid())
-        return m_type_system->GetAsEnumDecl(m_type);
-    return NULL;
-}
-
-#pragma mark C++ Base Classes
-
-void
-ClangASTType::DeleteBaseClassSpecifiers (clang::CXXBaseSpecifier **base_classes, unsigned num_base_classes)
-{
-    for (unsigned i=0; i<num_base_classes; ++i)
-    {
-        delete base_classes[i];
-        base_classes[i] = nullptr;
-    }
-}
-
-bool
-ClangASTType::IsObjCClassTypeAndHasIVars (bool check_superclass) const
-{
-    if (IsValid())
-        return m_type_system->IsObjCClassTypeAndHasIVars(m_type, check_superclass);
-    return false;
-}
-
 #pragma mark TagDecl
-
-
-ClangASTType
-ClangASTType::CreateMemberPointerType (const ClangASTType &pointee_type) const
-{
-    if (IsValid() && pointee_type.IsValid())
-    {
-        return m_type_system->CreateMemberPointerType(m_type, pointee_type);
-    }
-    return ClangASTType();
-}
 
 
 size_t

@@ -137,7 +137,7 @@ ObjCLanguageRuntime::LookupInCompleteClassCache (ConstString &name)
             {
                 TypeSP type_sp (types.GetTypeAtIndex(i));
                 
-                if (type_sp->GetClangForwardType().IsObjCObjectOrInterfaceType())
+                if (ClangASTContext::IsObjCObjectOrInterfaceType(type_sp->GetClangForwardType()))
                 {
                     if (type_sp->IsCompleteObjCClass())
                     {

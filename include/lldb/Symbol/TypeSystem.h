@@ -299,82 +299,6 @@ public:
                                uint8_t *dst,
                                size_t dst_size) = 0;
     
-    virtual bool
-    GetObjCClassName (void * type, std::string &class_name) = 0;
-    
-    virtual bool
-    IsObjCClassTypeAndHasIVars (void * type, bool check_superclass) = 0;
-    
-    //----------------------------------------------------------------------
-    // TODO: Remove these clang specific methods from this interface.
-    //----------------------------------------------------------------------
-    
-    virtual ClangASTType
-    AddConstModifier (void * type) = 0;
-    
-    virtual ClangASTType
-    AddRestrictModifier (void * type) = 0;
-    
-    virtual ClangASTType
-    AddVolatileModifier (void * type) = 0;
-    
-    // Using the current type, create a new typedef to that type using "typedef_name"
-    // as the name and "decl_ctx" as the decl context.
-    virtual ClangASTType
-    CreateTypedefType (void * type, const char *typedef_name,
-                       clang::DeclContext *decl_ctx) = 0;
-    
-    // Call this function using the class type when you want to make a
-    // member pointer type to pointee_type.
-    virtual ClangASTType
-    CreateMemberPointerType (void * type, const ClangASTType &pointee_type) = 0;
-   
-    virtual bool
-    GetCXXClassName (void * type, std::string &class_name) = 0;
-
-    virtual uint32_t
-    GetNumPointeeChildren (void * type) = 0;
-    
-    virtual clang::EnumDecl *
-    GetAsEnumDecl (void * type) = 0;
-    
-    virtual ClangASTType
-    GetRValueReferenceType (void * type) = 0;
-
-    virtual ClangASTType
-    GetLValueReferenceType (void * type) = 0;
-    
-    virtual bool
-    IsCXXClassType (void * type) = 0;
-    
-    virtual bool
-    IsObjCClassType (void * type) = 0;
-    
-    virtual bool
-    IsObjCObjectOrInterfaceType (void * type) = 0;
-    
-    virtual bool
-    IsObjCObjectPointerType (void * type, ClangASTType *target_type = NULL) = 0;
-    
-    virtual ClangASTType
-    RemoveFastQualifiers (void * type) = 0;
-
-    virtual ClangASTType
-    GetDirectBaseClassAtIndex (void * type, size_t idx,
-                               uint32_t *bit_offset_ptr) = 0;
-    
-    virtual ClangASTType
-    GetVirtualBaseClassAtIndex (void * type, size_t idx,
-                                uint32_t *bit_offset_ptr) = 0;
-
-    virtual size_t
-    GetNumTemplateArguments (void * type) = 0;
-    
-    virtual ClangASTType
-    GetTemplateArgument (void * type,
-                         size_t idx,
-                         lldb::TemplateArgumentKind &kind) = 0;
-    
     //----------------------------------------------------------------------
     // TODO: Determine if these methods should move to ClangASTContext.
     //----------------------------------------------------------------------
@@ -408,12 +332,6 @@ public:
     
     virtual bool
     IsTypedefType (void * type) = 0;
-    
-    virtual uint32_t
-    GetNumDirectBaseClasses (void * type) = 0;
-
-    virtual uint32_t
-    GetNumVirtualBaseClasses (void * type) = 0;
     
     // If the current object represents a typedef type, get the underlying type
     virtual ClangASTType

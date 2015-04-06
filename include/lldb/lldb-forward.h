@@ -222,7 +222,7 @@ class   Symtab;
 class   SyntheticChildren;
 class   SyntheticChildrenFrontEnd;
 class   TypeFilterImpl;
-class TypeSystem;
+class   TypeSystem;
 #ifndef LLDB_DISABLE_PYTHON
 class   ScriptedSyntheticChildren;
 #endif
