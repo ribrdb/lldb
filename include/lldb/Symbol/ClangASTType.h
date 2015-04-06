@@ -21,9 +21,6 @@ class Type;
 
 namespace lldb_private {
 
-class GoASTContext;
-class TypeSystem;
-    
 //----------------------------------------------------------------------
 // A class that can carry around a clang ASTContext and a opaque clang 
 // QualType. A clang::QualType can be easily reconstructed from an
@@ -40,20 +37,20 @@ public:
     //----------------------------------------------------------------------
     // Constructors and Destructors
     //----------------------------------------------------------------------
-    ClangASTType (clang::ASTContext *ast_context, lldb::clang_type_t type);
+    ClangASTType (TypeSystem *type_system, void *type);
     ClangASTType (clang::ASTContext *ast_context, clang::QualType qual_type);
 
     ClangASTType (GoASTContext *ast_context, go::Type* type);
 
     ClangASTType (const ClangASTType &rhs) :
         m_type (rhs.m_type),
-        m_ast  (rhs.m_ast)
+        m_type_system  (rhs.m_type_system)
     {
     }
     
     ClangASTType () :
         m_type (0),
-        m_ast  ()
+        m_type_system  (0)
     {
     }
     
@@ -67,7 +64,7 @@ public:
     operator= (const ClangASTType &rhs)
     {
         m_type = rhs.m_type;
-        m_ast = rhs.m_ast;
+        m_type_system = rhs.m_type_system;
         return *this;
     }
     
@@ -78,21 +75,21 @@ public:
 
     explicit operator bool () const
     {
-        return m_type != NULL && !m_ast != NULL;
+        return m_type != NULL && m_type_system != NULL;
     }
     
     bool
     operator < (const ClangASTType &rhs) const
     {
-        if (m_ast == rhs.m_ast)
+        if (m_type_system == rhs.m_type_system)
             return m_type < rhs.m_type;
-        return m_ast < rhs.m_ast;
+        return m_type_system < rhs.m_type_system;
     }
 
     bool
     IsValid () const
     {
-        return m_type != NULL && !m_ast;
+        return m_type != NULL && m_type_system != NULL;
     }
     
     bool
@@ -126,9 +123,6 @@ public:
     IsCStringType (uint32_t &length) const;
 
     bool
-    IsCXXClassType () const;
-    
-    bool
     IsDefined() const;
     
     bool
@@ -154,18 +148,6 @@ public:
     
     bool
     IsIntegerType (bool &is_signed) const;
-
-    bool
-    IsObjCClassType () const;
-    
-    bool
-    IsObjCClassTypeAndHasIVars (bool check_superclass) const;
-    
-    bool
-    IsObjCObjectOrInterfaceType () const;
-
-    bool
-    IsObjCObjectPointerType (ClangASTType *target_type = NULL);
     
     bool
     IsPolymorphicClass () const;
@@ -206,12 +188,6 @@ public:
     bool
     IsVoidType () const;
 
-    bool
-    GetCXXClassName (std::string &class_name) const;
-    
-    bool
-    GetObjCClassName (std::string &class_name);
-
     //----------------------------------------------------------------------
     // Type Completion
     //----------------------------------------------------------------------
@@ -233,11 +209,8 @@ public:
     TypeSystem *
     GetTypeSystem() const
     {
-        return m_ast;
+        return m_type_system;
     }
-    
-    clang::ASTContext *
-    GetASTContext() const;
     
     ConstString
     GetConstQualifiedTypeName () const;
@@ -267,7 +240,7 @@ public:
     GetTypeClass () const;
     
     void
-    SetClangType (clang::ASTContext *ast, lldb::clang_type_t type);
+    SetClangType (TypeSystem* type_system, void* type);
     void
     SetClangType (GoASTContext *ast, go::Type* type);
     void
@@ -279,21 +252,6 @@ public:
     //----------------------------------------------------------------------
     // Creating related types
     //----------------------------------------------------------------------
-
-    ClangASTType
-    AddConstModifier () const;
-
-    ClangASTType
-    AddRestrictModifier () const;
-
-    ClangASTType
-    AddVolatileModifier () const;
-    
-    // Using the current type, create a new typedef to that type using "typedef_name"
-    // as the name and "decl_ctx" as the decl context.
-    ClangASTType
-    CreateTypedefType (const char *typedef_name,
-                       clang::DeclContext *decl_ctx) const;
     
     ClangASTType
     GetArrayElementType (uint64_t *stride = nullptr) const;
@@ -322,9 +280,6 @@ public:
     GetMemberFunctionAtIndex (size_t idx);
     
     ClangASTType
-    GetLValueReferenceType () const;
-    
-    ClangASTType
     GetNonReferenceType () const;
 
     ClangASTType
@@ -332,16 +287,10 @@ public:
     
     ClangASTType
     GetPointerType () const;
-    
-    ClangASTType
-    GetRValueReferenceType () const;
 
     // If the current object represents a typedef type, get the underlying type
     ClangASTType
     GetTypedefedType () const;
-
-    ClangASTType
-    RemoveFastQualifiers () const;
     
     //----------------------------------------------------------------------
     // Create related types using the current type's AST
@@ -376,23 +325,9 @@ public:
 
     static lldb::BasicType
     GetBasicTypeEnumeration (const ConstString &name);
-
-    uint32_t
-    GetNumDirectBaseClasses () const;
-    
-    uint32_t
-    GetNumVirtualBaseClasses () const;
     
     uint32_t
     GetNumFields () const;
-    
-    ClangASTType
-    GetDirectBaseClassAtIndex (size_t idx,
-                               uint32_t *bit_offset_ptr) const;
-    
-    ClangASTType
-    GetVirtualBaseClassAtIndex (size_t idx,
-                                uint32_t *bit_offset_ptr) const;
     
     ClangASTType
     GetFieldAtIndex (size_t idx,
@@ -407,9 +342,6 @@ public:
                              uint64_t *bit_offset_ptr = NULL,
                              uint32_t *bitfield_bit_size_ptr = NULL,
                              bool *is_bitfield_ptr = NULL) const;
-    
-    uint32_t
-    GetNumPointeeChildren () const;
     
     ClangASTType
     GetChildClangTypeAtIndex (ExecutionContext *exe_ctx,
@@ -442,32 +374,10 @@ public:
                                    bool omit_empty_base_classes,
                                    std::vector<uint32_t>& child_indexes) const;
     
-    size_t
-    GetNumTemplateArguments () const;
-    
-    ClangASTType
-    GetTemplateArgument (size_t idx,
-                         lldb::TemplateArgumentKind &kind) const;
-
-
-    //----------------------------------------------------------------------
-    // Modifying RecordType
-    //----------------------------------------------------------------------
-    
-    static void
-    DeleteBaseClassSpecifiers (clang::CXXBaseSpecifier **base_classes,
-                               unsigned num_base_classes);
-
     //------------------------------------------------------------------
     // Pointers & References
     //------------------------------------------------------------------
 
-    // Call this function using the class type when you want to make a
-    // member pointer type to pointee_type.
-    ClangASTType
-    CreateMemberPointerType (const ClangASTType &pointee_type) const;
-    
-    
     // Converts "s" to a floating point value and place resulting floating
     // point bytes in the "dst" buffer.
     size_t
@@ -535,25 +445,16 @@ public:
                    lldb::addr_t addr,
                    AddressType address_type,
                    StreamString &new_value);
-
-    clang::EnumDecl *
-    GetAsEnumDecl () const;
     
     void
     Clear()
     {
         m_type = NULL;
-        m_ast = nullptr;
+        m_type_system = NULL;
     }
-
-    clang::QualType
-    GetQualType () const;
-    clang::QualType
-    GetCanonicalQualType () const;
-
 private:
     void* m_type;
-    TypeSystem *m_ast;
+    TypeSystem *m_type_system;
     
 };
     

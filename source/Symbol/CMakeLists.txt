@@ -5,7 +5,6 @@ add_lldb_library(lldbSymbol
   ClangASTContext.cpp
   ClangASTImporter.cpp
   ClangASTType.cpp
-  ClangASTTypeSystem.cpp
   ClangExternalASTSourceCallbacks.cpp
   ClangExternalASTSourceCommon.cpp
   ClangNamespaceDecl.cpp

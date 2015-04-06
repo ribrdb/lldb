@@ -18,7 +18,6 @@
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Host/Endian.h"
 #include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangASTTypeSystem.h"
 #include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Target.h"
 
@@ -47,13 +46,11 @@ GetLLDBNSPairType (TargetSP target_sp)
             
             if (clang_type)
             {
-                ClangASTTypeSystem* types = target_ast_context->getTypeSystem();
-                void *opaque_clang_type = clang_type.GetOpaqueQualType();
-                types->StartTagDeclarationDefinition(opaque_clang_type);
+                ClangASTContext::StartTagDeclarationDefinition(clang_type);
                 ClangASTType id_clang_type = target_ast_context->GetBasicType (eBasicTypeObjCID);
-                types->AddFieldToRecordType(opaque_clang_type, "key", id_clang_type, lldb::eAccessPublic, 0);
-                types->AddFieldToRecordType(opaque_clang_type, "value", id_clang_type, lldb::eAccessPublic, 0);
-                types->CompleteTagDeclarationDefinition(opaque_clang_type);
+                ClangASTContext::AddFieldToRecordType(clang_type, "key", id_clang_type, lldb::eAccessPublic, 0);
+                ClangASTContext::AddFieldToRecordType(clang_type, "value", id_clang_type, lldb::eAccessPublic, 0);
+                ClangASTContext::CompleteTagDeclarationDefinition(clang_type);
             }
         }
     }
