@@ -13,7 +13,7 @@ class NamespaceTestCase(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     # rdar://problem/8668674
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym_and_run_command(self):
         """Test that anonymous and named namespace variables display correctly."""
@@ -54,7 +54,7 @@ class NamespaceTestCase(TestBase):
 
         # On Mac OS X, gcc 4.2 emits the wrong debug info with respect to types.
         slist = ['(int) a = 12', 'anon_uint', 'a_uint', 'b_uint', 'y_uint']
-        if sys.platform.startswith("darwin") and self.getCompiler() in ['clang', 'llvm-gcc']:
+        if self.platformIsDarwin() and self.getCompiler() in ['clang', 'llvm-gcc']:
             slist = ['(int) a = 12',
                      '::my_uint_t', 'anon_uint = 0',
                      '(A::uint_t) a_uint = 1',
