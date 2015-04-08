@@ -1121,6 +1121,22 @@ public:
     virtual const lldb::DataBufferSP
     GetAuxvData();
 
+    //------------------------------------------------------------------
+    /// Sometimes processes know how to retrieve and load shared libraries.
+    /// This is normally done by DynamicLoader plug-ins, but sometimes the
+    /// connection to the process allows retrieving this information. The
+    /// dynamic loader plug-ins can use this function if they can't
+    /// determine the current shared library load state.
+    ///
+    /// @return
+    ///    The number of shared libraries that were loaded
+    //------------------------------------------------------------------
+    virtual size_t
+    LoadModules ()
+    {
+        return 0;
+    }
+
 protected:
     virtual JITLoaderList &
     GetJITLoaders ();
@@ -1343,11 +1359,19 @@ public:
     /// This function is not meant to be overridden by Process
     /// subclasses.
     ///
+    /// @param[in] force_kill
+    ///     Whether lldb should force a kill (instead of a detach) from
+    ///     the inferior process.  Normally if lldb launched a binary and
+    ///     Destory is called, lldb kills it.  If lldb attached to a 
+    ///     running process and Destory is called, lldb detaches.  If 
+    ///     this behavior needs to be over-ridden, this is the bool that
+    ///     can be used.
+    ///
     /// @return
     ///     Returns an error object.
     //------------------------------------------------------------------
     Error
-    Destroy();
+    Destroy(bool force_kill);
 
     //------------------------------------------------------------------
     /// Sends a process a UNIX signal \a signal.

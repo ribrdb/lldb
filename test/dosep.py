@@ -3,9 +3,9 @@
 """
 Run the test suite using a separate process for each test file.
 
-Each test will run with a time limit of 5 minutes by default.
+Each test will run with a time limit of 10 minutes by default.
 
-Override the default time limit of 5 minutes by setting
+Override the default time limit of 10 minutes by setting
 the environment variable LLDB_TEST_TIMEOUT.
 
 E.g., export LLDB_TEST_TIMEOUT=10m
@@ -48,7 +48,7 @@ def get_timeout_command():
 
 timeout_command = get_timeout_command()
 
-default_timeout = os.getenv("LLDB_TEST_TIMEOUT") or "5m"
+default_timeout = os.getenv("LLDB_TEST_TIMEOUT") or "10m"
 
 # Status codes for running command with timeout.
 eTimedOut, ePassed, eFailed = 124, 0, 1
@@ -148,14 +148,16 @@ def walk_and_invoke(test_root, dotest_options, num_threads):
     return (timed_out, failed, passed)
 
 def main():
-    test_root = sys.path[0]
+    # We can't use sys.path[0] to determine the script directory
+    # because it doesn't work under a debugger
+    test_root = os.path.dirname(os.path.realpath(__file__))
 
     parser = OptionParser(usage="""\
 Run lldb test suite using a separate process for each test file.
 
-       Each test will run with a time limit of 5 minutes by default.
+       Each test will run with a time limit of 10 minutes by default.
 
-       Override the default time limit of 5 minutes by setting
+       Override the default time limit of 10 minutes by setting
        the environment variable LLDB_TEST_TIMEOUT.
 
        E.g., export LLDB_TEST_TIMEOUT=10m

@@ -37,6 +37,11 @@
 #include "Plugins/Process/Utility/RegisterContextLinux_mips64.h"
 #include "Plugins/Process/Utility/RegisterInfoInterface.h"
 
+#include <sys/syscall.h>
+// Try to define a macro to encapsulate the tgkill syscall
+#define tgkill(pid, tid, sig) \
+    syscall(SYS_tgkill, static_cast<::pid_t>(pid), static_cast<::pid_t>(tid), sig)
+
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::process_linux;
@@ -300,20 +305,6 @@ NativeThreadLinux::RemoveWatchpoint (lldb::addr_t addr)
 }
 
 void
-NativeThreadLinux::SetLaunching ()
-{
-    const StateType new_state = StateType::eStateLaunching;
-    MaybeLogStateChange (new_state);
-    m_state = new_state;
-
-    // Also mark it as stopped since launching temporarily stops the newly created thread
-    // in the ptrace machinery.
-    m_stop_info.reason = StopReason::eStopReasonSignal;
-    m_stop_info.details.signal.signo = SIGSTOP;
-}
-
-
-void
 NativeThreadLinux::SetRunning ()
 {
     const StateType new_state = StateType::eStateRunning;
@@ -469,7 +460,7 @@ NativeThreadLinux::SetCrashedWithException (const siginfo_t& info)
     m_stop_info.details.signal.signo = info.si_signo;
 
     const auto reason = GetCrashReason (info);
-    m_stop_description = GetCrashReasonString (reason, reinterpret_cast<lldb::addr_t> (info.si_addr));
+    m_stop_description = GetCrashReasonString (reason, reinterpret_cast<uintptr_t>(info.si_addr));
 }
 
 void
@@ -491,6 +482,35 @@ NativeThreadLinux::SetExited ()
     m_state = new_state;
 
     m_stop_info.reason = StopReason::eStopReasonThreadExiting;
+}
+
+Error
+NativeThreadLinux::RequestStop ()
+{
+    Log* log (GetLogIfAllCategoriesSet (LIBLLDB_LOG_THREAD));
+
+    const auto process_sp = GetProcess();
+    if (! process_sp)
+        return Error("Process is null.");
+
+    lldb::pid_t pid = process_sp->GetID();
+    lldb::tid_t tid = GetID();
+
+    if (log)
+        log->Printf ("NativeThreadLinux::%s requesting thread stop(pid: %" PRIu64 ", tid: %" PRIu64 ")", __FUNCTION__, pid, tid);
+
+    Error err;
+    errno = 0;
+    if (::tgkill (pid, tid, SIGSTOP) != 0)
+    {
+        err.SetErrorToErrno ();
+        if (log)
+            log->Printf ("NativeThreadLinux::%s tgkill(%" PRIu64 ", %" PRIu64 ", SIGSTOP) failed: %s", __FUNCTION__, pid, tid, err.AsCString ());
+    }
+    else
+        m_thread_context.stop_requested = true;
+
+    return err;
 }
 
 void

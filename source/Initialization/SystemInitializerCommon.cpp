@@ -18,6 +18,7 @@
 #include "Plugins/DynamicLoader/MacOSX-DYLD/DynamicLoaderMacOSXDYLD.h"
 #include "Plugins/DynamicLoader/POSIX-DYLD/DynamicLoaderPOSIXDYLD.h"
 #include "Plugins/Instruction/ARM/EmulateInstructionARM.h"
+#include "Plugins/Instruction/MIPS64/EmulateInstructionMIPS64.h"
 #include "Plugins/ObjectContainer/BSD-Archive/ObjectContainerBSDArchive.h"
 #include "Plugins/ObjectContainer/Universal-Mach-O/ObjectContainerUniversalMachO.h"
 #include "Plugins/ObjectFile/ELF/ObjectFileELF.h"
@@ -112,6 +113,7 @@ SystemInitializerCommon::Initialize()
     platform_android::PlatformAndroid::Initialize();
 
     EmulateInstructionARM::Initialize();
+    EmulateInstructionMIPS64::Initialize();
 
     //----------------------------------------------------------------------
     // Apple/Darwin hosted plugins
@@ -161,11 +163,16 @@ SystemInitializerCommon::Terminate()
     PlatformiOSSimulator::Terminate();
 
     EmulateInstructionARM::Terminate();
+    EmulateInstructionMIPS64::Terminate();
 
 #if defined(__APPLE__)
     DynamicLoaderDarwinKernel::Terminate();
     ObjectFileMachO::Terminate();
     PlatformDarwinKernel::Terminate();
+#endif
+
+#if defined(__WIN32__)
+    ProcessWindowsLog::Terminate();
 #endif
 
 #ifndef LLDB_DISABLE_PYTHON

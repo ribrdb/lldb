@@ -75,6 +75,12 @@ class IncompleteModulesTestCase(TestBase):
         self.expect("expr [myObject privateMethod]", VARIABLES_DISPLAYED_CORRECTLY,
             substrs = ["int", "5"])
 
+        self.expect("expr MIN(2,3)", "#defined macro was found",
+            substrs = ["int", "2"])
+
+        self.expect("expr MAX(2,3)", "#undefd macro was correcltly not found",
+            error=True)
+
 if __name__ == '__main__':
     import atexit
     lldb.SBDebugger.Initialize()

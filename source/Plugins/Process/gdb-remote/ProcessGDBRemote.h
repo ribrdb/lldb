@@ -241,10 +241,15 @@ public:
                   const ArchSpec& arch,
                   ModuleSpec &module_spec) override;
 
+    virtual size_t
+    LoadModules () override;
+
 protected:
     friend class ThreadGDBRemote;
     friend class GDBRemoteCommunicationClient;
     friend class GDBRemoteRegisterContext;
+
+    class GDBLoadedModuleInfoList;
 
     //----------------------------------------------------------------------
     // Accessors
@@ -391,6 +396,17 @@ protected:
 
     DynamicLoader *
     GetDynamicLoader () override;
+
+    // Query remote GDBServer for register information
+    bool
+    GetGDBServerRegisterInfo ();
+
+    // Query remote GDBServer for a detailed loaded library list
+    Error
+    GetLoadedModuleList (GDBLoadedModuleInfoList &);
+
+    lldb::ModuleSP
+    LoadModuleAtAddress (const FileSpec &file, lldb::addr_t base_addr);
 
 private:
     //------------------------------------------------------------------

@@ -26,6 +26,8 @@
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/LanguageRuntime.h"
 
+class CommandObjectObjC_ClassTable_Dump;
+
 namespace lldb_private {
     
 class ClangUtilityFunction;
@@ -289,6 +291,24 @@ public:
     protected:
         std::unique_ptr<ClangASTContext> m_scratch_ast_ctx_ap;
     };
+
+    class ObjCExceptionPrecondition : public Breakpoint::BreakpointPrecondition
+    {
+    public:
+        ObjCExceptionPrecondition();
+
+        virtual ~ObjCExceptionPrecondition() {}
+
+        bool EvaluatePrecondition(StoppointCallbackContext &context) override;
+        void DescribePrecondition(Stream &stream, lldb::DescriptionLevel level) override;
+        Error ConfigurePrecondition(Args &args) override;
+
+    protected:
+        void AddClassName(const char *class_name);
+
+    private:
+        std::unordered_set<std::string> m_class_names;
+    };
     
     typedef std::shared_ptr<EncodingToType> EncodingToTypeSP;
     
@@ -313,8 +333,8 @@ public:
     virtual
     ~ObjCLanguageRuntime();
     
-    virtual lldb::LanguageType
-    GetLanguageType () const
+    lldb::LanguageType
+    GetLanguageType () const override
     {
         return lldb::eLanguageTypeObjC;
     }
@@ -515,10 +535,10 @@ public:
         m_negative_complete_class_cache.clear();
     }
     
-    virtual bool
+    bool
     GetTypeBitSize (const ClangASTType& clang_type,
-                    uint64_t &size);
-    
+                    uint64_t &size) override;
+
 protected:
     //------------------------------------------------------------------
     // Classes that inherit from ObjCLanguageRuntime can see and modify these
@@ -644,6 +664,14 @@ protected:
 
     ISAToDescriptorIterator
     GetDescriptorIterator (const ConstString &name);
+
+    friend class ::CommandObjectObjC_ClassTable_Dump;
+    
+    std::pair<ISAToDescriptorIterator,ISAToDescriptorIterator>
+    GetDescriptorIteratorPair (bool update_if_needed = true);
+
+    void
+    ReadObjCLibraryIfNeeded (const ModuleList &module_list);
 
     DISALLOW_COPY_AND_ASSIGN (ObjCLanguageRuntime);
 };

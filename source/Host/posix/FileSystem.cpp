@@ -149,6 +149,15 @@ FileSystem::GetFileExists(const FileSpec &file_spec)
 }
 
 Error
+FileSystem::Hardlink(const char *src, const char *dst)
+{
+    Error error;
+    if (::link(dst, src) == -1)
+        error.SetErrorToErrno();
+    return error;
+}
+
+Error
 FileSystem::Symlink(const char *src, const char *dst)
 {
     Error error;
@@ -184,7 +193,7 @@ static bool IsLocal(const struct statfs& info)
 {
 #ifdef __linux__
     #define CIFS_MAGIC_NUMBER 0xFF534D42
-    switch (info.f_type)
+    switch ((uint32_t)info.f_type)
     {
     case NFS_SUPER_MAGIC:
     case SMB_SUPER_MAGIC:

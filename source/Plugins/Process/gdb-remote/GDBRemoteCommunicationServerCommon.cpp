@@ -396,6 +396,10 @@ GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qUserName (StringExtractorGDBRemote &packet)
 {
 #if !defined(LLDB_DISABLE_POSIX)
+    Log *log (GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS));
+    if (log)
+        log->Printf("GDBRemoteCommunicationServerCommon::%s begin", __FUNCTION__);
+
     // Packet format: "qUserName:%i" where %i is the uid
     packet.SetFilePos(::strlen ("qUserName:"));
     uint32_t uid = packet.GetU32 (UINT32_MAX);
@@ -409,6 +413,8 @@ GDBRemoteCommunicationServerCommon::Handle_qUserName (StringExtractorGDBRemote &
             return SendPacketNoLock (response.GetData(), response.GetSize());
         }
     }
+    if (log)
+        log->Printf("GDBRemoteCommunicationServerCommon::%s end", __FUNCTION__);
 #endif
     return SendErrorResponse (5);
 
@@ -576,7 +582,8 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_Open (StringExtractorGDBRemote 
             {
                 mode_t mode = packet.GetHexMaxU32(false, 0600);
                 Error error;
-                int fd = ::open (path.c_str(), flags, mode);
+                const FileSpec path_spec(path.c_str(), true);
+                int fd = ::open (path_spec.GetPath().c_str(), flags, mode);
                 const int save_errno = fd == -1 ? errno : 0;
                 StreamString response;
                 response.PutChar('F');
@@ -1162,7 +1169,8 @@ GDBRemoteCommunicationServerCommon::Handle_qModuleInfo (StringExtractorGDBRemote
     packet.GetHexByteString(triple);
     ArchSpec arch(triple.c_str());
 
-    const FileSpec module_path_spec = FindModuleFile(module_path, arch);
+    const FileSpec req_module_path_spec(module_path.c_str(), true);
+    const FileSpec module_path_spec = FindModuleFile(req_module_path_spec.GetPath(), arch);
     const ModuleSpec module_spec(module_path_spec, arch);
 
     ModuleSpecList module_specs;
