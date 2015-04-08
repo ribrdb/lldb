@@ -161,9 +161,12 @@ private:
     
     TokenType DoString();
     
-    TokenType LookupKeyword(llvm::StringRef id);
+    static TokenType LookupKeyword(llvm::StringRef id);
+    static llvm::StringRef LookupToken(TokenType t);
     
     static llvm::StringMap<TokenType>* InitKeywords();
+
+    static llvm::StringMap<TokenType>* m_keywords;
     
     const char* m_src;
     const char* m_end;

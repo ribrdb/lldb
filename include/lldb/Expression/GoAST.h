@@ -13,9 +13,12 @@
 #ifndef liblldb_GoAST_h
 #define liblldb_GoAST_h
 
+#include <vector>
+
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private.h"
 #include "lldb/Expression/GoLexer.h"
+#include "llvm/Support/Casting.h"
 
 namespace lldb_private {
 

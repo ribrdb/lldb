@@ -1,4 +1,4 @@
-//===-- GoUserExpression.cpp ---------------------------------*- C++ -*-===//
+//===-- GoLexer.cpp ---------------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -204,11 +204,26 @@ GoLexer::DoString()
 GoLexer::TokenType
 GoLexer::LookupKeyword(llvm::StringRef id)
 {
-    static const llvm::StringMap<TokenType>* keywords = InitKeywords();
-    const auto& it = keywords->find(id);
-    if (it == keywords->end())
+    if (m_keywords == nullptr)
+        m_keywords = InitKeywords();
+    const auto& it = m_keywords->find(id);
+    if (it == m_keywords->end())
         return TOK_INVALID;
     return it->second;
+}
+
+
+llvm::StringRef
+GoLexer::LookupToken(TokenType t)
+{
+    if (m_keywords == nullptr)
+        m_keywords = InitKeywords();
+    for (const auto& e : *m_keywords)
+    {
+        if (e.getValue() == t)
+            return e.getKey();
+    }
+    return "";
 }
 
 llvm::StringMap<GoLexer::TokenType>*

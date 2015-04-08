@@ -1,0 +1,756 @@
+//===-- GoParser.cpp ---------------------------------*- C++ -*-===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+
+#include "lldb/Expression/GoAST.h"
+#include "lldb/Expression/GoParser.h"
+#include "llvm/ADT/SmallString.h"
+
+using namespace lldb_private;
+using namespace lldb;
+
+class GoParser::Rule
+{
+public:
+    Rule(llvm::StringRef name, GoParser* p) : m_name(name), m_parser(p), m_pos(p->m_pos) {}
+
+    std::nullptr_t error() {
+        if (!m_parser->m_failed)
+        {
+            m_parser->m_last = m_name;
+            m_parser->m_last_tok = GoLexer::TOK_INVALID;
+            m_parser->m_pos = m_pos;
+        }
+        return nullptr;
+    }
+    
+private:
+    llvm::StringRef m_name;
+    GoParser* m_parser;
+    size_t m_pos;
+};
+
+GoASTStmt*
+GoParser::Statement() {
+    Rule r("Statement", this);
+    GoLexer::TokenType t = peek();
+    GoASTStmt* ret = nullptr;
+    switch (t)
+    {
+        case GoLexer::TOK_EOF:
+        case GoLexer::OP_SEMICOLON:
+        case GoLexer::OP_RPAREN:
+        case GoLexer::OP_RBRACE:
+        case GoLexer::TOK_INVALID:
+            return EmptyStmt();
+
+            /*      TODO:
+        case GoLexer::KEYWORD_GO:
+            return GoStmt();
+        case GoLexer::KEYWORD_RETURN:
+            return ReturnStmt();
+        case GoLexer::KEYWORD_BREAK:
+        case GoLexer::KEYWORD_CONTINUE:
+        case GoLexer::KEYWORD_GOTO:
+        case GoLexer::KEYWORD_FALLTHROUGH:
+            return BranchStmt();
+        case GoLexer::KEYWORD_IF:
+            return IfStmt();
+        case GoLexer::KEYWORD_SWITCH:
+            return SwitchStmt();
+        case GoLexer::KEYWORD_SELECT:
+            return SelectStmt();
+        case GoLexer::KEYWORD_FOR:
+            return ForStmt();
+        case GoLexer::KEYWORD_DEFER:
+            return DeferStmt();
+        case GoLexer::KEYWORD_CONST:
+        case GoLexer::KEYWORD_TYPE:
+        case GoLexer::KEYWORD_VAR:
+            return DeclStmt();
+        case GoLexer::TOK_IDENTIFIER:
+            if ((ret = LabeledStmt()) ||
+                (ret = ShortVarDecl()))
+            {
+                return ret;
+            }
+ */
+        default:
+            break;
+    }
+    GoASTExpr* expr = Expression();
+    if (expr == nullptr)
+        return r.error();
+    if ((ret = ExpressionStmt(expr)) ||
+        /*(ret = SendStmt(expr)) ||*/
+        (ret = IncDecStmt(expr)) ||
+        (ret = Assignment(expr)))
+    {
+        return ret;
+    }
+    return r.error();
+}
+
+GoASTStmt*
+GoParser::EmptyStmt() {
+    if (Semicolon())
+        return new GoASTEmptyStmt;
+    return nullptr;
+}
+
+GoASTStmt*
+GoParser::GoStmt() {
+    if (match(GoLexer::KEYWORD_GO)) {
+        if (GoASTCallExpr* e = llvm::dyn_cast_or_null<GoASTCallExpr>(Expression())) {
+            return FinishStmt(new GoASTGoStmt(e));
+        }
+        m_last = "call expression";
+        m_failed = true;
+        return new GoASTBadStmt();
+    }
+    return nullptr;
+}
+
+GoASTStmt*
+GoParser::ReturnStmt() {
+    if (match(GoLexer::KEYWORD_RETURN))
+    {
+        std::unique_ptr<GoASTReturnStmt> r(new GoASTReturnStmt());
+        for (GoASTExpr* e = Expression(); e; e = MoreExpressionList())
+            r->AddResults(e);
+        return FinishStmt(r.release());
+    }
+    return nullptr;
+}
+
+GoASTStmt*
+GoParser::BranchStmt() {
+    GoLexer::Token* tok;
+    if ((tok = match(GoLexer::KEYWORD_BREAK)) ||
+        (tok = match(GoLexer::KEYWORD_CONTINUE)) ||
+        (tok = match(GoLexer::KEYWORD_GOTO)))
+    {
+        auto* e = Identifier();
+        if (tok->m_type == GoLexer::KEYWORD_GOTO && !e)
+            return syntaxerror();
+        return FinishStmt(new GoASTBranchStmt(e, tok->m_type));
+    }
+    if ((tok = match(GoLexer::KEYWORD_FALLTHROUGH)))
+        return FinishStmt(new GoASTBranchStmt(nullptr, tok->m_type));
+
+    return nullptr;
+}
+
+GoASTIdent*
+GoParser::Identifier()
+{
+    if (auto* tok = match(GoLexer::TOK_IDENTIFIER))
+        return new GoASTIdent(*tok);
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::MoreExpressionList()
+{
+    if (match(GoLexer::OP_COMMA)) {
+        auto* e = Expression();
+        if (!e)
+            return syntaxerror();
+        return e;
+    }
+    return nullptr;
+}
+
+
+GoASTIdent*
+GoParser::MoreIdentifierList()
+{
+    if (match(GoLexer::OP_COMMA)) {
+        auto* i = Identifier();
+        if (!i)
+            return syntaxerror();
+        return i;
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::Expression()
+{
+    Rule r("Expression", this);
+    GoASTExpr* ret;
+    if ((ret = UnaryExpr()) ||
+        (ret = OrExpr()))
+        return ret;
+    return r.error();
+}
+
+GoASTExpr*
+GoParser::UnaryExpr()
+{
+    switch (peek())
+    {
+        case GoLexer::OP_PLUS:
+        case GoLexer::OP_MINUS:
+        case GoLexer::OP_BANG:
+        case GoLexer::OP_CARET:
+        case GoLexer::OP_STAR:
+        case GoLexer::OP_AMP:
+        case GoLexer::OP_LT_MINUS:
+        {
+            const auto& t = next();
+            if (GoASTExpr* e = UnaryExpr())
+                return new GoASTUnaryExpr(t.m_type, e);
+            return syntaxerror();
+        }
+        default:
+            return PrimaryExpr();
+    }
+}
+
+GoASTExpr*
+GoParser::OrExpr()
+{
+    std::unique_ptr<GoASTExpr> l(AndExpr());
+    if (l)
+    {
+        while (match(GoLexer::OP_PIPE_PIPE)) {
+            GoASTExpr* r = AndExpr();
+            if (r)
+                l.reset(new GoASTBinaryExpr(l.release(), r, GoLexer::OP_PIPE_PIPE));
+            else
+                return syntaxerror();
+        }
+        return l.release();
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::AndExpr()
+{
+    std::unique_ptr<GoASTExpr> l(RelExpr());
+    if (l)
+    {
+        while (match(GoLexer::OP_AMP_AMP)) {
+            GoASTExpr* r = RelExpr();
+            if (r)
+                l.reset(new GoASTBinaryExpr(l.release(), r, GoLexer::OP_AMP_AMP));
+            else
+                return syntaxerror();
+        }
+        return l.release();
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::RelExpr()
+{
+    std::unique_ptr<GoASTExpr> l(AddExpr());
+    if (l)
+    {
+        for (GoLexer::Token* t;
+             (t = match(GoLexer::OP_EQ_EQ)) ||
+             (t = match(GoLexer::OP_BANG_EQ)) ||
+             (t = match(GoLexer::OP_LT)) ||
+             (t = match(GoLexer::OP_LT_EQ)) ||
+             (t = match(GoLexer::OP_GT)) ||
+             (t = match(GoLexer::OP_GT_EQ));)
+        {
+            GoASTExpr* r = AddExpr();
+            if (r)
+                l.reset(new GoASTBinaryExpr(l.release(), r, t->m_type));
+            else
+                return syntaxerror();
+        }
+        return l.release();
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::AddExpr()
+{
+    std::unique_ptr<GoASTExpr> l(MulExpr());
+    if (l)
+    {
+        for (GoLexer::Token* t;
+             (t = match(GoLexer::OP_PLUS)) ||
+             (t = match(GoLexer::OP_MINUS)) ||
+             (t = match(GoLexer::OP_PIPE)) ||
+             (t = match(GoLexer::OP_CARET));)
+        {
+            GoASTExpr* r = MulExpr();
+            if (r)
+                l.reset(new GoASTBinaryExpr(l.release(), r, t->m_type));
+            else
+                return syntaxerror();
+        }
+        return l.release();
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::MulExpr()
+{
+    std::unique_ptr<GoASTExpr> l(PrimaryExpr());
+    if (l)
+    {
+        for (GoLexer::Token* t;
+             (t = match(GoLexer::OP_STAR)) ||
+             (t = match(GoLexer::OP_SLASH)) ||
+             (t = match(GoLexer::OP_PERCENT)) ||
+             (t = match(GoLexer::OP_LSHIFT)) ||
+             (t = match(GoLexer::OP_RSHIFT)) ||
+             (t = match(GoLexer::OP_AMP)) ||
+             (t = match(GoLexer::OP_AMP_CARET));)
+        {
+            GoASTExpr* r = PrimaryExpr();
+            if (r)
+                l.reset(new GoASTBinaryExpr(l.release(), r, t->m_type));
+            else
+                return syntaxerror();
+        }
+        return l.release();
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::PrimaryExpr()
+{
+    GoASTExpr* l;
+    GoASTExpr* r;
+    (l = Conversion()) || (l = Operand());
+    if (!l)
+        return nullptr;
+    while ((r = Selector(l)) ||
+           (r = IndexOrSlice(l)) ||
+           (r = TypeAssertion(l)) ||
+           (r = Arguments(l)))
+    {
+        l = r;
+    }
+    return l;
+}
+
+GoASTExpr*
+GoParser::Selector(GoASTExpr *e)
+{
+    if (match(GoLexer::OP_DOT)) {
+        if (auto* name = Identifier())
+            return new GoASTSelectorExpr(e, name);
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::IndexOrSlice(GoASTExpr *e)
+{
+    if (match(GoLexer::OP_LBRACK)) {
+        std::unique_ptr<GoASTExpr> i1(Expression()), i2, i3;
+        bool slice = false;
+        if (match(GoLexer::OP_COLON))
+        {
+            slice = true;
+            i2.reset(Expression());
+            if (i2 && match(GoLexer::OP_COLON))
+            {
+                i3.reset(Expression());
+                if (!i3)
+                    return syntaxerror();
+            }
+        }
+        if (!(slice || i1))
+            return syntaxerror();
+        if (!mustMatch(GoLexer::OP_RBRACK))
+            return nullptr;
+        if (slice)
+        {
+            bool slice3 = i3.get();
+            return new GoASTSliceExpr(e, i1.release(), i2.release(), i3.release(), slice3);
+        }
+        return new GoASTIndexExpr(e, i1.release());
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::TypeAssertion(GoASTExpr *e)
+{
+    if (match(GoLexer::OP_DOT) && match(GoLexer::OP_LPAREN)) {
+        if (auto* t = Type())
+        {
+            if (!mustMatch(GoLexer::OP_RPAREN))
+                return nullptr;
+            return new GoASTTypeAssertExpr(e, t);
+        }
+        return syntaxerror();
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::Arguments(GoASTExpr *e)
+{
+    if (match(GoLexer::OP_LPAREN)) {
+        std::unique_ptr<GoASTCallExpr> call(new GoASTCallExpr);
+        call->SetFun(e);
+        GoASTExpr* arg;
+        // ( ExpressionList | Type [ "," ExpressionList ] )
+        for ((arg = Expression()) || (arg = Type()); arg; arg = MoreExpressionList())
+        {
+            call->AddArgs(arg);
+        }
+        if (match(GoLexer::OP_DOTS))
+            call->SetEllipsis(true);
+
+        // Eat trailing comma
+        match(GoLexer::OP_COMMA);
+        
+        if (!mustMatch(GoLexer::OP_RPAREN))
+            return nullptr;
+        return call.release();
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::Conversion()
+{
+    if (GoASTExpr* t = Type2())
+    {
+        if (match(GoLexer::OP_LPAREN))
+        {
+            GoASTExpr* v = Expression();
+            if (!v)
+                return syntaxerror();
+            match(GoLexer::OP_COMMA);
+            if (!mustMatch(GoLexer::OP_RPAREN))
+                return nullptr;
+            GoASTCallExpr* call = new GoASTCallExpr;
+            call->SetFun(t);
+            call->AddArgs(v);
+            return call;
+        }
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::Type2()
+{
+    switch (peek())
+    {
+        case GoLexer::OP_LBRACK:
+            return ArrayOrSliceType();
+        case GoLexer::KEYWORD_STRUCT:
+            return StructType();
+        case GoLexer::KEYWORD_FUNC:
+            return FunctionType();
+        case GoLexer::KEYWORD_INTERFACE:
+            return InterfaceType();
+        case GoLexer::KEYWORD_MAP:
+            return MapType();
+        case GoLexer::KEYWORD_CHAN:
+            return ChanType2();
+        default:
+            return nullptr;
+    }
+}
+
+GoASTExpr*
+GoParser::ArrayOrSliceType()
+{
+    Rule r("ArrayType", this);
+    if (match(GoLexer::OP_LBRACK))
+    {
+        std::unique_ptr<GoASTExpr> len(Expression());
+        if (!mustMatch(GoLexer::OP_RBRACK))
+            return nullptr;
+        GoASTExpr* elem = Type();
+        if (!elem)
+            return syntaxerror();
+        return new GoASTArrayType(len.release(), elem);
+    }
+    return r.error();
+}
+
+GoASTExpr*
+GoParser::StructType()
+{
+    if (!(match(GoLexer::KEYWORD_STRUCT) && mustMatch(GoLexer::OP_LBRACE)))
+        return nullptr;
+    std::unique_ptr<GoASTFieldList> fields(new GoASTFieldList);
+    while (auto* field = FieldDecl())
+        fields->AddList(field);
+    if (!mustMatch(GoLexer::OP_RBRACE))
+        return nullptr;
+    return new GoASTStructType(fields.release());
+}
+
+GoASTField*
+GoParser::FieldDecl()
+{
+    std::unique_ptr<GoASTField> f(new GoASTField);
+    GoASTExpr* t = FieldNamesAndType(f.get());
+    if (!t)
+        t = AnonymousFieldType();
+    if (!t)
+        return nullptr;
+
+    if (auto* tok = match(GoLexer::LIT_STRING))
+        f->SetTag(new GoASTBasicLit(*tok));
+    if (!Semicolon())
+        return syntaxerror();
+    return f.release();
+}
+
+GoASTExpr*
+GoParser::FieldNamesAndType(GoASTField* field)
+{
+    Rule r("FieldNames", this);
+    for (auto* id = Identifier(); id; id = MoreIdentifierList())
+        field->AddNames(id);
+    if (m_failed)
+        return nullptr;
+    GoASTExpr* t = Type();
+    if (t)
+        return t;
+    return r.error();
+}
+
+GoASTExpr*
+GoParser::AnonymousFieldType()
+{
+    bool pointer = match(GoLexer::OP_STAR);
+    GoASTExpr* t = Type();
+    if (!t)
+        return nullptr;
+    if (pointer)
+        return new GoASTStarExpr(t);
+    return t;
+}
+
+GoASTExpr*
+GoParser::FunctionType()
+{
+    if (!match(GoLexer::KEYWORD_FUNC))
+        return nullptr;
+    return Signature();
+}
+
+GoASTFuncType*
+GoParser::Signature()
+{
+    auto* params = Params();
+    if (!params)
+        return syntaxerror();
+    auto* result = Params();
+    if (!result)
+    {
+        if (auto* t = Type())
+        {
+            result = new GoASTFieldList;
+            auto* f = new GoASTField;
+            f->SetType(t);
+            result->AddList(f);
+        }
+    }
+    return new GoASTFuncType(params, result);
+}
+
+GoASTFieldList*
+GoParser::Params()
+{
+    if (!match(GoLexer::OP_LPAREN))
+        return nullptr;
+    std::unique_ptr<GoASTFieldList> l(new GoASTFieldList);
+    while (GoASTField* p = ParamDecl())
+    {
+        l->AddList(p);
+        if (!match(GoLexer::OP_COMMA))
+            break;
+    }
+    if (!mustMatch(GoLexer::OP_RPAREN))
+        return nullptr;
+    return l.release();
+}
+
+GoASTField*
+GoParser::ParamDecl()
+{
+    std::unique_ptr<GoASTField> field(new GoASTField);
+    GoASTIdent* id = Identifier();
+    if (id)
+    {
+        // Try `IdentifierList [ "..." ] Type`.
+        // If that fails, backtrack and try `[ "..." ] Type`.
+        Rule r("NamedParam", this);
+        for (; id; id = MoreIdentifierList())
+            field->AddNames(id);
+        GoASTExpr* t = ParamType();
+        if (t)
+        {
+            field->SetType(t);
+            return field.release();
+        }
+        field.reset(new GoASTField);
+        r.error();
+    }
+    GoASTExpr* t = ParamType();
+    if (t)
+    {
+        field->SetType(t);
+        return field.release();
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::ParamType()
+{
+    bool dots = match(GoLexer::OP_DOTS);
+    GoASTExpr* t = Type();
+    if (!dots)
+        return t;
+    if (!t)
+        return syntaxerror();
+    return new GoASTEllipsis(t);
+}
+
+GoASTExpr*
+GoParser::InterfaceType()
+{
+    if (!match(GoLexer::KEYWORD_INTERFACE) || !mustMatch(GoLexer::OP_LBRACE))
+        return nullptr;
+    std::unique_ptr<GoASTFieldList> methods(new GoASTFieldList);
+    while (true)
+    {
+        Rule r("MethodSpec", this);
+        // ( identifier Signature | TypeName ) ;
+        std::unique_ptr<GoASTIdent> id(Identifier());
+        if (!id)
+            break;
+        GoASTExpr* type = Signature();
+        if (!type)
+        {
+            r.error();
+            id.reset();
+            type = Name();
+        }
+        if (!Semicolon())
+            return syntaxerror();
+        auto* f = new GoASTField;
+        if (id)
+            f->AddNames(id.release());
+        f->SetType(type);
+        methods->AddList(f);
+    }
+    if (!mustMatch(GoLexer::OP_RBRACE))
+        return nullptr;
+    return new GoASTInterfaceType(methods.release());
+}
+
+GoASTExpr*
+GoParser::MapType()
+{
+    if (!(match(GoLexer::KEYWORD_MAP) && mustMatch(GoLexer::OP_LBRACK)))
+        return nullptr;
+    std::unique_ptr<GoASTExpr> key(Type());
+    if (!key)
+        return syntaxerror();
+    if (!mustMatch(GoLexer::OP_RBRACK))
+        return nullptr;
+    auto* elem = Type();
+    if (!elem)
+        return syntaxerror();
+    return new GoASTMapType(key.release(), elem);
+}
+
+GoASTExpr*
+GoParser::ChanType()
+{
+    Rule r("chan", this);
+    if (match(GoLexer::OP_LT_MINUS))
+    {
+        if (match(GoLexer::KEYWORD_CHAN))
+        {
+            auto* elem = Type();
+            if (!elem)
+                return syntaxerror();
+            return new GoASTChanType(GoASTNode::eChanRecv, elem);
+        }
+        return r.error();
+    }
+    return ChanType2();
+}
+
+GoASTExpr*
+GoParser::ChanType2()
+{
+    if (!match(GoLexer::KEYWORD_CHAN))
+        return nullptr;
+    auto dir = GoASTNode::eChanBidir;
+    if (match(GoLexer::OP_LT_MINUS))
+        dir = GoASTNode::eChanSend;
+    auto*  elem = Type();
+    if (!elem)
+        return syntaxerror();
+    return new GoASTChanType(dir, elem);
+}
+
+
+GoASTExpr*
+GoParser::Name()
+{
+    if (auto* id = Identifier())
+    {
+        if (GoASTExpr* qual = QualifiedIdent(id))
+            return qual;
+        return id;
+    }
+    return nullptr;
+}
+
+GoASTExpr*
+GoParser::QualifiedIdent(lldb_private::GoASTIdent *p)
+{
+    Rule r("QualifiedIdent", this);
+    llvm::SmallString<32> path(p->GetName().m_value);
+    GoLexer::Token* next;
+    bool have_slashes = false;
+    // LLDB extension: support full/package/path.name
+    while (match(GoLexer::OP_SLASH) && (next = match(GoLexer::TOK_IDENTIFIER)))
+    {
+        have_slashes = true;
+        path.append("/");
+        path.append(next->m_value);
+    }
+    if (match(GoLexer::OP_DOT))
+    {
+        auto* name = Identifier();
+        if (name)
+        {
+            if (have_slashes)
+            {
+                p->SetName(GoLexer::Token(GoLexer::TOK_IDENTIFIER, CopyString(path)));
+            }
+            return new GoASTSelectorExpr(p, name);
+        }
+    }
+    return r.error();
+}
+                           
+llvm::StringRef
+GoParser::CopyString(llvm::StringRef s)
+{
+    return m_strings.insert(std::make_pair(s, 'x')).first->getKey();
+}

@@ -26,6 +26,7 @@
 #include "lldb/Expression/ClangExpression.h"
 #include "lldb/Expression/ClangPersistentVariables.h"
 #include "lldb/Expression/GoAST.h"
+#include "lldb/Expression/GoParser.h"
 #include "lldb/Expression/GoUserExpression.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
@@ -80,4 +81,5 @@ GoUserExpression::Evaluate (ExecutionContext &exe_ctx,
     execution_results = lldb::eExpressionCompleted;
     
     return execution_results;
+    (new GoUserExpression)->m_parser_ap->Statement();
 }

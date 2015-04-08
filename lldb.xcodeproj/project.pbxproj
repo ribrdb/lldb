@@ -877,6 +877,7 @@
 		AEEA34051AC88A7400AB639D /* TypeSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEEA34041AC88A7400AB639D /* TypeSystem.cpp */; };
 		AEF403191AE850A60022325E /* GoUserExpression.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEF403171AE850A60022325E /* GoUserExpression.cpp */; };
 		AEFC5AA31AF280CB0039A555 /* GoLexer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEFC5AA21AF280CB0039A555 /* GoLexer.cpp */; };
+		AEFC5AA91AF82A0F0039A555 /* GoParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEFC5AA81AF82A0F0039A555 /* GoParser.cpp */; };
 		AEFFBA7E1AC4835D0087B932 /* GoASTContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEFFBA7C1AC4835D0087B932 /* GoASTContext.cpp */; };
 		AF061F87182C97ED00B6A19C /* RegisterContextHistory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */; };
 		AF061F88182C97ED00B6A19C /* RegisterContextHistory.h in Headers */ = {isa = PBXBuildFile; fileRef = AF061F86182C97ED00B6A19C /* RegisterContextHistory.h */; };
@@ -2646,6 +2647,8 @@
 		AEFC5AA01AF18F760039A555 /* GoAST.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoAST.h; path = include/lldb/Expression/GoAST.h; sourceTree = "<group>"; };
 		AEFC5AA11AF27F760039A555 /* GoLexer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoLexer.h; path = include/lldb/Expression/GoLexer.h; sourceTree = "<group>"; };
 		AEFC5AA21AF280CB0039A555 /* GoLexer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoLexer.cpp; path = source/Expression/GoLexer.cpp; sourceTree = "<group>"; };
+		AEFC5AA71AF828900039A555 /* GoParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoParser.h; path = include/lldb/Expression/GoParser.h; sourceTree = "<group>"; };
+		AEFC5AA81AF82A0F0039A555 /* GoParser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoParser.cpp; path = source/Expression/GoParser.cpp; sourceTree = "<group>"; };
 		AEFFBA7C1AC4835D0087B932 /* GoASTContext.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoASTContext.cpp; path = source/Symbol/GoASTContext.cpp; sourceTree = "<group>"; };
 		AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = RegisterContextHistory.cpp; path = Utility/RegisterContextHistory.cpp; sourceTree = "<group>"; };
 		AF061F86182C97ED00B6A19C /* RegisterContextHistory.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RegisterContextHistory.h; path = Utility/RegisterContextHistory.h; sourceTree = "<group>"; };
@@ -4365,6 +4368,8 @@
 				AEFC5AA01AF18F760039A555 /* GoAST.h */,
 				AEFC5AA11AF27F760039A555 /* GoLexer.h */,
 				AEFC5AA21AF280CB0039A555 /* GoLexer.cpp */,
+				AEFC5AA71AF828900039A555 /* GoParser.h */,
+				AEFC5AA81AF82A0F0039A555 /* GoParser.cpp */,
 				AEF403161AE841120022325E /* GoUserExpression.h */,
 				AEF403171AE850A60022325E /* GoUserExpression.cpp */,
 				4906FD4412F2257600A2A77C /* ASTDumper.h */,
@@ -6358,6 +6363,7 @@
 				268900F913353E6F00698AC0 /* Thread.cpp in Sources */,
 				268900FA13353E6F00698AC0 /* ThreadList.cpp in Sources */,
 				268900FB13353E6F00698AC0 /* ThreadPlan.cpp in Sources */,
+				AEFC5AA91AF82A0F0039A555 /* GoParser.cpp in Sources */,
 				256CBDBC1ADD107200BC6CDC /* RegisterContextLinux_mips64.cpp in Sources */,
 				232CB619191E00CD00EF39FC /* NativeProcessProtocol.cpp in Sources */,
 				8CF02AEF19DD16B100B14BE0 /* InstrumentationRuntimeStopInfo.cpp in Sources */,
