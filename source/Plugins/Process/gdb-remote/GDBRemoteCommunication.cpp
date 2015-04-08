@@ -259,7 +259,7 @@ GDBRemoteCommunication::SendPacketNoLock (const char *payload, size_t payload_le
                 strm.Printf("<%4" PRIu64 "> send packet: %.*s", (uint64_t)bytes_written, (int)binary_start_offset, packet_data);
                 const uint8_t *p;
                 // Print binary data exactly as sent
-                for (p = (uint8_t*)packet_data + binary_start_offset; *p != '#'; ++p)
+                for (p = (const uint8_t*)packet_data + binary_start_offset; *p != '#'; ++p)
                     strm.Printf("\\x%2.2x", *p);
                 // Print the checksum
                 strm.Printf("%*s", (int)3, p);
@@ -822,7 +822,11 @@ GDBRemoteCommunication::StartDebugserverProcess (const char *hostname,
             // connect to us..
             error = StartListenThread ("127.0.0.1", 0);
             if (error.Fail())
+            {
+                if (log)
+                    log->Printf ("GDBRemoteCommunication::%s() unable to start listen thread: %s", __FUNCTION__, error.AsCString());
                 return error;
+            }
 
             ConnectionFileDescriptor *connection = (ConnectionFileDescriptor *)GetConnection ();
             // Wait for 10 seconds to resolve the bound port
@@ -839,6 +843,8 @@ GDBRemoteCommunication::StartDebugserverProcess (const char *hostname,
             else
             {
                 error.SetErrorString ("failed to bind to port 0 on 127.0.0.1");
+                if (log)
+                    log->Printf ("GDBRemoteCommunication::%s() failed: %s", __FUNCTION__, error.AsCString());
                 return error;
             }
         }
@@ -850,12 +856,21 @@ GDBRemoteCommunication::StartDebugserverProcess (const char *hostname,
             debugserver_args.AppendArgument(arg_cstr);
         }
         
+#if defined(__APPLE__)
         const char *env_debugserver_log_flags = getenv("LLDB_DEBUGSERVER_LOG_FLAGS");
         if (env_debugserver_log_flags)
         {
             ::snprintf (arg_cstr, sizeof(arg_cstr), "--log-flags=%s", env_debugserver_log_flags);
             debugserver_args.AppendArgument(arg_cstr);
         }
+#else
+        const char *env_debugserver_log_channels = getenv("LLDB_SERVER_LOG_CHANNELS");
+        if (env_debugserver_log_channels)
+        {
+            ::snprintf (arg_cstr, sizeof(arg_cstr), "--log-channels=%s", env_debugserver_log_channels);
+            debugserver_args.AppendArgument(arg_cstr);
+        }
+#endif
 
         // Add additional args, starting with LLDB_DEBUGSERVER_EXTRA_ARG_1 until an env var doesn't come back.
         uint32_t env_var_index = 1;
@@ -948,6 +963,13 @@ GDBRemoteCommunication::StartDebugserverProcess (const char *hostname,
     {
         error.SetErrorStringWithFormat ("unable to locate " DEBUGSERVER_BASENAME );
     }
+
+    if (error.Fail())
+    {
+        if (log)
+            log->Printf ("GDBRemoteCommunication::%s() failed: %s", __FUNCTION__, error.AsCString());
+    }
+
     return error;
 }
 

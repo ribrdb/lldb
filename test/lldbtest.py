@@ -32,6 +32,7 @@ $
 """
 
 import abc
+import glob
 import os, sys, traceback
 import os.path
 import re
@@ -42,6 +43,8 @@ import time
 import types
 import unittest2
 import lldb
+import lldbtest_config
+import lldbutil
 from _pyio import __metaclass__
 
 # See also dotest.parseOptionsAndInitTestdirs(), where the environment variables
@@ -302,11 +305,9 @@ class _RemoteProcess(_BaseProcess):
         return self._pid
 
     def launch(self, executable, args):
-        remote_work_dir = lldb.remote_platform.GetWorkingDirectory()
-
         if self._install_remote:
             src_path = executable
-            dst_path = os.path.join(remote_work_dir, os.path.basename(executable))
+            dst_path = lldbutil.append_to_remote_wd(os.path.basename(executable))
 
             dst_file_spec = lldb.SBFileSpec(dst_path, False)
             err = lldb.remote_platform.Install(lldb.SBFileSpec(src_path, True), dst_file_spec)
@@ -318,7 +319,7 @@ class _RemoteProcess(_BaseProcess):
 
         launch_info = lldb.SBLaunchInfo(args)
         launch_info.SetExecutableFile(dst_file_spec, True)
-        launch_info.SetWorkingDirectory(remote_work_dir)
+        launch_info.SetWorkingDirectory(lldb.remote_platform.GetWorkingDirectory())
 
         # Redirect stdout and stderr to /dev/null
         launch_info.AddSuppressFileAction(1, False, True)
@@ -963,6 +964,55 @@ class Base(unittest2.TestCase):
         else:
             return True
 
+    def enableLogChannelsForCurrentTest(self):
+        if len(lldbtest_config.channels) == 0:
+            return
+
+        # if debug channels are specified in lldbtest_config.channels,
+        # create a new set of log files for every test
+        log_basename = self.getLogBasenameForCurrentTest()
+
+        # confirm that the file is writeable
+        host_log_path = "{}-host.log".format(log_basename)
+        open(host_log_path, 'w').close()
+
+        log_enable = "log enable -Tpn -f {} ".format(host_log_path)
+        for channel_with_categories in lldbtest_config.channels:
+            channel_then_categories = channel_with_categories.split(' ', 1)
+            channel = channel_then_categories[0]
+            if len(channel_then_categories) > 1:
+                categories = channel_then_categories[1]
+            else:
+                categories = "default"
+
+            if channel == "gdb-remote":
+                # communicate gdb-remote categories to debugserver
+                os.environ["LLDB_DEBUGSERVER_LOG_FLAGS"] = categories
+
+            self.ci.HandleCommand(log_enable + channel_with_categories, self.res)
+            if not self.res.Succeeded():
+                raise Exception('log enable failed (check LLDB_LOG_OPTION env variable)')
+
+        # Communicate log path name to debugserver & lldb-server
+        server_log_path = "{}-server.log".format(log_basename)
+        open(server_log_path, 'w').close()
+        os.environ["LLDB_DEBUGSERVER_LOG_FILE"] = server_log_path
+
+        # Communicate channels to lldb-server
+        os.environ["LLDB_SERVER_LOG_CHANNELS"] = ":".join(lldbtest_config.channels)
+
+        if len(lldbtest_config.channels) == 0:
+            return
+
+    def disableLogChannelsForCurrentTest(self):
+        # close all log files that we opened
+        for channel_and_categories in lldbtest_config.channels:
+            # channel format - <channel-name> [<category0> [<category1> ...]]
+            channel = channel_and_categories.split(' ', 1)[0]
+            self.ci.HandleCommand("log disable " + channel, self.res)
+            if not self.res.Succeeded():
+                raise Exception('log disable failed (check LLDB_LOG_OPTION env variable)')
+
     def setUp(self):
         """Fixture for unittest test case setup.
 
@@ -1092,6 +1142,25 @@ class Base(unittest2.TestCase):
         if self.platformContext:
             # set environment variable names for finding shared libraries
             self.dylibPath = self.platformContext.shlib_environment_var
+
+        # Create the debugger instance if necessary.
+        try:
+            self.dbg = lldb.DBG
+        except AttributeError:
+            self.dbg = lldb.SBDebugger.Create()
+
+        if not self.dbg:
+            raise Exception('Invalid debugger instance')
+
+        # Retrieve the associated command interpreter instance.
+        self.ci = self.dbg.GetCommandInterpreter()
+        if not self.ci:
+            raise Exception('Could not get the command interpreter')
+
+        # And the result object.
+        self.res = lldb.SBCommandReturnObject()
+
+        self.enableLogChannelsForCurrentTest()
 
     def runHooks(self, child=None, child_prompt=None, use_cmd_api=False):
         """Perform the run hooks to bring lldb debugger to the desired state.
@@ -1284,6 +1353,8 @@ class Base(unittest2.TestCase):
                 for dict in reversed(self.dicts):
                     self.cleanup(dictionary=dict)
 
+        self.disableLogChannelsForCurrentTest()
+
         # Decide whether to dump the session info.
         self.dumpSessionInfo()
 
@@ -1317,7 +1388,7 @@ class Base(unittest2.TestCase):
             if bugnumber == None:
                 print >> sbuf, "expected failure"
             else:
-                print >> sbuf, "expected failure (problem id:" + str(bugnumber) + ")"	
+                print >> sbuf, "expected failure (problem id:" + str(bugnumber) + ")"
 
     def markSkippedTest(self):
         """Callback invoked when a test is skipped."""
@@ -1338,11 +1409,37 @@ class Base(unittest2.TestCase):
             if bugnumber == None:
                 print >> sbuf, "unexpected success"
             else:
-                print >> sbuf, "unexpected success (problem id:" + str(bugnumber) + ")"	
+                print >> sbuf, "unexpected success (problem id:" + str(bugnumber) + ")"
 
     def getRerunArgs(self):
         return " -f %s.%s" % (self.__class__.__name__, self._testMethodName)
-        
+
+    def getLogBasenameForCurrentTest(self, prefix=None):
+        """
+        returns a partial path that can be used as the beginning of the name of multiple
+        log files pertaining to this test
+
+        <session-dir>/<arch>-<compiler>-<test-file>.<test-class>.<test-method>
+        """
+        dname = os.path.join(os.environ["LLDB_TEST"],
+                     os.environ["LLDB_SESSION_DIRNAME"])
+        if not os.path.isdir(dname):
+            os.mkdir(dname)
+
+        compiler = self.getCompiler()
+
+        if compiler[1] == ':':
+            compiler = compiler[2:]
+
+        fname = "{}-{}-{}".format(self.id(), self.getArchitecture(), "_".join(compiler.split(os.path.sep)))
+        if len(fname) > 200:
+            fname = "{}-{}-{}".format(self.id(), self.getArchitecture(), compiler.split(os.path.sep)[-1])
+
+        if prefix is not None:
+            fname = "{}-{}".format(prefix, fname)
+
+        return os.path.join(dname, fname)
+
     def dumpSessionInfo(self):
         """
         Dump the debugger interactions leading to a test error/failure.  This
@@ -1363,6 +1460,9 @@ class Base(unittest2.TestCase):
         # formatted tracebacks.
         #
         # See http://docs.python.org/library/unittest.html#unittest.TestResult.
+        src_log_basename = self.getLogBasenameForCurrentTest()
+
+        pairs = []
         if self.__errored__:
             pairs = lldb.test_result.errors
             prefix = 'Error'
@@ -1377,8 +1477,18 @@ class Base(unittest2.TestCase):
         elif self.__unexpected__:
             prefix = "UnexpectedSuccess"
         else:
-            # Simply return, there's no session info to dump!
-            return
+            prefix = "Success"
+            if not lldbtest_config.log_success:
+                # delete log files, return (don't output trace)
+                for i in glob.glob(src_log_basename + "*"):
+                    os.unlink(i)
+                return
+
+        # rename all log files - prepend with result
+        dst_log_basename = self.getLogBasenameForCurrentTest(prefix)
+        for src in glob.glob(self.getLogBasenameForCurrentTest() + "*"):
+            dst = src.replace(src_log_basename, dst_log_basename)
+            os.rename(src, dst)
 
         if not self.__unexpected__ and not self.__skipped__:
             for test, traceback in pairs:
@@ -1391,18 +1501,7 @@ class Base(unittest2.TestCase):
         else:
             benchmarks = False
 
-        dname = os.path.join(os.environ["LLDB_TEST"],
-                             os.environ["LLDB_SESSION_DIRNAME"])
-        if not os.path.isdir(dname):
-            os.mkdir(dname)
-        compiler = self.getCompiler()
-        if compiler[1] == ':':
-            compiler = compiler[2:]
-
-        fname = "%s-%s-%s-%s.log" % (prefix, self.getArchitecture(), "_".join(compiler.split(os.path.sep)), self.id())
-        if len(fname) > 255:
-            fname = "%s-%s-%s-%s.log" % (prefix, self.getArchitecture(), compiler.split(os.path.sep)[-1], self.id())
-        pname = os.path.join(dname, fname)
+        pname = "{}.log".format(dst_log_basename)
         with open(pname, "w") as f:
             import datetime
             print >> f, "Session info generated @", datetime.datetime.now().ctime()
@@ -1862,15 +1961,6 @@ class TestBase(Base):
         if "LLDB_TIME_WAIT_NEXT_LAUNCH" in os.environ:
             self.timeWaitNextLaunch = float(os.environ["LLDB_TIME_WAIT_NEXT_LAUNCH"])
 
-        # Create the debugger instance if necessary.
-        try:
-            self.dbg = lldb.DBG
-        except AttributeError:
-            self.dbg = lldb.SBDebugger.Create()
-
-        if not self.dbg:
-            raise Exception('Invalid debugger instance')
-
         #
         # Warning: MAJOR HACK AHEAD!
         # If we are running testsuite remotely (by checking lldb.lldbtest_remote_sandbox),
@@ -1912,11 +2002,11 @@ class TestBase(Base):
             lldb.pre_flight(self)
 
         if lldb.remote_platform:
-            #remote_test_dir = os.path.join(lldb.remote_platform_working_dir, self.mydir)
-            remote_test_dir = os.path.join(lldb.remote_platform_working_dir, 
-                                           self.getArchitecture(), 
-                                           str(self.test_number), 
-                                           self.mydir)
+            remote_test_dir = lldbutil.join_remote_paths(
+                    lldb.remote_platform_working_dir,
+                    self.getArchitecture(),
+                    str(self.test_number),
+                    self.mydir)
             error = lldb.remote_platform.MakeDirectory(remote_test_dir, 0700)
             if error.Success():
                 lldb.remote_platform.SetWorkingDirectory(remote_test_dir)
@@ -1965,7 +2055,7 @@ class TestBase(Base):
             if lldb.remote_platform:
                 # We must set the remote install location if we want the shared library
                 # to get uploaded to the remote target
-                remote_shlib_path = os.path.join(lldb.remote_platform.GetWorkingDirectory(), os.path.basename(local_shlib_path))
+                remote_shlib_path = lldbutil.append_to_remote_wd(os.path.basename(local_shlib_path))
                 shlib_module.SetRemoteInstallFileSpec(lldb.SBFileSpec(remote_shlib_path, False))
 
         return environment

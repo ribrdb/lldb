@@ -1059,13 +1059,24 @@ Target::IgnoreWatchpointByID (lldb::watch_id_t watch_id, uint32_t ignore_count)
 ModuleSP
 Target::GetExecutableModule ()
 {
-    return m_images.GetModuleAtIndex(0);
+    // search for the first executable in the module list
+    for (size_t i = 0; i < m_images.GetSize(); ++i)
+    {
+        ModuleSP module_sp = m_images.GetModuleAtIndex (i);
+        lldb_private::ObjectFile * obj = module_sp->GetObjectFile();
+        if (obj == nullptr)
+            continue;
+        if (obj->GetType() == ObjectFile::Type::eTypeExecutable)
+            return module_sp;
+    }
+    // as fall back return the first module loaded
+    return m_images.GetModuleAtIndex (0);
 }
 
 Module*
 Target::GetExecutableModulePointer ()
 {
-    return m_images.GetModulePointerAtIndex(0);
+    return GetExecutableModule().get();
 }
 
 static void
@@ -2392,8 +2403,9 @@ Target::Install (ProcessLaunchInfo *launch_info)
                                 if (is_main_executable) // TODO: add setting for always installing main executable???
                                 {
                                     // Always install the main executable
+                                    remote_file = FileSpec(module_sp->GetFileSpec().GetFilename().AsCString(),
+                                                           false, module_sp->GetArchitecture());
                                     remote_file.GetDirectory() = platform_sp->GetWorkingDirectory();
-                                    remote_file.GetFilename() = module_sp->GetFileSpec().GetFilename();
                                 }
                             }
                             if (remote_file)
@@ -2404,6 +2416,7 @@ Target::Install (ProcessLaunchInfo *launch_info)
                                     module_sp->SetPlatformFileSpec(remote_file);
                                     if (is_main_executable)
                                     {
+                                        platform_sp->SetFilePermissions(remote_file.GetPath(false).c_str(), 0700);
                                         if (launch_info)
                                             launch_info->SetExecutableFile(remote_file, false);
                                     }
@@ -2655,13 +2668,6 @@ Target::Launch (ProcessLaunchInfo &launch_info, Stream *stream)
                     {
                         m_process_sp->RestoreProcessEvents();
                         error = m_process_sp->PrivateResume();
-                        if (error.Success())
-                        {
-                            // there is a race condition where this thread will return up the call stack to the main command
-                            // handler and show an (lldb) prompt before HandlePrivateEvent (from PrivateStateThread) has
-                            // a chance to call PushProcessIOHandler()
-                            m_process_sp->SyncIOHandler(2000);
-                        }
                     }
                     if (!error.Success())
                     {
@@ -2677,11 +2683,6 @@ Target::Launch (ProcessLaunchInfo &launch_info, Stream *stream)
                     // Target was stopped at entry as was intended. Need to notify the listeners about it.
                     m_process_sp->RestoreProcessEvents();
                     m_process_sp->HandlePrivateEvent(event_sp);
-
-                    // there is a race condition where this thread will return up the call stack to the main command
-                    // handler and show an (lldb) prompt before HandlePrivateEvent (from PrivateStateThread) has
-                    // a chance to call PushProcessIOHandler()
-                    m_process_sp->SyncIOHandler(2000);
                 }
             }
             else if (state == eStateExited)

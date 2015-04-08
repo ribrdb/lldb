@@ -35,10 +35,24 @@ var_update_test(void)
 }
 
 void
+var_list_children(void)
+{
+    complex_type complx = { 3, { 3L }, &complx };
+    complex_type complx_array[2] = { { 4, { 4L }, &complx_array[1] }, { 5, { 5 }, &complx_array[0] } };
+
+    // BP_var_list_children
+}
+
+
+void
 gdb_set_show_print_char_array_as_string_test(void)
 {
-    const char *string_ptr = "string - const char *";
-    const char string_arr[] = "string - char []";
+    const char *cp = "hello";
+    const char ca[] = "hello";
+    const char16_t *u16p = u"hello";
+    const char16_t u16a[] = u"hello";
+    const char32_t *u32p = U"hello";
+    const char32_t u32a[] = U"hello";
 
     // BP_gdb_set_show_print_char_array_as_string_test
 }
@@ -70,6 +84,7 @@ main(int argc, char const *argv[])
     int a = 10, b = 20;
     s_MyVar = a + b;
     var_update_test();
+    var_list_children();
     gdb_set_show_print_char_array_as_string_test();
     gdb_set_show_print_expand_aggregates();
     gdb_set_show_print_aggregate_field_names();

@@ -3221,7 +3221,7 @@ GDBRemoteCommunicationClient::SetFilePermissions (const char *path,
     if (response.GetChar() != 'F')
         return Error("invalid response to '%s' packet", packet);
 
-    return Error(response.GetU32(false, UINT32_MAX), eErrorTypePOSIX);
+    return Error(response.GetU32(UINT32_MAX), eErrorTypePOSIX);
 }
 
 static uint64_t
@@ -3744,14 +3744,14 @@ GDBRemoteCommunicationClient::GetModuleInfo (const FileSpec& module_file_spec,
     packet.PutCString("qModuleInfo:");
     packet.PutCStringAsRawHex8(module_path.c_str());
     packet.PutCString(";");
-    const auto& tripple = arch_spec.GetTriple().getTriple();
-    packet.PutBytesAsRawHex8(tripple.c_str(), tripple.size());
+    const auto& triple = arch_spec.GetTriple().getTriple();
+    packet.PutBytesAsRawHex8(triple.c_str(), triple.size());
 
     StringExtractorGDBRemote response;
     if (SendPacketAndWaitForResponse (packet.GetData(), packet.GetSize(), response, false) != PacketResult::Success)
         return false;
 
-    if (response.IsErrorResponse ())
+    if (response.IsErrorResponse () || response.IsUnsupportedResponse ())
         return false;
 
     std::string name;
@@ -3795,7 +3795,7 @@ GDBRemoteCommunicationClient::GetModuleInfo (const FileSpec& module_file_spec,
             extractor.GetStringRef ().swap (value);
             extractor.SetFilePos (0);
             extractor.GetHexByteString (value);
-            module_spec.GetFileSpec () = FileSpec (value.c_str(), false);
+            module_spec.GetFileSpec() = FileSpec(value.c_str(), false, arch_spec);
         }
     }
 

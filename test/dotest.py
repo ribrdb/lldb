@@ -32,6 +32,7 @@ import textwrap
 import time
 import inspect
 import unittest2
+import lldbtest_config
 
 if sys.version_info >= (2, 7):
     argparse = __import__('argparse')
@@ -252,7 +253,9 @@ verbose = 1
 progress_bar = False
 
 # By default, search from the script directory.
-testdirs = [ sys.path[0] ]
+# We can't use sys.path[0] to determine the script directory
+# because it doesn't work under a debugger
+testdirs = [ os.path.dirname(os.path.realpath(__file__)) ]
 
 # Separator string.
 separator = '-' * 70
@@ -337,7 +340,36 @@ notify the directory containing the session logs for test failures or errors.
 In case there is any test failure/error, a similar message is appended at the
 end of the stderr output for your convenience.
 
-Environment variables related to loggings:
+ENABLING LOGS FROM TESTS
+
+Option 1:
+
+Writing logs into different files per test case::
+
+This option is particularly useful when multiple dotest instances are created
+by dosep.py
+
+$ ./dotest.py --channel "lldb all"
+
+$ ./dotest.py --channel "lldb all" --channel "gdb-remote packets"
+
+These log files are written to:
+
+<session-dir>/<test-id>.log (logs from lldb host process)
+<session-dir>/<test-id>-server.log (logs from debugserver/lldb-server)
+<session-dir>/<test-id>-trace-<test-result>.log (console logs)
+
+By default, logs from successful runs are deleted.  Use the --log-success flag
+to create reference logs for debugging.
+
+$ ./dotest.py --log-success
+
+Option 2: (DEPRECATED)
+
+The following options can only enable logs from the host lldb process.
+Only categories from the "lldb" or "gdb-remote" channels can be enabled
+They also do not automatically enable logs in locally running debug servers.
+Also, logs from all test case are written into each log file
 
 o LLDB_LOG: if defined, specifies the log file pathname for the 'lldb' subsystem
   with a default option of 'event process' if LLDB_LOG_OPTION is not defined.
@@ -345,6 +377,7 @@ o LLDB_LOG: if defined, specifies the log file pathname for the 'lldb' subsystem
 o GDB_REMOTE_LOG: if defined, specifies the log file pathname for the
   'process.gdb-remote' subsystem with a default option of 'packets' if
   GDB_REMOTE_LOG_OPTION is not defined.
+
 """
     sys.exit(0)
 
@@ -522,6 +555,8 @@ def parseOptionsAndInitTestdirs():
     group.add_argument('-x', metavar='breakpoint-spec', help='Specify the breakpoint specification for the benchmark executable')
     group.add_argument('-y', type=int, metavar='count', help="Specify the iteration count used to collect our benchmarks. An example is the number of times to do 'thread step-over' to measure stepping speed.")
     group.add_argument('-#', type=int, metavar='sharp', dest='sharp', help='Repeat the test suite for a specified number of times')
+    group.add_argument('--channel', metavar='channel', dest='channels', action='append', help=textwrap.dedent("Specify the log channels (and optional categories) e.g. 'lldb all' or 'gdb-remote packets' if no categories are specified, 'default' is used"))
+    group.add_argument('--log-success', dest='log_success', action='store_true', help="Leave logs/traces even for successful test runs (useful for creating reference log files during debugging.)")
 
     # Configuration options
     group = parser.add_argument_group('Remote platform options')
@@ -588,6 +623,12 @@ def parseOptionsAndInitTestdirs():
             compilers = [commands.getoutput('xcrun -sdk "%s" -find clang 2> /dev/null' % (args.apple_sdk))]
         else:
             compilers = ['clang']
+
+    if args.channels:
+        lldbtest_config.channels = args.channels
+
+    if args.log_success:
+        lldbtest_config.log_success = args.log_success
 
     # Set SDKROOT if we are using an Apple SDK
     if platform_system == 'Darwin' and args.apple_sdk:
@@ -895,10 +936,10 @@ def setupSysPath():
     global lldbExecutablePath
 
     # Get the directory containing the current script.
-    if ("DOTEST_PROFILE" in os.environ or "DOTEST_PDB" in os.environ) and "DOTEST_SCRIPT_DIR" in os.environ:
+    if "DOTEST_PROFILE" in os.environ and "DOTEST_SCRIPT_DIR" in os.environ:
         scriptPath = os.environ["DOTEST_SCRIPT_DIR"]
     else:
-        scriptPath = sys.path[0]
+        scriptPath = os.path.dirname(os.path.realpath(__file__))
     if not scriptPath.endswith('test'):
         print "This script expects to reside in lldb's test directory."
         sys.exit(-1)
@@ -917,7 +958,7 @@ def setupSysPath():
 
     # Set up the LLDB_SRC environment variable, so that the tests can locate
     # the LLDB source code.
-    os.environ["LLDB_SRC"] = os.path.join(sys.path[0], os.pardir)
+    os.environ["LLDB_SRC"] = os.path.join(scriptPath, os.pardir)
 
     pluginPath = os.path.join(scriptPath, 'plugins')
     pexpectPath = os.path.join(scriptPath, 'pexpect-2.4')
@@ -1336,7 +1377,7 @@ if lldb_platform_name:
     if lldb_platform_url:
         # We must connect to a remote platform if a LLDB platform URL was specified
         print "Connecting to remote platform '%s' at '%s'..." % (lldb_platform_name, lldb_platform_url)
-        lldb.platfrom_url = lldb_platform_url
+        lldb.platform_url = lldb_platform_url
         platform_connect_options = lldb.SBPlatformConnectOptions(lldb_platform_url)
         err = lldb.remote_platform.ConnectRemote(platform_connect_options)
         if err.Success():
@@ -1345,7 +1386,7 @@ if lldb_platform_name:
             print "error: failed to connect to remote platform using URL '%s': %s" % (lldb_platform_url, err)
             exitTestSuite(1)
     else:
-        lldb.platfrom_url = None
+        lldb.platform_url = None
 
     if lldb_platform_working_dir:
         print "Setting remote platform working directory to '%s'..." % (lldb_platform_working_dir)
@@ -1356,7 +1397,7 @@ if lldb_platform_name:
 else:
     lldb.remote_platform = None
     lldb.remote_platform_working_dir = None
-    lldb.platfrom_url = None
+    lldb.platform_url = None
 
 target_platform = lldb.DBG.GetSelectedPlatform().GetTriple().split('-')[2]
 
@@ -1364,11 +1405,10 @@ target_platform = lldb.DBG.GetSelectedPlatform().GetTriple().split('-')[2]
 # Use @dsym_test or @dwarf_test decorators, defined in lldbtest.py, to mark a test
 # as a dsym or dwarf test.  Use '-N dsym' or '-N dwarf' to exclude dsym or dwarf
 # tests from running.
-dont_do_dsym_test = dont_do_dsym_test or "linux" in target_platform or "freebsd" in target_platform
+dont_do_dsym_test = dont_do_dsym_test or "linux" in target_platform or "freebsd" in target_platform or "windows" in target_platform
 
 # Don't do debugserver tests on everything except OS X.
-# Something for Windows here?
-dont_do_debugserver_test = "linux" in target_platform or "freebsd" in target_platform
+dont_do_debugserver_test = "linux" in target_platform or "freebsd" in target_platform or "windows" in target_platform
 
 # Don't do lldb-server (llgs) tests on anything except Linux.
 dont_do_llgs_test = not ("linux" in target_platform)

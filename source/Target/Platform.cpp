@@ -40,6 +40,11 @@
 
 #include "Utility/ModuleCache.h"
 
+// Define these constants from POSIX mman.h rather than include the file
+// so that they will be correct even when compiled on Linux.
+#define MAP_PRIVATE 2
+#define MAP_ANON 0x1000
+
 using namespace lldb;
 using namespace lldb_private;
 
@@ -870,17 +875,12 @@ Platform::SetWorkingDirectory (const ConstString &path)
         Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM);
         if (log)
             log->Printf("Platform::SetWorkingDirectory('%s')", path.GetCString());
-#ifdef _WIN32
-        // Not implemented on Windows
-        return false;
-#else
         if (path)
         {
             if (chdir(path.GetCString()) == 0)
                 return true;
         }
         return false;
-#endif
     }
     else
     {
@@ -1480,7 +1480,16 @@ Platform::Unlink (const char *path)
     return error;
 }
 
-
+uint64_t
+Platform::ConvertMmapFlagsToPlatform(unsigned flags)
+{
+    uint64_t flags_platform = 0;
+    if (flags & eMmapFlagsPrivate)
+        flags_platform |= MAP_PRIVATE;
+    if (flags & eMmapFlagsAnon)
+        flags_platform |= MAP_ANON;
+    return flags_platform;
+}
 
 lldb_private::Error
 Platform::RunShellCommand (const char *command,           // Shouldn't be NULL
@@ -1840,16 +1849,8 @@ Platform::GetCachedSharedModule (const ModuleSpec &module_spec,
         GetModuleCacheRoot (),
         GetCacheHostname (),
         module_spec,
-        [=](const ModuleSpec &module_spec, FileSpec &tmp_download_file_spec)
+        [=](const ModuleSpec &module_spec, const FileSpec &tmp_download_file_spec)
         {
-            // Get temporary file name for a downloaded module.
-            llvm::SmallString<PATH_MAX> tmp_download_file_path;
-            const auto err_code = llvm::sys::fs::createTemporaryFile (
-                "lldb", module_spec.GetUUID ().GetAsString ().c_str (), tmp_download_file_path);
-            if (err_code)
-                return Error ("Failed to create temp file: %s", err_code.message ().c_str ());
-
-            tmp_download_file_spec.SetFile (tmp_download_file_path.c_str (), true);
             return DownloadModuleSlice (module_spec.GetFileSpec (),
                                         module_spec.GetObjectOffset (),
                                         module_spec.GetObjectSize (),

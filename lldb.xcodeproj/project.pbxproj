@@ -85,7 +85,6 @@
 		236124A41986B4E2004EFC37 /* IOObject.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 236124A21986B4E2004EFC37 /* IOObject.cpp */; };
 		236124A51986B4E2004EFC37 /* Socket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 236124A31986B4E2004EFC37 /* Socket.cpp */; };
 		2377C2F819E613C100737875 /* PipePosix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2377C2F719E613C100737875 /* PipePosix.cpp */; };
-		23CDD8FB19D47B3600461DDC /* ThreadStateCoordinator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 23CDD8E819D3E13200461DDC /* ThreadStateCoordinator.cpp */; };
 		23DDF226196C3EE600BB8417 /* CommandOptionValidators.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 23DDF224196C3EE600BB8417 /* CommandOptionValidators.cpp */; };
 		23EDE33319269E7C00F6A132 /* NativeRegisterContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 23EDE3301926839700F6A132 /* NativeRegisterContext.cpp */; };
 		23EFE389193D1ABC00E54E54 /* SBTypeEnumMember.h in Headers */ = {isa = PBXBuildFile; fileRef = 23EFE388193D1ABC00E54E54 /* SBTypeEnumMember.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -98,6 +97,8 @@
 		254FBB971A81B03100BD6378 /* SBLaunchInfo.h in Headers */ = {isa = PBXBuildFile; fileRef = 254FBB961A81B03100BD6378 /* SBLaunchInfo.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		254FBBA31A9166F100BD6378 /* SBAttachInfo.h in Headers */ = {isa = PBXBuildFile; fileRef = 254FBBA21A9166F100BD6378 /* SBAttachInfo.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		254FBBA51A91670E00BD6378 /* SBAttachInfo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 254FBBA41A91670E00BD6378 /* SBAttachInfo.cpp */; };
+		255EFF741AFABA720069F277 /* LockFileBase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 255EFF731AFABA720069F277 /* LockFileBase.cpp */; };
+		255EFF761AFABA950069F277 /* LockFilePosix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 255EFF751AFABA950069F277 /* LockFilePosix.cpp */; };
 		256CBDB11ADD0E1700BC6CDC /* NativeRegisterContextLinux_arm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 256CBDAB1ADD0DB600BC6CDC /* NativeRegisterContextLinux_arm.cpp */; };
 		256CBDB41ADD0EFD00BC6CDC /* RegisterContextPOSIXCore_arm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 256CBDB21ADD0EFD00BC6CDC /* RegisterContextPOSIXCore_arm.cpp */; };
 		256CBDB51ADD0EFD00BC6CDC /* RegisterContextPOSIXCore_arm.h in Headers */ = {isa = PBXBuildFile; fileRef = 256CBDB31ADD0EFD00BC6CDC /* RegisterContextPOSIXCore_arm.h */; };
@@ -695,6 +696,7 @@
 		26FFC19D14FC072100087D58 /* DynamicLoaderPOSIXDYLD.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26FFC19714FC072100087D58 /* DynamicLoaderPOSIXDYLD.cpp */; };
 		26FFC19E14FC072100087D58 /* DynamicLoaderPOSIXDYLD.h in Headers */ = {isa = PBXBuildFile; fileRef = 26FFC19814FC072100087D58 /* DynamicLoaderPOSIXDYLD.h */; };
 		33064C9C1A5C7A490033D415 /* UriParser.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = 33064C9B1A5C7A490033D415 /* UriParser.h */; };
+		332CCB181AFF41620034D4C4 /* SBLanguageRuntime.h in Headers */ = {isa = PBXBuildFile; fileRef = 3392EBB71AFF402200858B9F /* SBLanguageRuntime.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		33E5E8421A672A240024ED68 /* StringConvert.cpp in CopyFiles */ = {isa = PBXBuildFile; fileRef = 33E5E8411A672A240024ED68 /* StringConvert.cpp */; };
 		33E5E8461A6736D30024ED68 /* StringConvert.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = 33E5E8451A6736D30024ED68 /* StringConvert.h */; };
 		33E5E8471A674FB60024ED68 /* StringConvert.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 33E5E8411A672A240024ED68 /* StringConvert.cpp */; };
@@ -940,6 +942,10 @@
 		AF9B8F33182DB52900DA866F /* SystemRuntimeMacOSX.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF9B8F31182DB52900DA866F /* SystemRuntimeMacOSX.cpp */; };
 		AF9B8F34182DB52900DA866F /* SystemRuntimeMacOSX.h in Headers */ = {isa = PBXBuildFile; fileRef = AF9B8F32182DB52900DA866F /* SystemRuntimeMacOSX.h */; };
 		AFB3D2801AC262AB003B4B30 /* MICmdCmdGdbShow.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AFB3D27E1AC262AB003B4B30 /* MICmdCmdGdbShow.cpp */; };
+		AFC234081AF85CE000CDE8B6 /* CommandObjectLanguage.cpp in CopyFiles */ = {isa = PBXBuildFile; fileRef = AFC234061AF85CE000CDE8B6 /* CommandObjectLanguage.cpp */; };
+		AFC234091AF85CE100CDE8B6 /* CommandObjectLanguage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AFC234061AF85CE000CDE8B6 /* CommandObjectLanguage.cpp */; };
+		AFC2340A1AF85CE100CDE8B6 /* CommandObjectLanguage.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = AFC234071AF85CE000CDE8B6 /* CommandObjectLanguage.h */; };
+		AFC2340B1AF85CE100CDE8B6 /* CommandObjectLanguage.h in Headers */ = {isa = PBXBuildFile; fileRef = AFC234071AF85CE000CDE8B6 /* CommandObjectLanguage.h */; };
 		AFDCDBCB19DD0F42005EA55E /* SBExecutionContext.h in Headers */ = {isa = PBXBuildFile; fileRef = 940B02F419DC96CB00AD0F52 /* SBExecutionContext.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		AFDFDFD119E34D3400EAE509 /* ConnectionFileDescriptorPosix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AFDFDFD019E34D3400EAE509 /* ConnectionFileDescriptorPosix.cpp */; };
 		AFEC3362194A8ABA00FF05C6 /* StructuredData.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AFEC3361194A8ABA00FF05C6 /* StructuredData.cpp */; };
@@ -1166,7 +1172,9 @@
 				AF90106515AB7D3600FF120D /* lldb.1 in CopyFiles */,
 				33E5E8461A6736D30024ED68 /* StringConvert.h in CopyFiles */,
 				33064C9C1A5C7A490033D415 /* UriParser.h in CopyFiles */,
+				AFC234081AF85CE000CDE8B6 /* CommandObjectLanguage.cpp in CopyFiles */,
 				33E5E8421A672A240024ED68 /* StringConvert.cpp in CopyFiles */,
+				AFC2340A1AF85CE100CDE8B6 /* CommandObjectLanguage.h in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
@@ -1236,8 +1244,6 @@
 		23AB0530199FF639003B8084 /* ProcessFreeBSD.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ProcessFreeBSD.h; sourceTree = "<group>"; };
 		23AB0531199FF639003B8084 /* ProcessMonitor.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProcessMonitor.cpp; sourceTree = "<group>"; };
 		23AB0532199FF639003B8084 /* ProcessMonitor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ProcessMonitor.h; sourceTree = "<group>"; };
-		23B6FF4119D38D48004CC8C3 /* ThreadStateCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ThreadStateCoordinator.h; sourceTree = "<group>"; };
-		23CDD8E819D3E13200461DDC /* ThreadStateCoordinator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ThreadStateCoordinator.cpp; sourceTree = "<group>"; };
 		23DDF224196C3EE600BB8417 /* CommandOptionValidators.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = CommandOptionValidators.cpp; path = source/Interpreter/CommandOptionValidators.cpp; sourceTree = "<group>"; };
 		23EDE3301926839700F6A132 /* NativeRegisterContext.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = NativeRegisterContext.cpp; path = source/Host/common/NativeRegisterContext.cpp; sourceTree = "<group>"; };
 		23EDE3311926843600F6A132 /* NativeRegisterContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = NativeRegisterContext.h; path = include/lldb/Host/common/NativeRegisterContext.h; sourceTree = "<group>"; };
@@ -1256,6 +1262,11 @@
 		254FBBA21A9166F100BD6378 /* SBAttachInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SBAttachInfo.h; path = include/lldb/API/SBAttachInfo.h; sourceTree = "<group>"; };
 		254FBBA41A91670E00BD6378 /* SBAttachInfo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SBAttachInfo.cpp; path = source/API/SBAttachInfo.cpp; sourceTree = "<group>"; };
 		254FBBA61A91672800BD6378 /* SBAttachInfo.i */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c.preprocessed; path = SBAttachInfo.i; sourceTree = "<group>"; };
+		255EFF6F1AFABA320069F277 /* LockFileWindows.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = LockFileWindows.h; path = include/lldb/Host/windows/LockFileWindows.h; sourceTree = "<group>"; };
+		255EFF701AFABA320069F277 /* PipeWindows.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = PipeWindows.h; path = include/lldb/Host/windows/PipeWindows.h; sourceTree = "<group>"; };
+		255EFF711AFABA4D0069F277 /* LockFileWindows.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = LockFileWindows.cpp; path = source/Host/windows/LockFileWindows.cpp; sourceTree = "<group>"; };
+		255EFF731AFABA720069F277 /* LockFileBase.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = LockFileBase.cpp; sourceTree = "<group>"; };
+		255EFF751AFABA950069F277 /* LockFilePosix.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = LockFilePosix.cpp; sourceTree = "<group>"; };
 		256CBDAB1ADD0DB600BC6CDC /* NativeRegisterContextLinux_arm.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = NativeRegisterContextLinux_arm.cpp; sourceTree = "<group>"; };
 		256CBDAC1ADD0DB600BC6CDC /* NativeRegisterContextLinux_arm.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeRegisterContextLinux_arm.h; sourceTree = "<group>"; };
 		256CBDAD1ADD0DB600BC6CDC /* NativeRegisterContextLinux_arm64.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = NativeRegisterContextLinux_arm64.cpp; sourceTree = "<group>"; };
@@ -2208,6 +2219,7 @@
 		26FFC19814FC072100087D58 /* DynamicLoaderPOSIXDYLD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DynamicLoaderPOSIXDYLD.h; sourceTree = "<group>"; };
 		33064C991A5C7A330033D415 /* UriParser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = UriParser.cpp; path = source/Utility/UriParser.cpp; sourceTree = "<group>"; };
 		33064C9B1A5C7A490033D415 /* UriParser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = UriParser.h; path = source/Utility/UriParser.h; sourceTree = "<group>"; };
+		3392EBB71AFF402200858B9F /* SBLanguageRuntime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SBLanguageRuntime.h; path = include/lldb/API/SBLanguageRuntime.h; sourceTree = "<group>"; };
 		33E5E8411A672A240024ED68 /* StringConvert.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = StringConvert.cpp; sourceTree = "<group>"; };
 		33E5E8451A6736D30024ED68 /* StringConvert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = StringConvert.h; path = include/lldb/Host/StringConvert.h; sourceTree = SOURCE_ROOT; };
 		3F5E8AF31A40D4A500A73232 /* PipeBase.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = PipeBase.h; path = include/lldb/Host/PipeBase.h; sourceTree = "<group>"; };
@@ -2726,6 +2738,8 @@
 		AF9B8F32182DB52900DA866F /* SystemRuntimeMacOSX.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SystemRuntimeMacOSX.h; sourceTree = "<group>"; };
 		AFB3D27E1AC262AB003B4B30 /* MICmdCmdGdbShow.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = MICmdCmdGdbShow.cpp; path = "tools/lldb-mi/MICmdCmdGdbShow.cpp"; sourceTree = SOURCE_ROOT; };
 		AFB3D27F1AC262AB003B4B30 /* MICmdCmdGdbShow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MICmdCmdGdbShow.h; path = "tools/lldb-mi/MICmdCmdGdbShow.h"; sourceTree = SOURCE_ROOT; };
+		AFC234061AF85CE000CDE8B6 /* CommandObjectLanguage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = CommandObjectLanguage.cpp; path = source/Commands/CommandObjectLanguage.cpp; sourceTree = "<group>"; };
+		AFC234071AF85CE000CDE8B6 /* CommandObjectLanguage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CommandObjectLanguage.h; path = source/Commands/CommandObjectLanguage.h; sourceTree = "<group>"; };
 		AFDFDFD019E34D3400EAE509 /* ConnectionFileDescriptorPosix.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ConnectionFileDescriptorPosix.cpp; sourceTree = "<group>"; };
 		AFEC3361194A8ABA00FF05C6 /* StructuredData.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = StructuredData.cpp; path = source/Core/StructuredData.cpp; sourceTree = "<group>"; };
 		AFF87C86150FF669000E1742 /* com.apple.debugserver.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = com.apple.debugserver.plist; path = tools/debugserver/source/com.apple.debugserver.plist; sourceTree = "<group>"; };
@@ -2964,8 +2978,6 @@
 				233B009319610B1F0090E598 /* ProcessMonitor.h */,
 				233B00A2196113730090E598 /* ProcFileReader.h */,
 				233B00A1196113730090E598 /* ProcFileReader.cpp */,
-				23B6FF4119D38D48004CC8C3 /* ThreadStateCoordinator.h */,
-				23CDD8E819D3E13200461DDC /* ThreadStateCoordinator.cpp */,
 			);
 			path = Linux;
 			sourceTree = "<group>";
@@ -3351,6 +3363,7 @@
 				9AC703AE117675410086C050 /* SBInstruction.cpp */,
 				9AC7038F117675270086C050 /* SBInstructionList.h */,
 				9AC703B0117675490086C050 /* SBInstructionList.cpp */,
+				3392EBB71AFF402200858B9F /* SBLanguageRuntime.h */,
 				AF20F76C1AF18FC700751A6E /* SBLanguageRuntime.cpp */,
 				254FBB961A81B03100BD6378 /* SBLaunchInfo.h */,
 				254FBB941A81AA7F00BD6378 /* SBLaunchInfo.cpp */,
@@ -4318,6 +4331,8 @@
 				26CEB5F018762056008F575A /* CommandObjectGUI.cpp */,
 				26BC7D1A10F1B76300F91463 /* CommandObjectHelp.h */,
 				26BC7E3310F1B84700F91463 /* CommandObjectHelp.cpp */,
+				AFC234061AF85CE000CDE8B6 /* CommandObjectLanguage.cpp */,
+				AFC234071AF85CE000CDE8B6 /* CommandObjectLanguage.h */,
 				264AD83911095BBD00E0B039 /* CommandObjectLog.h */,
 				264AD83711095BA600E0B039 /* CommandObjectLog.cpp */,
 				26BC7D1D10F1B76300F91463 /* CommandObjectMemory.h */,
@@ -4918,6 +4933,7 @@
 		3FDFDDC4199D37BE009756A7 /* posix */ = {
 			isa = PBXGroup;
 			children = (
+				255EFF751AFABA950069F277 /* LockFilePosix.cpp */,
 				AFDFDFD019E34D3400EAE509 /* ConnectionFileDescriptorPosix.cpp */,
 				3FDFDDC5199D37ED009756A7 /* FileSystem.cpp */,
 				3FDFE53019A292F0009756A7 /* HostInfoPosix.cpp */,
@@ -4948,6 +4964,9 @@
 		3FDFE53E19A2940E009756A7 /* windows */ = {
 			isa = PBXGroup;
 			children = (
+				255EFF711AFABA4D0069F277 /* LockFileWindows.cpp */,
+				255EFF6F1AFABA320069F277 /* LockFileWindows.h */,
+				255EFF701AFABA320069F277 /* PipeWindows.h */,
 				3FDFE54719A2946B009756A7 /* AutoHandle.h */,
 				3FDFE53F19A29448009756A7 /* Condition.cpp */,
 				3FDFE54819A2946B009756A7 /* editlinewin.h */,
@@ -5077,6 +5096,7 @@
 		69A01E1A1236C5D400C660B5 /* common */ = {
 			isa = PBXGroup;
 			children = (
+				255EFF731AFABA720069F277 /* LockFileBase.cpp */,
 				250D6AE11A9679270049CC70 /* FileSystem.cpp */,
 				33E5E8411A672A240024ED68 /* StringConvert.cpp */,
 				25420ED11A649D88009ADBCB /* PipeBase.cpp */,
@@ -5377,6 +5397,7 @@
 				26B42C4D1187ABA50079C8C8 /* LLDB.h in Headers */,
 				26DE204311618ACA00A093E2 /* SBAddress.h in Headers */,
 				26DE205711618FC500A093E2 /* SBBlock.h in Headers */,
+				332CCB181AFF41620034D4C4 /* SBLanguageRuntime.h in Headers */,
 				26680219115FD13D008E1FE4 /* SBBreakpoint.h in Headers */,
 				2668021A115FD13D008E1FE4 /* SBBreakpointLocation.h in Headers */,
 				2668021B115FD13D008E1FE4 /* SBBroadcaster.h in Headers */,
@@ -5514,6 +5535,7 @@
 				490A36C2180F0E9300BA31F8 /* PlatformWindows.h in Headers */,
 				26EFC4CE18CFAF0D00865D87 /* ObjectFileJIT.h in Headers */,
 				260CC63615D04377002BF2E0 /* OptionValueFormat.h in Headers */,
+				AFC2340B1AF85CE100CDE8B6 /* CommandObjectLanguage.h in Headers */,
 				964463EE1A330C1B00154ED8 /* CompactUnwindInfo.h in Headers */,
 				AF77E0901A033C700096C0EA /* ABISysV_ppc.h in Headers */,
 				260A39A619647A3A004B4130 /* Pipe.h in Headers */,
@@ -6101,6 +6123,7 @@
 				2689FFFF13353DB600698AC0 /* BreakpointResolver.cpp in Sources */,
 				25420ECD1A6490B8009ADBCB /* OptionValueChar.cpp in Sources */,
 				2689000113353DB600698AC0 /* BreakpointResolverAddress.cpp in Sources */,
+				255EFF741AFABA720069F277 /* LockFileBase.cpp in Sources */,
 				2689000313353DB600698AC0 /* BreakpointResolverFileLine.cpp in Sources */,
 				AF20F76D1AF18FC700751A6E /* SBLanguageRuntime.cpp in Sources */,
 				26474CA818D0CB070073DEBA /* RegisterContextFreeBSD_i386.cpp in Sources */,
@@ -6244,6 +6267,7 @@
 				26474CB418D0CB180073DEBA /* RegisterContextLinux_x86_64.cpp in Sources */,
 				2689006613353E0E00698AC0 /* DWARFExpression.cpp in Sources */,
 				2689006713353E0E00698AC0 /* ASTDumper.cpp in Sources */,
+				AFC234091AF85CE100CDE8B6 /* CommandObjectLanguage.cpp in Sources */,
 				2689006813353E0E00698AC0 /* ASTResultSynthesizer.cpp in Sources */,
 				2689006913353E0E00698AC0 /* ASTStructExtractor.cpp in Sources */,
 				2689006A13353E0E00698AC0 /* IRDynamicChecks.cpp in Sources */,
@@ -6483,7 +6507,6 @@
 				AF26703B1852D01E00B6CC36 /* QueueList.cpp in Sources */,
 				267C012B136880DF006E963E /* OptionGroupValueObjectDisplay.cpp in Sources */,
 				26BCFC521368AE38006DC050 /* OptionGroupFormat.cpp in Sources */,
-				23CDD8FB19D47B3600461DDC /* ThreadStateCoordinator.cpp in Sources */,
 				AF81DEFA1828A23F0042CF19 /* SystemRuntime.cpp in Sources */,
 				267C01371368C49C006E963E /* OptionGroupOutputFile.cpp in Sources */,
 				260E07C6136FA69E00CF21D3 /* OptionGroupUUID.cpp in Sources */,
@@ -6532,6 +6555,7 @@
 				94EA27CE17DE91750070F505 /* LibCxxUnorderedMap.cpp in Sources */,
 				266DFE9713FD656E00D0C574 /* OperatingSystem.cpp in Sources */,
 				26954EBE1401EE8B00294D09 /* DynamicRegisterInfo.cpp in Sources */,
+				255EFF761AFABA950069F277 /* LockFilePosix.cpp in Sources */,
 				26274FA714030F79006BA130 /* DynamicLoaderDarwinKernel.cpp in Sources */,
 				94FA3DE01405D50400833217 /* ValueObjectConstResultChild.cpp in Sources */,
 				3FDFED2819BA6D96009756A7 /* HostThread.cpp in Sources */,
