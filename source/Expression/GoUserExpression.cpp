@@ -405,13 +405,25 @@ GoInterpreter::EvaluateType(const GoASTExpr* e)
     }
     if (auto* sel = llvm::dyn_cast<GoASTSelectorExpr>(e))
     {
-        auto* pkg_node = llvm::dyn_cast<GoASTIdent>(sel->GetX());
-        if (!pkg_node)
+        std::string package;
+        if (auto* pkg_node = llvm::dyn_cast<GoASTIdent>(sel->GetX()))
+        {
+            package = pkg_node->GetName().m_value.str();
+        }
+        else if (auto* str_node = llvm::dyn_cast<GoASTBasicLit>(sel->GetX()))
+        {
+            if (str_node->GetValue().m_type == GoLexer::LIT_STRING)
+            {
+                package = str_node->GetValue().m_value.substr(1).str();
+                package.resize(package.length() - 1);
+            }
+        }
+        if (package.empty())
         {
             m_error.SetErrorStringWithFormat("Invalid %s in type expression", sel->GetX()->GetKindName());
             return ClangASTType();
         }
-        std::string fullname = (pkg_node->GetName().m_value + "." + sel->GetSel()->GetName().m_value).str();
+        std::string fullname = (package + "." + sel->GetSel()->GetName().m_value).str();
         ClangASTType result = LookupType(target, ConstString(fullname));
         if (!result)
             m_error.SetErrorStringWithFormat("Unknown type %s", fullname.c_str());
