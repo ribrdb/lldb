@@ -84,13 +84,16 @@ namespace process_linux {
         GetMemoryRegionInfo (lldb::addr_t load_addr, MemoryRegionInfo &range_info) override;
 
         Error
-        ReadMemory (lldb::addr_t addr, void *buf, lldb::addr_t size, lldb::addr_t &bytes_read) override;
+        ReadMemory(lldb::addr_t addr, void *buf, size_t size, size_t &bytes_read) override;
 
         Error
-        WriteMemory (lldb::addr_t addr, const void *buf, lldb::addr_t size, lldb::addr_t &bytes_written) override;
+        ReadMemoryWithoutTrap(lldb::addr_t addr, void *buf, size_t size, size_t &bytes_read) override;
 
         Error
-        AllocateMemory (lldb::addr_t size, uint32_t permissions, lldb::addr_t &addr) override;
+        WriteMemory(lldb::addr_t addr, const void *buf, size_t size, size_t &bytes_written) override;
+
+        Error
+        AllocateMemory(size_t size, uint32_t permissions, lldb::addr_t &addr) override;
 
         Error
         DeallocateMemory (lldb::addr_t addr) override;
@@ -261,6 +264,9 @@ namespace process_linux {
 
         void
         MonitorCallback(lldb::pid_t pid, bool exited, int signal, int status);
+
+        void
+        WaitForNewThread(::pid_t tid);
 
         void
         MonitorSIGTRAP(const siginfo_t *info, lldb::pid_t pid);

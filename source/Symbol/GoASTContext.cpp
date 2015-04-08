@@ -54,9 +54,9 @@ public:
         KIND_STRING        = 24,
         KIND_STRUCT        = 25,
         KIND_UNSAFEPOINTER = 26,
-        // Extensions for LLDB, not used by go runtime.
-        KIND_LLDB_VOID,
-        KIND_MASK = (1 << 5) - 1
+        KIND_LLDB_VOID,          // Extension for LLDB, not used by go runtime.
+        KIND_MASK = (1 << 5) - 1,
+        KIND_DIRECT_IFACE = 1 << 5
     };
     GoType(int kind, const ConstString& name) : m_kind(kind & KIND_MASK), m_name(name) {
         if (m_kind == KIND_FUNC)
@@ -1341,6 +1341,18 @@ GoASTContext::IsGoInterface(const lldb_private::ClangASTType &type)
     if (!type.IsValid() || !type.GetTypeSystem()->AsGoASTContext())
         return false;
     return GoType::KIND_INTERFACE == static_cast<GoType*>(type.GetOpaqueQualType())->GetGoKind();
+}
+    
+bool
+GoASTContext::IsPointerKind(uint8_t kind)
+{
+    return (kind & GoType::KIND_MASK) == GoType::KIND_PTR;
+}
+    
+bool
+GoASTContext::IsDirectIface(uint8_t kind)
+{
+    return (kind & GoType::KIND_DIRECT_IFACE) == GoType::KIND_DIRECT_IFACE;
 }
     
 }  // namespace lldb_private

@@ -29,6 +29,7 @@
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
+#include "llvm/ADT/Twine.h"
 
 #include <vector>
 
@@ -71,6 +72,60 @@ ConstString ReadString(ValueObject& str, Process* process) {
     }
     return result;
 }
+
+ConstString
+ReadTypeName(ValueObjectSP type, Process* process)
+{
+    if (ValueObjectSP uncommon = GetChild(*type, "x"))
+    {
+        ValueObjectSP name = GetChild(*uncommon, "name");
+        ValueObjectSP package = GetChild(*uncommon, "pkgpath");
+        if (name && name->GetPointerValue() != 0 && package && package->GetPointerValue() != 0)
+        {
+            return ConstString((ReadString(*package, process).GetStringRef() + "." + ReadString(*name, process).GetStringRef()).str());
+        }
+    }
+    ValueObjectSP name = GetChild(*type, "_string");
+    if (name)
+        return ReadString(*name, process);
+    return ConstString("");
+}
+
+ClangASTType
+LookupRuntimeType(ValueObjectSP type, ExecutionContext* exe_ctx, bool* is_direct)
+{
+    uint8_t kind = GetChild(*type, "kind")->GetValueAsUnsigned(0);
+    *is_direct = GoASTContext::IsDirectIface(kind);
+    if (GoASTContext::IsPointerKind(kind))
+    {
+        ClangASTType type_ptr = type->GetClangType().GetPointerType();
+        Error err;
+        ValueObjectSP elem = type->CreateValueObjectFromAddress("elem", type->GetAddressOf() + type->GetByteSize(), *exe_ctx, type_ptr)->Dereference(err);
+        if (err.Fail())
+            return ClangASTType();
+        bool tmp_direct;
+        return LookupRuntimeType(elem, exe_ctx, &tmp_direct).GetPointerType();
+    }
+    Target *target = exe_ctx->GetTargetPtr();
+    Process *process = exe_ctx->GetProcessPtr();
+    
+    ConstString const_typename = ReadTypeName(type, process);
+    if (const_typename.GetLength() == 0)
+        return ClangASTType();
+    
+    SymbolContext sc;
+    TypeList type_list;
+    uint32_t num_matches = target->GetImages().FindTypes (sc,
+                                                          const_typename,
+                                                          false,
+                                                          2,
+                                                          type_list);
+    if (num_matches > 0) {
+        return type_list.GetTypeAtIndex(0)->GetClangFullType();
+    }
+    return ClangASTType();
+}
+
 }
 
 bool
@@ -88,9 +143,12 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
     class_type_or_name.Clear();
     if (CouldHaveDynamicValue (in_value))
     {
-        ConstString data_cs("data");
         Error err;
         ValueObjectSP iface = in_value.GetStaticValue();
+        ValueObjectSP data_sp = GetChild(*iface, "data", false);
+        if (!data_sp)
+            return false;
+
         if (ValueObjectSP tab = GetChild(*iface, "tab"))
             iface = tab;
         ValueObjectSP type = GetChild(*iface, "_type");
@@ -99,53 +157,23 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
             return false;
         }
         
-        ValueObjectSP name = GetChild(*type, "_string");
-        if (!name)
-        {
-            return false;
-        }
-        
+        bool direct;
         ExecutionContext exe_ctx (in_value.GetExecutionContextRef());
-        
-        Target *target = exe_ctx.GetTargetPtr();
-        Process *process = exe_ctx.GetProcessPtr();
-
-        ConstString const_typename = ReadString(*name, process);
-        
-        SymbolContext sc;
-        TypeList type_list;
-        uint32_t num_matches = target->GetImages().FindTypes (sc,
-                                                              const_typename,
-                                                              false,
-                                                              2,
-                                                              type_list);
-        if (num_matches == 1) {
-            TypeSP final_type = type_list.GetTypeAtIndex(0);
-            class_type_or_name.SetTypeSP(final_type);
-            
-        } else {
-            class_type_or_name.SetName(const_typename);
-        }
-        ValueObjectSP size_sp = GetChild(*type, "size");
-        if (!size_sp)
+        ClangASTType final_type = LookupRuntimeType(type, &exe_ctx, &direct);
+        if (!final_type)
             return false;
-        ValueObjectSP data_sp = GetChild(*iface, "data", false);
-        if (!data_sp)
-            return false;
-        
-        // Note: runtime-gdb.py suggests that small interface values get inlined,
-        // but that doesn't seem to be true.
-        // uint64_t value_size_bytes = size_sp->GetValueAsUnsigned(0);
-        
-        // if (value_size_bytes > in_value.GetClangType().GetPointerByteSize())
+        if (direct)
         {
-            if (class_type_or_name.HasTypeSP())
-            {
-                // Need to implement reference types to get rid of this pointer.
-                class_type_or_name.SetClangASTType(class_type_or_name.GetTypeSP()->GetClangLayoutType().GetPointerType());
-            }
+            class_type_or_name.SetClangASTType(final_type);
         }
-        dynamic_address.SetLoadAddress(data_sp->GetPointerValue(), target);
+        else
+        {
+            // TODO: implement reference types or fix caller to support dynamic types that aren't pointers
+            // so we don't have to introduce this extra pointer.
+            class_type_or_name.SetClangASTType(final_type.GetPointerType());
+        }
+
+        dynamic_address.SetLoadAddress(data_sp->GetPointerValue(), exe_ctx.GetTargetPtr());
 
         return true;
     }
