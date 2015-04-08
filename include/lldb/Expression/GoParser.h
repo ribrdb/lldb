@@ -28,6 +28,7 @@ namespace lldb_private
         GoASTStmt* ExpressionStmt(GoASTExpr* e);
         GoASTStmt* IncDecStmt(GoASTExpr* e);
         GoASTStmt* Assignment(GoASTExpr* e);
+        GoASTBlockStmt* Block();
         
         GoASTExpr*  MoreExpressionList(); // ["," Expression]
         GoASTIdent* MoreIdentifierList(); // ["," Identifier]
@@ -70,6 +71,10 @@ namespace lldb_private
         GoASTField* ParamDecl();
         GoASTExpr* ParamType();
         GoASTFuncType* Signature();
+        GoASTExpr* CompositeLit();
+        GoASTExpr* FunctionLit();
+        GoASTExpr* Element();
+        GoASTCompositeLit* LiteralValue();
     
     private:
         class Rule;
@@ -79,10 +84,31 @@ namespace lldb_private
             m_failed = true;
             return nullptr;
         }
-        const GoLexer::Token next();
-        GoLexer::TokenType peek();
-        GoLexer::Token* match(GoLexer::TokenType t);
-        GoLexer::Token* mustMatch(GoLexer::TokenType t);
+        GoLexer::Token& next() {
+            if (m_pos >= m_tokens.size())
+            {
+                m_pos = m_tokens.size();
+                m_tokens.push_back(m_lexer.Lex());
+            }
+            return m_tokens[m_pos++];
+        }
+        GoLexer::TokenType peek() {
+            GoLexer::Token& tok = next();
+            --m_pos;
+            return tok.m_type;
+        }
+        GoLexer::Token* match(GoLexer::TokenType t) {
+            GoLexer::Token& tok = next();
+            if (tok.m_type == t)
+                return &tok;
+            return nullptr;
+        }
+        GoLexer::Token* mustMatch(GoLexer::TokenType t) {
+            GoLexer::Token* tok = match(t);
+            if (tok)
+                return tok;
+            return syntaxerror();
+        }
         bool Semicolon();
         
         GoASTStmt* FinishStmt(GoASTStmt* s) {

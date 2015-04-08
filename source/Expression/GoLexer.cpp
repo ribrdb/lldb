@@ -13,6 +13,8 @@
 
 using namespace lldb_private;
 
+llvm::StringMap<GoLexer::TokenType>* GoLexer::m_keywords;
+
 GoLexer::GoLexer(const char* src) : m_src(src), m_end(src + strlen(src)), m_last_token(TOK_INVALID, "")
 {
 }
@@ -24,10 +26,50 @@ GoLexer::SkipWhitespace()
     for (;m_src < m_end; ++m_src) {
         if (*m_src == '\n')
             saw_newline = true;
+        if (*m_src == '/' && !SkipComment())
+            return saw_newline;
         else if (!IsWhitespace(*m_src))
             return saw_newline;
     }
     return saw_newline;
+}
+
+bool
+GoLexer::SkipComment()
+{
+    if (m_src[0] == '/' && m_src[1] == '/')
+    {
+        for (const char* c = m_src + 2; c < m_end; ++c)
+        {
+            if (*c == '\n')
+            {
+                m_src = c - 1;
+                return true;
+            }
+        }
+        return true;
+    }
+    else if (m_src[0] == '/' && m_src[1] == '*')
+    {
+        for (const char* c = m_src + 2; c < m_end; ++c)
+        {
+            if (c[0] == '*' && c[1] == '/')
+            {
+                m_src = c + 1;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+const GoLexer::Token&
+GoLexer::Lex()
+{
+    const char* start = m_src;
+    m_last_token.m_type = InternalLex();
+    m_last_token.m_value = llvm::StringRef(start, m_src - start);
+    return m_last_token;
 }
 
 GoLexer::TokenType

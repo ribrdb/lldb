@@ -64,6 +64,7 @@ GoUserExpression::Evaluate (ExecutionContext &exe_ctx,
                 log->Printf("== [GoUserExpression::Evaluate] Expression may not run, but is not constant ==");
             
             error.SetErrorString ("expression needed to run but couldn't");
+            (new GoUserExpression)->m_parser_ap->Statement();
             
             return execution_results;
         }
@@ -81,5 +82,4 @@ GoUserExpression::Evaluate (ExecutionContext &exe_ctx,
     execution_results = lldb::eExpressionCompleted;
     
     return execution_results;
-    (new GoUserExpression)->m_parser_ap->Statement();
 }

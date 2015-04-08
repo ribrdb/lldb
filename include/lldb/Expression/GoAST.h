@@ -13,8 +13,6 @@
 #ifndef liblldb_GoAST_h
 #define liblldb_GoAST_h
 
-#include <vector>
-
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private.h"
 #include "lldb/Expression/GoLexer.h"
@@ -91,6 +89,9 @@ public:
     NodeKind GetKind() const { return m_kind; }
 
     virtual const char* GetKindName() const = 0;
+
+    template <typename V>
+    void WalkChildren(V v, GoASTNode*);
 
 protected:
     explicit GoASTNode(NodeKind kind) : m_kind(kind) { }
@@ -190,6 +191,7 @@ public:
     void SetElt(GoASTExpr* elt) { m_elt.reset(elt); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_len;
     std::unique_ptr<GoASTExpr> m_elt;
 
@@ -220,6 +222,7 @@ public:
     void SetDefine(bool define) { m_define = define; }
 
 private:
+    friend class GoASTNode;
     std::vector<std::unique_ptr<GoASTExpr> > m_lhs;
     std::vector<std::unique_ptr<GoASTExpr> > m_rhs;
     bool m_define;
@@ -239,8 +242,6 @@ public:
     static bool
     classof(const GoASTNode* n) { return n->GetKind() == eBadDecl; }
     
-private:
-
     GoASTBadDecl(const GoASTBadDecl&) = delete;
     const GoASTBadDecl& operator=(const GoASTBadDecl&) = delete;
 };
@@ -256,8 +257,6 @@ public:
     static bool
     classof(const GoASTNode* n) { return n->GetKind() == eBadExpr; }
     
-private:
-
     GoASTBadExpr(const GoASTBadExpr&) = delete;
     const GoASTBadExpr& operator=(const GoASTBadExpr&) = delete;
 };
@@ -273,8 +272,6 @@ public:
     static bool
     classof(const GoASTNode* n) { return n->GetKind() == eBadStmt; }
     
-private:
-
     GoASTBadStmt(const GoASTBadStmt&) = delete;
     const GoASTBadStmt& operator=(const GoASTBadStmt&) = delete;
 };
@@ -294,6 +291,7 @@ public:
     void SetValue(Token value) { m_value = value; }
 
 private:
+    friend class GoASTNode;
     Token m_value;
 
     GoASTBasicLit(const GoASTBasicLit&) = delete;
@@ -321,6 +319,7 @@ public:
     void SetOp(TokenType op) { m_op = op; }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
     std::unique_ptr<GoASTExpr> m_y;
     TokenType m_op;
@@ -345,6 +344,7 @@ public:
     void AddList(GoASTStmt* list) { m_list.push_back(std::unique_ptr<GoASTStmt>(list)); }
 
 private:
+    friend class GoASTNode;
     std::vector<std::unique_ptr<GoASTStmt> > m_list;
 
     GoASTBlockStmt(const GoASTBlockStmt&) = delete;
@@ -366,6 +366,7 @@ public:
     void SetName(Token name) { m_name = name; }
 
 private:
+    friend class GoASTNode;
     Token m_name;
 
     GoASTIdent(const GoASTIdent&) = delete;
@@ -390,6 +391,7 @@ public:
     void SetTok(TokenType tok) { m_tok = tok; }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTIdent> m_label;
     TokenType m_tok;
 
@@ -419,6 +421,7 @@ public:
     void SetEllipsis(bool ellipsis) { m_ellipsis = ellipsis; }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_fun;
     std::vector<std::unique_ptr<GoASTExpr> > m_args;
     bool m_ellipsis;
@@ -447,6 +450,7 @@ public:
     void AddBody(GoASTStmt* body) { m_body.push_back(std::unique_ptr<GoASTStmt>(body)); }
 
 private:
+    friend class GoASTNode;
     std::vector<std::unique_ptr<GoASTExpr> > m_list;
     std::vector<std::unique_ptr<GoASTStmt> > m_body;
 
@@ -472,6 +476,7 @@ public:
     void SetValue(GoASTExpr* value) { m_value.reset(value); }
 
 private:
+    friend class GoASTNode;
     ChanDir m_dir;
     std::unique_ptr<GoASTExpr> m_value;
 
@@ -498,6 +503,7 @@ public:
     void AddBody(GoASTStmt* body) { m_body.push_back(std::unique_ptr<GoASTStmt>(body)); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTStmt> m_comm;
     std::vector<std::unique_ptr<GoASTStmt> > m_body;
 
@@ -524,6 +530,7 @@ public:
     void AddElts(GoASTExpr* elts) { m_elts.push_back(std::unique_ptr<GoASTExpr>(elts)); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_type;
     std::vector<std::unique_ptr<GoASTExpr> > m_elts;
 
@@ -546,6 +553,7 @@ public:
     void SetDecl(GoASTDecl* decl) { m_decl.reset(decl); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTDecl> m_decl;
 
     GoASTDeclStmt(const GoASTDeclStmt&) = delete;
@@ -567,6 +575,7 @@ public:
     void SetCall(GoASTCallExpr* call) { m_call.reset(call); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTCallExpr> m_call;
 
     GoASTDeferStmt(const GoASTDeferStmt&) = delete;
@@ -588,6 +597,7 @@ public:
     void SetElt(GoASTExpr* elt) { m_elt.reset(elt); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_elt;
 
     GoASTEllipsis(const GoASTEllipsis&) = delete;
@@ -605,8 +615,6 @@ public:
     static bool
     classof(const GoASTNode* n) { return n->GetKind() == eEmptyStmt; }
     
-private:
-
     GoASTEmptyStmt(const GoASTEmptyStmt&) = delete;
     const GoASTEmptyStmt& operator=(const GoASTEmptyStmt&) = delete;
 };
@@ -626,6 +634,7 @@ public:
     void SetX(GoASTExpr* x) { m_x.reset(x); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
 
     GoASTExprStmt(const GoASTExprStmt&) = delete;
@@ -654,6 +663,7 @@ public:
     void SetTag(GoASTBasicLit* tag) { m_tag.reset(tag); }
 
 private:
+    friend class GoASTNode;
     std::vector<std::unique_ptr<GoASTIdent> > m_names;
     std::unique_ptr<GoASTExpr> m_type;
     std::unique_ptr<GoASTBasicLit> m_tag;
@@ -678,6 +688,7 @@ public:
     void AddList(GoASTField* list) { m_list.push_back(std::unique_ptr<GoASTField>(list)); }
 
 private:
+    friend class GoASTNode;
     std::vector<std::unique_ptr<GoASTField> > m_list;
 
     GoASTFieldList(const GoASTFieldList&) = delete;
@@ -708,6 +719,7 @@ public:
     void SetBody(GoASTBlockStmt* body) { m_body.reset(body); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTStmt> m_init;
     std::unique_ptr<GoASTExpr> m_cond;
     std::unique_ptr<GoASTStmt> m_post;
@@ -735,6 +747,7 @@ public:
     void SetResults(GoASTFieldList* results) { m_results.reset(results); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTFieldList> m_params;
     std::unique_ptr<GoASTFieldList> m_results;
 
@@ -766,6 +779,7 @@ public:
     void SetBody(GoASTBlockStmt* body) { m_body.reset(body); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTFieldList> m_recv;
     std::unique_ptr<GoASTIdent> m_name;
     std::unique_ptr<GoASTFuncType> m_type;
@@ -793,6 +807,7 @@ public:
     void SetBody(GoASTBlockStmt* body) { m_body.reset(body); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTFuncType> m_type;
     std::unique_ptr<GoASTBlockStmt> m_body;
 
@@ -819,6 +834,7 @@ public:
     void AddSpecs(GoASTSpec* specs) { m_specs.push_back(std::unique_ptr<GoASTSpec>(specs)); }
 
 private:
+    friend class GoASTNode;
     TokenType m_tok;
     std::vector<std::unique_ptr<GoASTSpec> > m_specs;
 
@@ -841,6 +857,7 @@ public:
     void SetCall(GoASTCallExpr* call) { m_call.reset(call); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTCallExpr> m_call;
 
     GoASTGoStmt(const GoASTGoStmt&) = delete;
@@ -871,6 +888,7 @@ public:
     void SetEls(GoASTStmt* els) { m_els.reset(els); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTStmt> m_init;
     std::unique_ptr<GoASTExpr> m_cond;
     std::unique_ptr<GoASTBlockStmt> m_body;
@@ -898,6 +916,7 @@ public:
     void SetPath(GoASTBasicLit* path) { m_path.reset(path); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTIdent> m_name;
     std::unique_ptr<GoASTBasicLit> m_path;
 
@@ -923,6 +942,7 @@ public:
     void SetTok(TokenType tok) { m_tok = tok; }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
     TokenType m_tok;
 
@@ -948,6 +968,7 @@ public:
     void SetIndex(GoASTExpr* index) { m_index.reset(index); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
     std::unique_ptr<GoASTExpr> m_index;
 
@@ -970,6 +991,7 @@ public:
     void SetMethods(GoASTFieldList* methods) { m_methods.reset(methods); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTFieldList> m_methods;
 
     GoASTInterfaceType(const GoASTInterfaceType&) = delete;
@@ -994,6 +1016,7 @@ public:
     void SetValue(GoASTExpr* value) { m_value.reset(value); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_key;
     std::unique_ptr<GoASTExpr> m_value;
 
@@ -1019,6 +1042,7 @@ public:
     void SetStmt(GoASTStmt* stmt) { m_stmt.reset(stmt); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTIdent> m_label;
     std::unique_ptr<GoASTStmt> m_stmt;
 
@@ -1044,6 +1068,7 @@ public:
     void SetValue(GoASTExpr* value) { m_value.reset(value); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_key;
     std::unique_ptr<GoASTExpr> m_value;
 
@@ -1066,6 +1091,7 @@ public:
     void SetX(GoASTExpr* x) { m_x.reset(x); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
 
     GoASTParenExpr(const GoASTParenExpr&) = delete;
@@ -1099,6 +1125,7 @@ public:
     void SetBody(GoASTBlockStmt* body) { m_body.reset(body); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_key;
     std::unique_ptr<GoASTExpr> m_value;
     bool m_define;
@@ -1125,6 +1152,7 @@ public:
     void AddResults(GoASTExpr* results) { m_results.push_back(std::unique_ptr<GoASTExpr>(results)); }
 
 private:
+    friend class GoASTNode;
     std::vector<std::unique_ptr<GoASTExpr> > m_results;
 
     GoASTReturnStmt(const GoASTReturnStmt&) = delete;
@@ -1146,6 +1174,7 @@ public:
     void SetBody(GoASTBlockStmt* body) { m_body.reset(body); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTBlockStmt> m_body;
 
     GoASTSelectStmt(const GoASTSelectStmt&) = delete;
@@ -1170,6 +1199,7 @@ public:
     void SetSel(GoASTIdent* sel) { m_sel.reset(sel); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
     std::unique_ptr<GoASTIdent> m_sel;
 
@@ -1195,6 +1225,7 @@ public:
     void SetValue(GoASTExpr* value) { m_value.reset(value); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_chan;
     std::unique_ptr<GoASTExpr> m_value;
 
@@ -1229,6 +1260,7 @@ public:
     void SetSlice3(bool slice3) { m_slice3 = slice3; }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
     std::unique_ptr<GoASTExpr> m_low;
     std::unique_ptr<GoASTExpr> m_high;
@@ -1254,6 +1286,7 @@ public:
     void SetX(GoASTExpr* x) { m_x.reset(x); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
 
     GoASTStarExpr(const GoASTStarExpr&) = delete;
@@ -1275,6 +1308,7 @@ public:
     void SetFields(GoASTFieldList* fields) { m_fields.reset(fields); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTFieldList> m_fields;
 
     GoASTStructType(const GoASTStructType&) = delete;
@@ -1302,6 +1336,7 @@ public:
     void SetBody(GoASTBlockStmt* body) { m_body.reset(body); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTStmt> m_init;
     std::unique_ptr<GoASTExpr> m_tag;
     std::unique_ptr<GoASTBlockStmt> m_body;
@@ -1328,6 +1363,7 @@ public:
     void SetType(GoASTExpr* type) { m_type.reset(type); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTExpr> m_x;
     std::unique_ptr<GoASTExpr> m_type;
 
@@ -1353,6 +1389,7 @@ public:
     void SetType(GoASTExpr* type) { m_type.reset(type); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTIdent> m_name;
     std::unique_ptr<GoASTExpr> m_type;
 
@@ -1381,6 +1418,7 @@ public:
     void SetBody(GoASTBlockStmt* body) { m_body.reset(body); }
 
 private:
+    friend class GoASTNode;
     std::unique_ptr<GoASTStmt> m_init;
     std::unique_ptr<GoASTStmt> m_assign;
     std::unique_ptr<GoASTBlockStmt> m_body;
@@ -1407,6 +1445,7 @@ public:
     void SetX(GoASTExpr* x) { m_x.reset(x); }
 
 private:
+    friend class GoASTNode;
     TokenType m_op;
     std::unique_ptr<GoASTExpr> m_x;
 
@@ -1437,6 +1476,7 @@ public:
     void AddValues(GoASTExpr* values) { m_values.push_back(std::unique_ptr<GoASTExpr>(values)); }
 
 private:
+    friend class GoASTNode;
     std::vector<std::unique_ptr<GoASTIdent> > m_names;
     std::unique_ptr<GoASTExpr> m_type;
     std::vector<std::unique_ptr<GoASTExpr> > m_values;
@@ -1581,6 +1621,340 @@ R GoASTStmt::Visit(V* v) const
         return v->VisitTypeSwitchStmt(llvm::cast<const GoASTTypeSwitchStmt*>(this));
     default:
         assert(false && "Invalid kind");
+    }
+}
+
+template <typename V>
+void GoASTNode::WalkChildren(V v, GoASTNode*)
+{
+    switch (m_kind)
+    {
+
+
+    case eArrayType:
+        {
+            GoASTArrayType* n = llvm::cast<GoASTArrayType>(this);
+            v(n->m_len.get());
+            v(n->m_elt.get());
+            return;
+        }
+    case eAssignStmt:
+        {
+            GoASTAssignStmt* n = llvm::cast<GoASTAssignStmt>(this);
+            for (auto& e : n->m_lhs) { v(e.get()); }
+            for (auto& e : n->m_rhs) { v(e.get()); }
+            return;
+        }
+    case eBasicLit:
+        {
+            GoASTBasicLit* n = llvm::cast<GoASTBasicLit>(this);
+            return;
+        }
+    case eBinaryExpr:
+        {
+            GoASTBinaryExpr* n = llvm::cast<GoASTBinaryExpr>(this);
+            v(n->m_x.get());
+            v(n->m_y.get());
+            return;
+        }
+    case eBlockStmt:
+        {
+            GoASTBlockStmt* n = llvm::cast<GoASTBlockStmt>(this);
+            for (auto& e : n->m_list) { v(e.get()); }
+            return;
+        }
+    case eIdent:
+        {
+            GoASTIdent* n = llvm::cast<GoASTIdent>(this);
+            return;
+        }
+    case eBranchStmt:
+        {
+            GoASTBranchStmt* n = llvm::cast<GoASTBranchStmt>(this);
+            v(n->m_label.get());
+            return;
+        }
+    case eCallExpr:
+        {
+            GoASTCallExpr* n = llvm::cast<GoASTCallExpr>(this);
+            v(n->m_fun.get());
+            for (auto& e : n->m_args) { v(e.get()); }
+            return;
+        }
+    case eCaseClause:
+        {
+            GoASTCaseClause* n = llvm::cast<GoASTCaseClause>(this);
+            for (auto& e : n->m_list) { v(e.get()); }
+            for (auto& e : n->m_body) { v(e.get()); }
+            return;
+        }
+    case eChanType:
+        {
+            GoASTChanType* n = llvm::cast<GoASTChanType>(this);
+            v(n->m_value.get());
+            return;
+        }
+    case eCommClause:
+        {
+            GoASTCommClause* n = llvm::cast<GoASTCommClause>(this);
+            v(n->m_comm.get());
+            for (auto& e : n->m_body) { v(e.get()); }
+            return;
+        }
+    case eCompositeLit:
+        {
+            GoASTCompositeLit* n = llvm::cast<GoASTCompositeLit>(this);
+            v(n->m_type.get());
+            for (auto& e : n->m_elts) { v(e.get()); }
+            return;
+        }
+    case eDeclStmt:
+        {
+            GoASTDeclStmt* n = llvm::cast<GoASTDeclStmt>(this);
+            v(n->m_decl.get());
+            return;
+        }
+    case eDeferStmt:
+        {
+            GoASTDeferStmt* n = llvm::cast<GoASTDeferStmt>(this);
+            v(n->m_call.get());
+            return;
+        }
+    case eEllipsis:
+        {
+            GoASTEllipsis* n = llvm::cast<GoASTEllipsis>(this);
+            v(n->m_elt.get());
+            return;
+        }
+    case eExprStmt:
+        {
+            GoASTExprStmt* n = llvm::cast<GoASTExprStmt>(this);
+            v(n->m_x.get());
+            return;
+        }
+    case eField:
+        {
+            GoASTField* n = llvm::cast<GoASTField>(this);
+            for (auto& e : n->m_names) { v(e.get()); }
+            v(n->m_type.get());
+            v(n->m_tag.get());
+            return;
+        }
+    case eFieldList:
+        {
+            GoASTFieldList* n = llvm::cast<GoASTFieldList>(this);
+            for (auto& e : n->m_list) { v(e.get()); }
+            return;
+        }
+    case eForStmt:
+        {
+            GoASTForStmt* n = llvm::cast<GoASTForStmt>(this);
+            v(n->m_init.get());
+            v(n->m_cond.get());
+            v(n->m_post.get());
+            v(n->m_body.get());
+            return;
+        }
+    case eFuncType:
+        {
+            GoASTFuncType* n = llvm::cast<GoASTFuncType>(this);
+            v(n->m_params.get());
+            v(n->m_results.get());
+            return;
+        }
+    case eFuncDecl:
+        {
+            GoASTFuncDecl* n = llvm::cast<GoASTFuncDecl>(this);
+            v(n->m_recv.get());
+            v(n->m_name.get());
+            v(n->m_type.get());
+            v(n->m_body.get());
+            return;
+        }
+    case eFuncLit:
+        {
+            GoASTFuncLit* n = llvm::cast<GoASTFuncLit>(this);
+            v(n->m_type.get());
+            v(n->m_body.get());
+            return;
+        }
+    case eGenDecl:
+        {
+            GoASTGenDecl* n = llvm::cast<GoASTGenDecl>(this);
+            for (auto& e : n->m_specs) { v(e.get()); }
+            return;
+        }
+    case eGoStmt:
+        {
+            GoASTGoStmt* n = llvm::cast<GoASTGoStmt>(this);
+            v(n->m_call.get());
+            return;
+        }
+    case eIfStmt:
+        {
+            GoASTIfStmt* n = llvm::cast<GoASTIfStmt>(this);
+            v(n->m_init.get());
+            v(n->m_cond.get());
+            v(n->m_body.get());
+            v(n->m_els.get());
+            return;
+        }
+    case eImportSpec:
+        {
+            GoASTImportSpec* n = llvm::cast<GoASTImportSpec>(this);
+            v(n->m_name.get());
+            v(n->m_path.get());
+            return;
+        }
+    case eIncDecStmt:
+        {
+            GoASTIncDecStmt* n = llvm::cast<GoASTIncDecStmt>(this);
+            v(n->m_x.get());
+            return;
+        }
+    case eIndexExpr:
+        {
+            GoASTIndexExpr* n = llvm::cast<GoASTIndexExpr>(this);
+            v(n->m_x.get());
+            v(n->m_index.get());
+            return;
+        }
+    case eInterfaceType:
+        {
+            GoASTInterfaceType* n = llvm::cast<GoASTInterfaceType>(this);
+            v(n->m_methods.get());
+            return;
+        }
+    case eKeyValueExpr:
+        {
+            GoASTKeyValueExpr* n = llvm::cast<GoASTKeyValueExpr>(this);
+            v(n->m_key.get());
+            v(n->m_value.get());
+            return;
+        }
+    case eLabeledStmt:
+        {
+            GoASTLabeledStmt* n = llvm::cast<GoASTLabeledStmt>(this);
+            v(n->m_label.get());
+            v(n->m_stmt.get());
+            return;
+        }
+    case eMapType:
+        {
+            GoASTMapType* n = llvm::cast<GoASTMapType>(this);
+            v(n->m_key.get());
+            v(n->m_value.get());
+            return;
+        }
+    case eParenExpr:
+        {
+            GoASTParenExpr* n = llvm::cast<GoASTParenExpr>(this);
+            v(n->m_x.get());
+            return;
+        }
+    case eRangeStmt:
+        {
+            GoASTRangeStmt* n = llvm::cast<GoASTRangeStmt>(this);
+            v(n->m_key.get());
+            v(n->m_value.get());
+            v(n->m_x.get());
+            v(n->m_body.get());
+            return;
+        }
+    case eReturnStmt:
+        {
+            GoASTReturnStmt* n = llvm::cast<GoASTReturnStmt>(this);
+            for (auto& e : n->m_results) { v(e.get()); }
+            return;
+        }
+    case eSelectStmt:
+        {
+            GoASTSelectStmt* n = llvm::cast<GoASTSelectStmt>(this);
+            v(n->m_body.get());
+            return;
+        }
+    case eSelectorExpr:
+        {
+            GoASTSelectorExpr* n = llvm::cast<GoASTSelectorExpr>(this);
+            v(n->m_x.get());
+            v(n->m_sel.get());
+            return;
+        }
+    case eSendStmt:
+        {
+            GoASTSendStmt* n = llvm::cast<GoASTSendStmt>(this);
+            v(n->m_chan.get());
+            v(n->m_value.get());
+            return;
+        }
+    case eSliceExpr:
+        {
+            GoASTSliceExpr* n = llvm::cast<GoASTSliceExpr>(this);
+            v(n->m_x.get());
+            v(n->m_low.get());
+            v(n->m_high.get());
+            v(n->m_max.get());
+            return;
+        }
+    case eStarExpr:
+        {
+            GoASTStarExpr* n = llvm::cast<GoASTStarExpr>(this);
+            v(n->m_x.get());
+            return;
+        }
+    case eStructType:
+        {
+            GoASTStructType* n = llvm::cast<GoASTStructType>(this);
+            v(n->m_fields.get());
+            return;
+        }
+    case eSwitchStmt:
+        {
+            GoASTSwitchStmt* n = llvm::cast<GoASTSwitchStmt>(this);
+            v(n->m_init.get());
+            v(n->m_tag.get());
+            v(n->m_body.get());
+            return;
+        }
+    case eTypeAssertExpr:
+        {
+            GoASTTypeAssertExpr* n = llvm::cast<GoASTTypeAssertExpr>(this);
+            v(n->m_x.get());
+            v(n->m_type.get());
+            return;
+        }
+    case eTypeSpec:
+        {
+            GoASTTypeSpec* n = llvm::cast<GoASTTypeSpec>(this);
+            v(n->m_name.get());
+            v(n->m_type.get());
+            return;
+        }
+    case eTypeSwitchStmt:
+        {
+            GoASTTypeSwitchStmt* n = llvm::cast<GoASTTypeSwitchStmt>(this);
+            v(n->m_init.get());
+            v(n->m_assign.get());
+            v(n->m_body.get());
+            return;
+        }
+    case eUnaryExpr:
+        {
+            GoASTUnaryExpr* n = llvm::cast<GoASTUnaryExpr>(this);
+            v(n->m_x.get());
+            return;
+        }
+    case eValueSpec:
+        {
+            GoASTValueSpec* n = llvm::cast<GoASTValueSpec>(this);
+            for (auto& e : n->m_names) { v(e.get()); }
+            v(n->m_type.get());
+            for (auto& e : n->m_values) { v(e.get()); }
+            return;
+        }
+
+    default:
+        break;
     }
 }
 

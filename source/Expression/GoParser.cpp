@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <vector>
+
 #include "lldb/Expression/GoAST.h"
 #include "lldb/Expression/GoParser.h"
 #include "llvm/ADT/SmallString.h"
@@ -48,6 +50,8 @@ GoParser::Statement() {
         case GoLexer::OP_RBRACE:
         case GoLexer::TOK_INVALID:
             return EmptyStmt();
+        case GoLexer::OP_LBRACE:
+            return Block();
 
             /*      TODO:
         case GoLexer::KEYWORD_GO:
@@ -93,7 +97,64 @@ GoParser::Statement() {
     {
         return ret;
     }
+    delete expr;
     return r.error();
+}
+
+GoASTStmt*
+GoParser::ExpressionStmt(GoASTExpr *e)
+{
+    if (Semicolon())
+        return new GoASTExprStmt(e);
+    return nullptr;
+}
+
+GoASTStmt*
+GoParser::IncDecStmt(GoASTExpr *e)
+{
+    Rule r("IncDecStmt", this);
+    if (match(GoLexer::OP_PLUS_PLUS))
+        return Semicolon() ? new GoASTIncDecStmt(e, GoLexer::OP_PLUS_PLUS) : r.error();
+    if (match(GoLexer::OP_MINUS_MINUS))
+        return Semicolon() ? new GoASTIncDecStmt(e, GoLexer::OP_MINUS_MINUS) : r.error();
+    return nullptr;
+}
+
+GoASTStmt*
+GoParser::Assignment(lldb_private::GoASTExpr *e)
+{
+    Rule r("Assignment", this);
+    std::vector<std::unique_ptr<GoASTExpr> > lhs;
+    for (GoASTExpr* l = MoreExpressionList(); l; l = MoreExpressionList())
+        lhs.push_back(std::unique_ptr<GoASTExpr>(l));
+    switch (peek())
+    {
+        case GoLexer::OP_EQ:
+        case GoLexer::OP_PLUS_EQ:
+        case GoLexer::OP_MINUS_EQ:
+        case GoLexer::OP_PIPE_EQ:
+        case GoLexer::OP_CARET_EQ:
+        case GoLexer::OP_STAR_EQ:
+        case GoLexer::OP_SLASH_EQ:
+        case GoLexer::OP_PERCENT_EQ:
+        case GoLexer::OP_LSHIFT_EQ:
+        case GoLexer::OP_RSHIFT_EQ:
+        case GoLexer::OP_AMP_EQ:
+        case GoLexer::OP_AMP_CARET_EQ:
+            break;
+        default:
+            return r.error();
+    }
+    // We don't want to own e until we know this is an assignment.
+    std::unique_ptr<GoASTAssignStmt> stmt(new GoASTAssignStmt);
+    stmt->AddLhs(e);
+    for (auto& l : lhs)
+        stmt->AddLhs(l.release());
+    for (GoASTExpr* r = Expression(); r; r = MoreExpressionList())
+        stmt->AddRhs(r);
+    if (!Semicolon() || stmt->NumRhs() == 0)
+        return new GoASTBadStmt;
+    return stmt.release();
 }
 
 GoASTStmt*
@@ -339,6 +400,117 @@ GoParser::PrimaryExpr()
         l = r;
     }
     return l;
+}
+
+GoASTExpr*
+GoParser::Operand()
+{
+    GoLexer::Token* lit;
+    if ((lit = match(GoLexer::LIT_INTEGER)) ||
+        (lit = match(GoLexer::LIT_FLOAT)) ||
+        (lit = match(GoLexer::LIT_IMAGINARY)) ||
+        (lit = match(GoLexer::LIT_RUNE)) ||
+        (lit = match(GoLexer::LIT_STRING)))
+        return new GoASTBasicLit(*lit);
+    if (match(GoLexer::OP_LPAREN))
+    {
+        GoASTExpr* e;
+        if (!((e = Expression()) && match(GoLexer::OP_RPAREN)))
+            return syntaxerror();
+        return e;
+    }
+    // MethodExpr should be handled by Selector
+    if (GoASTExpr* e = CompositeLit())
+        return e;
+    if (GoASTExpr* n = Name())
+        return n;
+    return FunctionLit();
+}
+
+GoASTExpr*
+GoParser::FunctionLit()
+{
+    if (!match(GoLexer::KEYWORD_FUNC))
+        return nullptr;
+    auto* sig = Signature();
+    if (!sig)
+        return syntaxerror();
+    auto* body = Block();
+    if (!body)
+    {
+        delete sig;
+        return syntaxerror();
+    }
+    return new GoASTFuncLit(sig, body);
+}
+
+GoASTBlockStmt*
+GoParser::Block()
+{
+    if (!match(GoLexer::OP_LBRACE))
+        return nullptr;
+    std::unique_ptr<GoASTBlockStmt> block(new GoASTBlockStmt);
+    for (auto *s = Statement(); s; s = Statement())
+        block->AddList(s);
+    if (!match(GoLexer::OP_RBRACE))
+        return syntaxerror();
+    return block.release();
+}
+
+GoASTExpr*
+GoParser::CompositeLit()
+{
+    Rule r("CompositeLit", this);
+    GoASTExpr* type;
+    (type = StructType()) || (type = ArrayOrSliceType()) || (type = MapType()) || (type = Name());
+    if (!type && match(GoLexer::OP_LBRACK))
+    {
+        if (!match(GoLexer::OP_DOTS) && match(GoLexer::OP_RBRACK)) {
+            return syntaxerror();
+        }
+        if (GoASTExpr* elem = Type())
+            type = new GoASTArrayType(nullptr, elem);
+        else
+            return syntaxerror();
+    }
+    if (!type)
+        return r.error();
+    GoASTCompositeLit* lit = LiteralValue();
+    if (!lit)
+        return r.error();
+    lit->SetType(type);
+    return lit;
+}
+
+GoASTCompositeLit*
+GoParser::LiteralValue()
+{
+    if (!match(GoLexer::OP_LBRACE))
+        return nullptr;
+    std::unique_ptr<GoASTCompositeLit> lit(new GoASTCompositeLit);
+    for (GoASTExpr* e = Element(); e ; e = Element())
+    {
+        lit->AddElts(e);
+        if (!match(GoLexer::OP_COMMA))
+            break;
+    }
+    if (!mustMatch(GoLexer::OP_RBRACE))
+        return nullptr;
+    return lit.release();
+}
+
+GoASTExpr*
+GoParser::Element()
+{
+    std::unique_ptr<GoASTExpr> key(Expression());
+    if (!key)
+        return nullptr;
+    if (!match(GoLexer::OP_COLON))
+        return key.release();
+    GoASTExpr* value = Expression();
+    if (!value)
+        return syntaxerror();
+    return new GoASTKeyValueExpr(key.release(), value);
 }
 
 GoASTExpr*
@@ -707,6 +879,48 @@ GoParser::ChanType2()
     return new GoASTChanType(dir, elem);
 }
 
+GoASTExpr*
+GoParser::Type()
+{
+    if (GoASTExpr* t = Type2())
+        return t;
+    if (GoASTExpr* t = Name())
+        return t;
+    if (GoASTExpr* t = ChanType())
+        return t;
+    if (match(GoLexer::OP_STAR))
+    {
+        GoASTExpr* t = Type();
+        if (!t)
+            return syntaxerror();
+        return new GoASTStarExpr(t);
+    }
+    if (match(GoLexer::OP_LPAREN))
+    {
+        std::unique_ptr<GoASTExpr> t(Type());
+        if (!t || !match(GoLexer::OP_RPAREN))
+            return syntaxerror();
+        return t.release();
+    }
+    return nullptr;
+}
+
+
+
+bool
+GoParser::Semicolon()
+{
+    if (match(GoLexer::OP_SEMICOLON))
+        return true;
+    switch (peek())
+    {
+        case GoLexer::OP_RPAREN:
+        case GoLexer::OP_RBRACE:
+            return true;
+        default:
+            return false;
+    }
+}
 
 GoASTExpr*
 GoParser::Name()

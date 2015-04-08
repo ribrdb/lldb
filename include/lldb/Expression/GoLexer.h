@@ -150,6 +150,7 @@ private:
     }
     
     bool SkipWhitespace();
+    bool SkipComment();
     
     TokenType InternalLex();
     
