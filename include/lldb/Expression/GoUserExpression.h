@@ -61,7 +61,7 @@ namespace lldb_private
         ///
         /// @param[out]
         ///     Filled in with an error in case the expression evaluation
-        ///     fails to parse, run, or evaluated.
+        ///     fails to parse, run, or evaluate.
         ///
         /// @result
         ///      A Process::ExpressionResults value.  eExpressionCompleted for success.

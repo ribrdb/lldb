@@ -25,6 +25,7 @@
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Expression/ClangExpression.h"
 #include "lldb/Expression/ClangPersistentVariables.h"
+#include "lldb/Expression/GoAST.h"
 #include "lldb/Expression/GoUserExpression.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
@@ -32,8 +33,12 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/ThreadPlan.h"
 #include "lldb/Target/ThreadPlanCallUserExpression.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringMap.h"
 
 using namespace lldb_private;
+using namespace lldb;
+
 
 lldb::ExpressionResults
 GoUserExpression::Evaluate (ExecutionContext &exe_ctx,

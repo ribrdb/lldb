@@ -876,6 +876,7 @@
 		AED2693D1A0AED90005CF9EC /* GoLanguageRuntime.h in Headers */ = {isa = PBXBuildFile; fileRef = AED2693B1A0AED90005CF9EC /* GoLanguageRuntime.h */; };
 		AEEA34051AC88A7400AB639D /* TypeSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEEA34041AC88A7400AB639D /* TypeSystem.cpp */; };
 		AEF403191AE850A60022325E /* GoUserExpression.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEF403171AE850A60022325E /* GoUserExpression.cpp */; };
+		AEFC5AA31AF280CB0039A555 /* GoLexer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEFC5AA21AF280CB0039A555 /* GoLexer.cpp */; };
 		AEFFBA7E1AC4835D0087B932 /* GoASTContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEFFBA7C1AC4835D0087B932 /* GoASTContext.cpp */; };
 		AF061F87182C97ED00B6A19C /* RegisterContextHistory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */; };
 		AF061F88182C97ED00B6A19C /* RegisterContextHistory.h in Headers */ = {isa = PBXBuildFile; fileRef = AF061F86182C97ED00B6A19C /* RegisterContextHistory.h */; };
@@ -2642,6 +2643,9 @@
 		AEEA340F1ACA08A000AB639D /* GoASTContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GoASTContext.h; path = include/lldb/Symbol/GoASTContext.h; sourceTree = "<group>"; };
 		AEF403161AE841120022325E /* GoUserExpression.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoUserExpression.h; path = include/lldb/Expression/GoUserExpression.h; sourceTree = "<group>"; };
 		AEF403171AE850A60022325E /* GoUserExpression.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoUserExpression.cpp; path = source/Expression/GoUserExpression.cpp; sourceTree = "<group>"; };
+		AEFC5AA01AF18F760039A555 /* GoAST.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoAST.h; path = include/lldb/Expression/GoAST.h; sourceTree = "<group>"; };
+		AEFC5AA11AF27F760039A555 /* GoLexer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoLexer.h; path = include/lldb/Expression/GoLexer.h; sourceTree = "<group>"; };
+		AEFC5AA21AF280CB0039A555 /* GoLexer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoLexer.cpp; path = source/Expression/GoLexer.cpp; sourceTree = "<group>"; };
 		AEFFBA7C1AC4835D0087B932 /* GoASTContext.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoASTContext.cpp; path = source/Symbol/GoASTContext.cpp; sourceTree = "<group>"; };
 		AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = RegisterContextHistory.cpp; path = Utility/RegisterContextHistory.cpp; sourceTree = "<group>"; };
 		AF061F86182C97ED00B6A19C /* RegisterContextHistory.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RegisterContextHistory.h; path = Utility/RegisterContextHistory.h; sourceTree = "<group>"; };
@@ -4358,6 +4362,9 @@
 				497C86BD122823D800B54702 /* ClangUtilityFunction.cpp */,
 				26BC7DC310F1B79500F91463 /* DWARFExpression.h */,
 				26BC7ED810F1B86700F91463 /* DWARFExpression.cpp */,
+				AEFC5AA01AF18F760039A555 /* GoAST.h */,
+				AEFC5AA11AF27F760039A555 /* GoLexer.h */,
+				AEFC5AA21AF280CB0039A555 /* GoLexer.cpp */,
 				AEF403161AE841120022325E /* GoUserExpression.h */,
 				AEF403171AE850A60022325E /* GoUserExpression.cpp */,
 				4906FD4412F2257600A2A77C /* ASTDumper.h */,
@@ -6224,6 +6231,7 @@
 				26CEB5F218762056008F575A /* CommandObjectGUI.cpp in Sources */,
 				2689008013353E2200698AC0 /* CommandInterpreter.cpp in Sources */,
 				AF77E0A41A033D360096C0EA /* RegisterContextPOSIX_powerpc.cpp in Sources */,
+				AEFC5AA31AF280CB0039A555 /* GoLexer.cpp in Sources */,
 				AF9B8F33182DB52900DA866F /* SystemRuntimeMacOSX.cpp in Sources */,
 				2689008113353E2200698AC0 /* CommandObject.cpp in Sources */,
 				3F8160A61AB9F7DD001DA9DF /* Logging.cpp in Sources */,
