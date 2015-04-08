@@ -19,6 +19,8 @@ namespace lldb_private
     class GoParser
     {
     public:
+        explicit GoParser(const char* src);
+        
         GoASTStmt* Statement();
 
         GoASTStmt* GoStmt();
@@ -76,6 +78,10 @@ namespace lldb_private
         GoASTExpr* Element();
         GoASTCompositeLit* LiteralValue();
     
+        bool Failed() const { return m_failed; }
+        bool AtEOF() const { return m_lexer.BytesRemaining() == 0 && m_pos == m_tokens.size(); }
+        
+        void GetError(Error& error);
     private:
         class Rule;
         friend class Rule;
@@ -87,6 +93,9 @@ namespace lldb_private
         GoLexer::Token& next() {
             if (m_pos >= m_tokens.size())
             {
+                if (m_pos != 0 && (m_tokens.back().m_type == GoLexer::TOK_EOF ||
+                                   m_tokens.back().m_type == GoLexer::TOK_INVALID))
+                    return m_tokens.back();
                 m_pos = m_tokens.size();
                 m_tokens.push_back(m_lexer.Lex());
             }
@@ -101,6 +110,8 @@ namespace lldb_private
             GoLexer::Token& tok = next();
             if (tok.m_type == t)
                 return &tok;
+            --m_pos;
+            m_last_tok = t;
             return nullptr;
         }
         GoLexer::Token* mustMatch(GoLexer::TokenType t) {
@@ -122,6 +133,7 @@ namespace lldb_private
         GoLexer m_lexer;
         std::vector<GoLexer::Token> m_tokens;
         size_t m_pos;
+        llvm::StringRef m_error;
         llvm::StringRef m_last;
         GoLexer::TokenType m_last_tok;
         llvm::StringMap<uint8_t> m_strings;

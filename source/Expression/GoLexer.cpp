@@ -271,7 +271,7 @@ GoLexer::LookupToken(TokenType t)
 llvm::StringMap<GoLexer::TokenType>*
 GoLexer::InitKeywords()
 {
-    auto& result = *new llvm::StringMap<TokenType>(72);
+    auto& result = *new llvm::StringMap<TokenType>(128);
     result["break"] = KEYWORD_BREAK;
     result["default"] = KEYWORD_DEFAULT;
     result["func"] = KEYWORD_FUNC;

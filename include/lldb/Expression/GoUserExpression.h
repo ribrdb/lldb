@@ -74,8 +74,7 @@ namespace lldb_private
                   const char *expr_prefix,
                   lldb::ValueObjectSP &result_valobj_sp,
                   Error &error);
-    private:
-        std::unique_ptr<GoParser> m_parser_ap;
+
     };
     
 } // namespace lldb_private

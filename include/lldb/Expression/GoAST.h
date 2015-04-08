@@ -1492,11 +1492,11 @@ R GoASTDecl::Visit(V* v) const
     switch(GetKind())
     {
     case eBadDecl:
-        return v->VisitBadDecl(llvm::cast<const GoASTBadDecl*>(this));
+        return v->VisitBadDecl(llvm::cast<const GoASTBadDecl>(this));
     case eFuncDecl:
-        return v->VisitFuncDecl(llvm::cast<const GoASTFuncDecl*>(this));
+        return v->VisitFuncDecl(llvm::cast<const GoASTFuncDecl>(this));
     case eGenDecl:
-        return v->VisitGenDecl(llvm::cast<const GoASTGenDecl*>(this));
+        return v->VisitGenDecl(llvm::cast<const GoASTGenDecl>(this));
     default:
         assert(false && "Invalid kind");
     }
@@ -1508,49 +1508,49 @@ R GoASTExpr::Visit(V* v) const
     switch(GetKind())
     {
     case eArrayType:
-        return v->VisitArrayType(llvm::cast<const GoASTArrayType*>(this));
+        return v->VisitArrayType(llvm::cast<const GoASTArrayType>(this));
     case eBadExpr:
-        return v->VisitBadExpr(llvm::cast<const GoASTBadExpr*>(this));
+        return v->VisitBadExpr(llvm::cast<const GoASTBadExpr>(this));
     case eBasicLit:
-        return v->VisitBasicLit(llvm::cast<const GoASTBasicLit*>(this));
+        return v->VisitBasicLit(llvm::cast<const GoASTBasicLit>(this));
     case eBinaryExpr:
-        return v->VisitBinaryExpr(llvm::cast<const GoASTBinaryExpr*>(this));
+        return v->VisitBinaryExpr(llvm::cast<const GoASTBinaryExpr>(this));
     case eIdent:
-        return v->VisitIdent(llvm::cast<const GoASTIdent*>(this));
+        return v->VisitIdent(llvm::cast<const GoASTIdent>(this));
     case eCallExpr:
-        return v->VisitCallExpr(llvm::cast<const GoASTCallExpr*>(this));
+        return v->VisitCallExpr(llvm::cast<const GoASTCallExpr>(this));
     case eChanType:
-        return v->VisitChanType(llvm::cast<const GoASTChanType*>(this));
+        return v->VisitChanType(llvm::cast<const GoASTChanType>(this));
     case eCompositeLit:
-        return v->VisitCompositeLit(llvm::cast<const GoASTCompositeLit*>(this));
+        return v->VisitCompositeLit(llvm::cast<const GoASTCompositeLit>(this));
     case eEllipsis:
-        return v->VisitEllipsis(llvm::cast<const GoASTEllipsis*>(this));
+        return v->VisitEllipsis(llvm::cast<const GoASTEllipsis>(this));
     case eFuncType:
-        return v->VisitFuncType(llvm::cast<const GoASTFuncType*>(this));
+        return v->VisitFuncType(llvm::cast<const GoASTFuncType>(this));
     case eFuncLit:
-        return v->VisitFuncLit(llvm::cast<const GoASTFuncLit*>(this));
+        return v->VisitFuncLit(llvm::cast<const GoASTFuncLit>(this));
     case eIndexExpr:
-        return v->VisitIndexExpr(llvm::cast<const GoASTIndexExpr*>(this));
+        return v->VisitIndexExpr(llvm::cast<const GoASTIndexExpr>(this));
     case eInterfaceType:
-        return v->VisitInterfaceType(llvm::cast<const GoASTInterfaceType*>(this));
+        return v->VisitInterfaceType(llvm::cast<const GoASTInterfaceType>(this));
     case eKeyValueExpr:
-        return v->VisitKeyValueExpr(llvm::cast<const GoASTKeyValueExpr*>(this));
+        return v->VisitKeyValueExpr(llvm::cast<const GoASTKeyValueExpr>(this));
     case eMapType:
-        return v->VisitMapType(llvm::cast<const GoASTMapType*>(this));
+        return v->VisitMapType(llvm::cast<const GoASTMapType>(this));
     case eParenExpr:
-        return v->VisitParenExpr(llvm::cast<const GoASTParenExpr*>(this));
+        return v->VisitParenExpr(llvm::cast<const GoASTParenExpr>(this));
     case eSelectorExpr:
-        return v->VisitSelectorExpr(llvm::cast<const GoASTSelectorExpr*>(this));
+        return v->VisitSelectorExpr(llvm::cast<const GoASTSelectorExpr>(this));
     case eSliceExpr:
-        return v->VisitSliceExpr(llvm::cast<const GoASTSliceExpr*>(this));
+        return v->VisitSliceExpr(llvm::cast<const GoASTSliceExpr>(this));
     case eStarExpr:
-        return v->VisitStarExpr(llvm::cast<const GoASTStarExpr*>(this));
+        return v->VisitStarExpr(llvm::cast<const GoASTStarExpr>(this));
     case eStructType:
-        return v->VisitStructType(llvm::cast<const GoASTStructType*>(this));
+        return v->VisitStructType(llvm::cast<const GoASTStructType>(this));
     case eTypeAssertExpr:
-        return v->VisitTypeAssertExpr(llvm::cast<const GoASTTypeAssertExpr*>(this));
+        return v->VisitTypeAssertExpr(llvm::cast<const GoASTTypeAssertExpr>(this));
     case eUnaryExpr:
-        return v->VisitUnaryExpr(llvm::cast<const GoASTUnaryExpr*>(this));
+        return v->VisitUnaryExpr(llvm::cast<const GoASTUnaryExpr>(this));
     default:
         assert(false && "Invalid kind");
     }
@@ -1562,11 +1562,11 @@ R GoASTSpec::Visit(V* v) const
     switch(GetKind())
     {
     case eImportSpec:
-        return v->VisitImportSpec(llvm::cast<const GoASTImportSpec*>(this));
+        return v->VisitImportSpec(llvm::cast<const GoASTImportSpec>(this));
     case eTypeSpec:
-        return v->VisitTypeSpec(llvm::cast<const GoASTTypeSpec*>(this));
+        return v->VisitTypeSpec(llvm::cast<const GoASTTypeSpec>(this));
     case eValueSpec:
-        return v->VisitValueSpec(llvm::cast<const GoASTValueSpec*>(this));
+        return v->VisitValueSpec(llvm::cast<const GoASTValueSpec>(this));
     default:
         assert(false && "Invalid kind");
     }
@@ -1578,47 +1578,47 @@ R GoASTStmt::Visit(V* v) const
     switch(GetKind())
     {
     case eAssignStmt:
-        return v->VisitAssignStmt(llvm::cast<const GoASTAssignStmt*>(this));
+        return v->VisitAssignStmt(llvm::cast<const GoASTAssignStmt>(this));
     case eBadStmt:
-        return v->VisitBadStmt(llvm::cast<const GoASTBadStmt*>(this));
+        return v->VisitBadStmt(llvm::cast<const GoASTBadStmt>(this));
     case eBlockStmt:
-        return v->VisitBlockStmt(llvm::cast<const GoASTBlockStmt*>(this));
+        return v->VisitBlockStmt(llvm::cast<const GoASTBlockStmt>(this));
     case eBranchStmt:
-        return v->VisitBranchStmt(llvm::cast<const GoASTBranchStmt*>(this));
+        return v->VisitBranchStmt(llvm::cast<const GoASTBranchStmt>(this));
     case eCaseClause:
-        return v->VisitCaseClause(llvm::cast<const GoASTCaseClause*>(this));
+        return v->VisitCaseClause(llvm::cast<const GoASTCaseClause>(this));
     case eCommClause:
-        return v->VisitCommClause(llvm::cast<const GoASTCommClause*>(this));
+        return v->VisitCommClause(llvm::cast<const GoASTCommClause>(this));
     case eDeclStmt:
-        return v->VisitDeclStmt(llvm::cast<const GoASTDeclStmt*>(this));
+        return v->VisitDeclStmt(llvm::cast<const GoASTDeclStmt>(this));
     case eDeferStmt:
-        return v->VisitDeferStmt(llvm::cast<const GoASTDeferStmt*>(this));
+        return v->VisitDeferStmt(llvm::cast<const GoASTDeferStmt>(this));
     case eEmptyStmt:
-        return v->VisitEmptyStmt(llvm::cast<const GoASTEmptyStmt*>(this));
+        return v->VisitEmptyStmt(llvm::cast<const GoASTEmptyStmt>(this));
     case eExprStmt:
-        return v->VisitExprStmt(llvm::cast<const GoASTExprStmt*>(this));
+        return v->VisitExprStmt(llvm::cast<const GoASTExprStmt>(this));
     case eForStmt:
-        return v->VisitForStmt(llvm::cast<const GoASTForStmt*>(this));
+        return v->VisitForStmt(llvm::cast<const GoASTForStmt>(this));
     case eGoStmt:
-        return v->VisitGoStmt(llvm::cast<const GoASTGoStmt*>(this));
+        return v->VisitGoStmt(llvm::cast<const GoASTGoStmt>(this));
     case eIfStmt:
-        return v->VisitIfStmt(llvm::cast<const GoASTIfStmt*>(this));
+        return v->VisitIfStmt(llvm::cast<const GoASTIfStmt>(this));
     case eIncDecStmt:
-        return v->VisitIncDecStmt(llvm::cast<const GoASTIncDecStmt*>(this));
+        return v->VisitIncDecStmt(llvm::cast<const GoASTIncDecStmt>(this));
     case eLabeledStmt:
-        return v->VisitLabeledStmt(llvm::cast<const GoASTLabeledStmt*>(this));
+        return v->VisitLabeledStmt(llvm::cast<const GoASTLabeledStmt>(this));
     case eRangeStmt:
-        return v->VisitRangeStmt(llvm::cast<const GoASTRangeStmt*>(this));
+        return v->VisitRangeStmt(llvm::cast<const GoASTRangeStmt>(this));
     case eReturnStmt:
-        return v->VisitReturnStmt(llvm::cast<const GoASTReturnStmt*>(this));
+        return v->VisitReturnStmt(llvm::cast<const GoASTReturnStmt>(this));
     case eSelectStmt:
-        return v->VisitSelectStmt(llvm::cast<const GoASTSelectStmt*>(this));
+        return v->VisitSelectStmt(llvm::cast<const GoASTSelectStmt>(this));
     case eSendStmt:
-        return v->VisitSendStmt(llvm::cast<const GoASTSendStmt*>(this));
+        return v->VisitSendStmt(llvm::cast<const GoASTSendStmt>(this));
     case eSwitchStmt:
-        return v->VisitSwitchStmt(llvm::cast<const GoASTSwitchStmt*>(this));
+        return v->VisitSwitchStmt(llvm::cast<const GoASTSwitchStmt>(this));
     case eTypeSwitchStmt:
-        return v->VisitTypeSwitchStmt(llvm::cast<const GoASTTypeSwitchStmt*>(this));
+        return v->VisitTypeSwitchStmt(llvm::cast<const GoASTTypeSwitchStmt>(this));
     default:
         assert(false && "Invalid kind");
     }

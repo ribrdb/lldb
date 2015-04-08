@@ -9,12 +9,37 @@
 
 #include <vector>
 
+#include "lldb/Core/Error.h"
 #include "lldb/Expression/GoAST.h"
 #include "lldb/Expression/GoParser.h"
 #include "llvm/ADT/SmallString.h"
 
 using namespace lldb_private;
 using namespace lldb;
+
+namespace {
+llvm::StringRef DescribeToken(GoLexer::TokenType t) {
+    switch (t)
+    {
+        case GoLexer::TOK_EOF:
+            return "<eof>";
+        case GoLexer::TOK_IDENTIFIER:
+            return "identifier";
+        case GoLexer::LIT_FLOAT:
+            return "float";
+        case GoLexer::LIT_IMAGINARY:
+            return "imaginary";
+        case GoLexer::LIT_INTEGER:
+            return "integer";
+        case GoLexer::LIT_RUNE:
+            return "rune";
+        case GoLexer::LIT_STRING:
+            return "string";
+        default:
+            return GoLexer::LookupToken(t);
+    }
+}
+}  // namespace
 
 class GoParser::Rule
 {
@@ -24,6 +49,12 @@ public:
     std::nullptr_t error() {
         if (!m_parser->m_failed)
         {
+            // Set m_error in case this is the top level.
+            if (m_parser->m_last_tok == GoLexer::TOK_INVALID)
+                m_parser->m_error = m_parser->m_last;
+            else
+                m_parser->m_error = DescribeToken(m_parser->m_last_tok);
+            // And set m_last in case it isn't.
             m_parser->m_last = m_name;
             m_parser->m_last_tok = GoLexer::TOK_INVALID;
             m_parser->m_pos = m_pos;
@@ -36,6 +67,8 @@ private:
     GoParser* m_parser;
     size_t m_pos;
 };
+
+GoParser::GoParser(const char* src) : m_lexer(src), m_pos(0), m_failed(false) { }
 
 GoASTStmt*
 GoParser::Statement() {
@@ -90,10 +123,10 @@ GoParser::Statement() {
     GoASTExpr* expr = Expression();
     if (expr == nullptr)
         return r.error();
-    if ((ret = ExpressionStmt(expr)) ||
-        /*(ret = SendStmt(expr)) ||*/
+    if (/*(ret = SendStmt(expr)) ||*/
         (ret = IncDecStmt(expr)) ||
-        (ret = Assignment(expr)))
+        (ret = Assignment(expr)) ||
+        (ret = ExpressionStmt(expr)))
     {
         return ret;
     }
@@ -159,6 +192,8 @@ GoParser::Assignment(lldb_private::GoASTExpr *e)
 
 GoASTStmt*
 GoParser::EmptyStmt() {
+    if (match(GoLexer::TOK_EOF))
+        return nullptr;
     if (Semicolon())
         return new GoASTEmptyStmt;
     return nullptr;
@@ -264,9 +299,14 @@ GoParser::UnaryExpr()
         case GoLexer::OP_AMP:
         case GoLexer::OP_LT_MINUS:
         {
-            const auto& t = next();
+            const GoLexer::Token t = next();
             if (GoASTExpr* e = UnaryExpr())
-                return new GoASTUnaryExpr(t.m_type, e);
+            {
+                if (t.m_type == GoLexer::OP_STAR)
+                    return new GoASTStarExpr(e);
+                else
+                    return new GoASTUnaryExpr(t.m_type, e);
+            }
             return syntaxerror();
         }
         default:
@@ -916,6 +956,7 @@ GoParser::Semicolon()
     {
         case GoLexer::OP_RPAREN:
         case GoLexer::OP_RBRACE:
+        case GoLexer::TOK_EOF:
             return true;
         default:
             return false;
@@ -967,4 +1008,23 @@ llvm::StringRef
 GoParser::CopyString(llvm::StringRef s)
 {
     return m_strings.insert(std::make_pair(s, 'x')).first->getKey();
+}
+
+void
+GoParser::GetError(Error &error)
+{
+    llvm::StringRef want;
+    if (m_failed)
+        want = m_last_tok == GoLexer::TOK_INVALID ? DescribeToken(m_last_tok) : m_last;
+    else
+        want = m_error;
+    size_t len = m_lexer.BytesRemaining();
+    if (len > 10)
+        len = 10;
+    llvm::StringRef got;
+    if (len == 0)
+        got = "<eof>";
+    else
+        got = m_lexer.GetString(len);
+    error.SetErrorStringWithFormat("Syntax error: expected %s before '%s'.", want.str().c_str(), got.str().c_str());
 }

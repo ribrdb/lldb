@@ -18,7 +18,7 @@ namespace lldb_private
     
 class GoLexer {
 public:
-    GoLexer(const char* src);
+    explicit GoLexer(const char* src);
     
     enum TokenType {
         TOK_EOF,
@@ -111,6 +111,13 @@ public:
     };
     
     const Token& Lex();
+    
+    size_t BytesRemaining() const { return m_end - m_src; }
+    llvm::StringRef GetString(int len) const { return llvm::StringRef(m_src, len); }
+    
+    static TokenType LookupKeyword(llvm::StringRef id);
+    static llvm::StringRef LookupToken(TokenType t);
+
 private:
     bool IsDecimal(char c)
     {
@@ -162,8 +169,6 @@ private:
     
     TokenType DoString();
     
-    static TokenType LookupKeyword(llvm::StringRef id);
-    static llvm::StringRef LookupToken(TokenType t);
     
     static llvm::StringMap<TokenType>* InitKeywords();
 

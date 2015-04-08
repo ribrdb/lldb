@@ -1,5 +1,4 @@
 set(LLVM_NO_RTTI 1)
-
 add_lldb_library(lldbExpression
   ASTDumper.cpp
   ASTResultSynthesizer.cpp
@@ -15,6 +14,8 @@ add_lldb_library(lldbExpression
   ClangUtilityFunction.cpp
   DWARFExpression.cpp
   ExpressionSourceCode.cpp
+  GoLexer.cpp
+  GoParser.cpp
   GoUserExpression.cpp
   IRDynamicChecks.cpp
   IRExecutionUnit.cpp
