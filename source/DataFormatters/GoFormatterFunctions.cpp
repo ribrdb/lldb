@@ -30,13 +30,13 @@ public:
     virtual size_t
     CalculateNumChildren ()
     {
-        return m_children.size();
+        return m_len;
     }
     
     virtual lldb::ValueObjectSP
     GetChildAtIndex (size_t idx)
     {
-        if (idx < m_children.size())
+        if (idx < m_len)
         {
             ValueObjectSP& cached = m_children[idx];
             if (!cached)
@@ -75,10 +75,11 @@ public:
         ValueObjectSP len_sp = m_backend.GetChildMemberWithName(len_const_str, true);
         if (len_sp)
         {
-            m_children.resize(len_sp->GetValueAsUnsigned(0));
+            m_len = len_sp->GetValueAsUnsigned(0);
+            m_children.clear();
         }
         
-        return old_count == m_children.size();
+        return old_count == m_len;
     }
     
     virtual bool
@@ -100,6 +101,7 @@ public:
 private:
     ClangASTType m_type;
     lldb::addr_t m_base_data_address;
+    size_t m_len;
     std::vector<lldb::ValueObjectSP> m_children;
 };
 
