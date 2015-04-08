@@ -170,7 +170,7 @@ OperatingSystemGo::Init(ThreadList &threads)
     {
         const RegisterSet *set = real_registers_sp->GetRegisterSet(set_idx);
         ConstString name(set->name);
-        for (int reg_idx = 0; reg_idx < set->num_registers; ++reg_idx)
+        for (size_t reg_idx = 0; reg_idx < set->num_registers; ++reg_idx)
         {
             register_sets[reg_idx] = name;
         }
@@ -185,7 +185,7 @@ OperatingSystemGo::Init(ThreadList &threads)
         return false;
     }
     ClangASTType gobuf_type(gobuf_sp->GetClangLayoutType());
-    for (int idx = 0; idx < real_registers_sp->GetRegisterCount(); ++idx)
+    for (size_t idx = 0; idx < real_registers_sp->GetRegisterCount(); ++idx)
     {
         RegisterInfo reg = *real_registers_sp->GetRegisterInfoAtIndex(idx);
         int field_index = -1;

@@ -214,7 +214,7 @@ GoInterpreter::EvaluateStatement(const lldb_private::GoASTStmt *stmt)
         case GoASTNode::eBlockStmt:
         {
             const GoASTBlockStmt* block = llvm::cast<GoASTBlockStmt>(stmt);
-            for (auto i = 0; i < block->NumList(); ++i)
+            for (size_t i = 0; i < block->NumList(); ++i)
                 result = EvaluateStatement(block->GetList(i));
             break;
         }
