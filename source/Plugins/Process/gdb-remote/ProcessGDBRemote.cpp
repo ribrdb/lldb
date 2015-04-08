@@ -391,7 +391,8 @@ ProcessGDBRemote::ProcessGDBRemote(Target& target, Listener &listener) :
     m_waiting_for_attach (false),
     m_destroy_tried_resuming (false),
     m_command_sp (),
-    m_breakpoint_pc_offset (0)
+    m_breakpoint_pc_offset (0),
+    m_initial_tid (LLDB_INVALID_THREAD_ID)
 {
     m_async_broadcaster.SetEventName (eBroadcastBitAsyncThreadShouldExit,   "async thread should exit");
     m_async_broadcaster.SetEventName (eBroadcastBitAsyncContinue,           "async thread continue");
@@ -769,8 +770,13 @@ ProcessGDBRemote::DoConnectRemote (Stream *strm, const char *remote_url)
         // We have a valid process
         SetID (pid);
         GetThreadList();
-        if (m_gdb_comm.SendPacketAndWaitForResponse("?", 1, m_last_stop_packet, false) == GDBRemoteCommunication::PacketResult::Success)
+        if (m_gdb_comm.GetStopReply(m_last_stop_packet))
         {
+
+            // '?' Packets must be handled differently in non-stop mode
+            if (GetTarget().GetNonStopModeEnabled())
+                HandleStopReplySequence();
+
             if (!m_target.GetArchitecture().IsValid()) 
             {
                 if (m_gdb_comm.GetProcessArchitecture().IsValid())
@@ -1052,8 +1058,13 @@ ProcessGDBRemote::DoLaunch (Module *exe_module, ProcessLaunchInfo &launch_info)
                 return error;
             }
 
-            if (m_gdb_comm.SendPacketAndWaitForResponse("?", 1, m_last_stop_packet, false) == GDBRemoteCommunication::PacketResult::Success)
+            if (m_gdb_comm.GetStopReply(m_last_stop_packet))
             {
+
+                // '?' Packets must be handled differently in non-stop mode
+                if (GetTarget().GetNonStopModeEnabled())
+                    HandleStopReplySequence();
+
                 const ArchSpec &process_arch = m_gdb_comm.GetProcessArchitecture();
 
                 if (process_arch.IsValid())
@@ -1153,12 +1164,22 @@ ProcessGDBRemote::ConnectToDebugserver (const char *connect_url)
             error.SetErrorString("not connected to remote gdb server");
         return error;
     }
+
+    // Send $QNonStop:1 packet on startup if required
+    if (GetTarget().GetNonStopModeEnabled())
+        m_gdb_comm.SetNonStopMode(true);
+
     m_gdb_comm.GetThreadSuffixSupported ();
     m_gdb_comm.GetListThreadsInStopReplySupported ();
     m_gdb_comm.GetHostInfo ();
     m_gdb_comm.GetVContSupported ('c');
     m_gdb_comm.GetVAttachOrWaitSupported();
-    
+
+    // Ask the remote server for the default thread id
+    if (GetTarget().GetNonStopModeEnabled())
+        m_gdb_comm.GetDefaultThreadId(m_initial_tid);
+
+
     size_t num_cmds = GetExtraStartupCommands().GetArgumentCount();
     for (size_t idx = 0; idx < num_cmds; idx++)
     {
@@ -1277,13 +1298,6 @@ ProcessGDBRemote::DidLaunch ()
 {
     ArchSpec process_arch;
     DidLaunchOrAttach (process_arch);
-}
-
-Error
-ProcessGDBRemote::DoAttachToProcessWithID (lldb::pid_t attach_pid)
-{
-    ProcessAttachInfo attach_info;
-    return DoAttachToProcessWithID(attach_pid, attach_info);
 }
 
 Error
@@ -1430,11 +1444,12 @@ ProcessGDBRemote::DoResume ()
         bool continue_packet_error = false;
         if (m_gdb_comm.HasAnyVContSupport ())
         {
-            if (m_continue_c_tids.size() == num_threads ||
+            if (!GetTarget().GetNonStopModeEnabled() &&
+                (m_continue_c_tids.size() == num_threads ||
                 (m_continue_c_tids.empty() &&
                  m_continue_C_tids.empty() &&
                  m_continue_s_tids.empty() &&
-                 m_continue_S_tids.empty()))
+                 m_continue_S_tids.empty())))
             {
                 // All threads are continuing, just send a "c" packet
                 continue_packet.PutCString ("c");
@@ -1659,6 +1674,27 @@ ProcessGDBRemote::DoResume ()
     }
 
     return error;
+}
+
+void
+ProcessGDBRemote::HandleStopReplySequence ()
+{
+    while(true)
+    {
+        // Send vStopped
+        StringExtractorGDBRemote response;
+        m_gdb_comm.SendPacketAndWaitForResponse("vStopped", response, false);
+
+        // OK represents end of signal list
+        if (response.IsOKResponse())
+            break;
+
+        // If not OK or a normal packet we have a problem
+        if (!response.IsNormalResponse())
+            break;
+
+        SetLastStopPacket(response);
+    }
 }
 
 void
@@ -2093,6 +2129,13 @@ ProcessGDBRemote::RefreshStateAfterStop ()
     {
         // No, we need to fetch the thread list manually
         UpdateThreadIDList();
+    }
+
+    // If we have queried for a default thread id
+    if (m_initial_tid != LLDB_INVALID_THREAD_ID)
+    {
+        m_thread_list.SetSelectedThreadByID(m_initial_tid);
+        m_initial_tid = LLDB_INVALID_THREAD_ID;
     }
 
     // Let all threads recover from stopping and do any clean up based
@@ -4094,18 +4137,18 @@ ProcessGDBRemote::GetLoadedModuleList (GDBLoadedModuleInfoList & list)
         if (!child->name)
             continue;
 
-        if (strcmp ((char*)child->name, "library") != 0)
+        if (strcmp ((const char*)child->name, "library") != 0)
             continue;
 
         GDBLoadedModuleInfoList::LoadedModuleInfo module;
 
         for (xmlAttrPtr prop = child->properties; prop; prop=prop->next)
         {
-            if (strcmp ((char*)prop->name, "name") == 0)
+            if (strcmp ((const char*)prop->name, "name") == 0)
                 module.set_name (xmlExGetTextContent (prop));
 
             // the address of the link_map struct.
-            if (strcmp ((char*)prop->name, "lm") == 0)
+            if (strcmp ((const char*)prop->name, "lm") == 0)
             {
                 std::string val = xmlExGetTextContent (prop);
                 if (val.length() > 2)
@@ -4116,7 +4159,7 @@ ProcessGDBRemote::GetLoadedModuleList (GDBLoadedModuleInfoList & list)
             }
 
             // the displacement as read from the field 'l_addr' of the link_map struct.
-            if (strcmp ((char*)prop->name, "l_addr") == 0)
+            if (strcmp ((const char*)prop->name, "l_addr") == 0)
             {
                 std::string val = xmlExGetTextContent (prop);
                 if (val.length() > 2)
@@ -4127,7 +4170,7 @@ ProcessGDBRemote::GetLoadedModuleList (GDBLoadedModuleInfoList & list)
             }
 
             // the memory address of the libraries PT_DYAMIC section.
-            if (strcmp ((char*)prop->name, "l_ld") == 0)
+            if (strcmp ((const char*)prop->name, "l_ld") == 0)
             {
                 std::string val = xmlExGetTextContent (prop);
                 if (val.length() > 2)

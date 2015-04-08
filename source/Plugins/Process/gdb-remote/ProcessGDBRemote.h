@@ -105,9 +105,6 @@ public:
     
     Error
     WillLaunchOrAttach ();
-
-    Error
-    DoAttachToProcessWithID (lldb::pid_t pid) override;
     
     Error
     DoAttachToProcessWithID (lldb::pid_t pid, const ProcessAttachInfo &attach_info) override;
@@ -358,6 +355,7 @@ protected:
     bool m_destroy_tried_resuming;
     lldb::CommandObjectSP m_command_sp;
     int64_t m_breakpoint_pc_offset;
+    lldb::tid_t m_initial_tid; // The inital thread ID, given by stub on attach
 
     bool
     StartAsyncThread ();
@@ -377,6 +375,9 @@ protected:
 
     lldb::StateType
     SetThreadStopInfo (StringExtractor& stop_packet);
+
+    void
+    HandleStopReplySequence ();
 
     void
     ClearThreadIDList ();

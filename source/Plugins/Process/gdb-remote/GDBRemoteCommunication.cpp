@@ -424,6 +424,7 @@ GDBRemoteCommunication::CheckForPacket (const uint8_t *src, size_t src_len, Stri
                 content_length = total_length = 1;  // The command is one byte long...
                 break;
 
+            case '%': // Async notify packet
             case '$':
                 // Look for a standard gdb packet?
                 {
@@ -466,6 +467,7 @@ GDBRemoteCommunication::CheckForPacket (const uint8_t *src, size_t src_len, Stri
                         case '+':
                         case '-':
                         case '\x03':
+                        case '%':
                         case '$':
                             done = true;
                             break;
@@ -586,7 +588,7 @@ GDBRemoteCommunication::CheckForPacket (const uint8_t *src, size_t src_len, Stri
                 }
             }
 
-            if (m_bytes[0] == '$')
+            if (m_bytes[0] == '$' || m_bytes[0] == '%')
             {
                 assert (checksum_idx < m_bytes.size());
                 if (::isxdigit (m_bytes[checksum_idx+0]) || 
@@ -772,48 +774,40 @@ GDBRemoteCommunication::StartDebugserverProcess (const char *hostname,
         llvm::SmallString<PATH_MAX> named_pipe_path;
         Pipe port_pipe;
 
-        bool listen = false;
-        if (host_and_port[0])
+        if (host_and_port[0] && in_port == 0)
         {
             // Create a temporary file to get the stdout/stderr and redirect the
             // output of the command into this file. We will later read this file
             // if all goes well and fill the data into "command_output_ptr"
 
-            if (in_port == 0)
+            // Binding to port zero, we need to figure out what port it ends up
+            // using using a named pipe...
+            error = port_pipe.CreateWithUniqueName("debugserver-named-pipe", false, named_pipe_path);
+            if (error.Success())
             {
-                // Binding to port zero, we need to figure out what port it ends up
-                // using using a named pipe...
-                error = port_pipe.CreateWithUniqueName("debugserver-named-pipe", false, named_pipe_path);
-                if (error.Success())
-                {
-                    debugserver_args.AppendArgument("--named-pipe");
-                    debugserver_args.AppendArgument(named_pipe_path.c_str());
-                }
-                else
-                {
-                    if (log)
-                        log->Printf("GDBRemoteCommunication::%s() "
-                                "named pipe creation failed: %s",
-                                __FUNCTION__, error.AsCString());
-                    // let's try an unnamed pipe
-                    error = port_pipe.CreateNew(true);
-                    if (error.Fail())
-                    {
-                        if (log)
-                            log->Printf("GDBRemoteCommunication::%s() "
-                                    "unnamed pipe creation failed: %s",
-                                    __FUNCTION__, error.AsCString());
-                        return error;
-                    }
-                    int write_fd = port_pipe.GetWriteFileDescriptor();
-                    debugserver_args.AppendArgument("--pipe");
-                    debugserver_args.AppendArgument(std::to_string(write_fd).c_str());
-                    launch_info.AppendCloseFileAction(port_pipe.GetReadFileDescriptor());
-                }
+                debugserver_args.AppendArgument("--named-pipe");
+                debugserver_args.AppendArgument(named_pipe_path.c_str());
             }
             else
             {
-                listen = true;
+                if (log)
+                    log->Printf("GDBRemoteCommunication::%s() "
+                            "named pipe creation failed: %s",
+                            __FUNCTION__, error.AsCString());
+                // let's try an unnamed pipe
+                error = port_pipe.CreateNew(true);
+                if (error.Fail())
+                {
+                    if (log)
+                        log->Printf("GDBRemoteCommunication::%s() "
+                                "unnamed pipe creation failed: %s",
+                                __FUNCTION__, error.AsCString());
+                    return error;
+                }
+                int write_fd = port_pipe.GetWriteFileDescriptor();
+                debugserver_args.AppendArgument("--pipe");
+                debugserver_args.AppendArgument(std::to_string(write_fd).c_str());
+                launch_info.AppendCloseFileAction(port_pipe.GetReadFileDescriptor());
             }
         }
         else
