@@ -974,32 +974,6 @@ public:
     void
     DumpTypeDescription (void* type, Stream *s);
     
-    bool
-    GetValueAsScalar (void* type,
-                      const DataExtractor &data,
-                      lldb::offset_t data_offset,
-                      size_t data_byte_size,
-                      Scalar &value);
-    
-    bool
-    SetValueFromScalar (void* type,
-                        const Scalar &value,
-                        Stream &strm);
-    
-    bool
-    ReadFromMemory (void* type,
-                    ExecutionContext *exe_ctx,
-                    lldb::addr_t addr,
-                    AddressType address_type,
-                    DataExtractor &data);
-    
-    bool
-    WriteToMemory (void* type,
-                   ExecutionContext *exe_ctx,
-                   lldb::addr_t addr,
-                   AddressType address_type,
-                   StreamString &new_value);
-    
     static clang::EnumDecl *
     GetAsEnumDecl (const ClangASTType& type);
     

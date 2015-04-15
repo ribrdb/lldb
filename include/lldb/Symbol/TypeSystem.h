@@ -250,13 +250,6 @@ public:
     virtual void
     DumpTypeDescription (void * type, Stream *s) = 0;
     
-    virtual bool
-    GetValueAsScalar (void * type,
-                      const DataExtractor &data,
-                      lldb::offset_t data_offset,
-                      size_t data_byte_size,
-                      Scalar &value) = 0;
-    
     //----------------------------------------------------------------------
     // TODO: These methods appear unused. Should they be removed?
     //----------------------------------------------------------------------
@@ -271,25 +264,6 @@ public:
                  const DataExtractor &data,
                  lldb::offset_t data_offset,
                  size_t data_byte_size) = 0;
-    
-    virtual bool
-    SetValueFromScalar (void * type,
-                        const Scalar &value,
-                        Stream &strm) = 0;
-    
-    virtual bool
-    ReadFromMemory (void * type,
-                    ExecutionContext *exe_ctx,
-                    lldb::addr_t addr,
-                    AddressType address_type,
-                    DataExtractor &data) = 0;
-    
-    virtual bool
-    WriteToMemory (void * type,
-                   ExecutionContext *exe_ctx,
-                   lldb::addr_t addr,
-                   AddressType address_type,
-                   StreamString &new_value) = 0;
 
     // Converts "s" to a floating point value and place resulting floating
     // point bytes in the "dst" buffer.
