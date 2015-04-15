@@ -142,7 +142,7 @@ class Token
   make_character_token(const llvm::APInt& val, Location location)
   {
     Token tok(TOKEN_CHARACTER, location);
-    tok.u_.integer_value = val;
+    tok.u_.integer_value = new llvm::APInt(val);
     return tok;
   }
 
@@ -151,7 +151,7 @@ class Token
   make_integer_token(const llvm::APInt& val, Location location)
   {
     Token tok(TOKEN_INTEGER, location);
-      tok.u_.integer_value = val;
+    tok.u_.integer_value = new llvm::APInt(val);
     return tok;
   }
 
@@ -160,7 +160,7 @@ class Token
     make_float_token(const llvm::APFloat& val, Location location)
   {
     Token tok(TOKEN_FLOAT, location);
-    tok.u_.float_value = val;
+    tok.u_.float_value = new llvm::APFloat(val);
     return tok;
   }
 
@@ -169,7 +169,7 @@ class Token
   make_imaginary_token(const llvm::APFloat& val, Location location)
   {
     Token tok(TOKEN_IMAGINARY, location);
-      tok.u_.float_value = val;
+    tok.u_.float_value = new llvm::APFloat(val);
     return tok;
   }
 
@@ -238,7 +238,7 @@ class Token
   character_value() const
   {
     go_assert(this->classification_ == TOKEN_CHARACTER);
-    return this->u_.integer_value;
+    return *this->u_.integer_value;
   }
 
   // Return the value of an integer.
@@ -246,7 +246,7 @@ class Token
   integer_value() const
   {
     go_assert(this->classification_ == TOKEN_INTEGER);
-    return this->u_.integer_value;
+    return *this->u_.integer_value;
   }
 
   // Return the value of a float.
@@ -254,7 +254,7 @@ class Token
   float_value() const
   {
     go_assert(this->classification_ == TOKEN_FLOAT);
-    return this->u_.float_value;
+    return *this->u_.float_value;
   }
 
   // Return the value of an imaginary number.
@@ -262,7 +262,7 @@ class Token
   imaginary_value() const
   {
     go_assert(this->classification_ == TOKEN_IMAGINARY);
-    return this->u_.float_value;
+    return *this->u_.float_value;
   }
 
   // Return the operator value for an operator token.
@@ -317,9 +317,9 @@ class Token
     // The string value for TOKEN_STRING.
     std::string* string_value;
     // The token value for TOKEN_CHARACTER or TOKEN_INTEGER.
-    llvm::APInt integer_value;
+    llvm::APInt* integer_value;
     // The token value for TOKEN_FLOAT or TOKEN_IMAGINARY.
-    llvm::APFloat float_value;
+    llvm::APFloat* float_value;
     // The token value for TOKEN_OPERATOR or the keyword value
     Operator op;
     u__() : keyword(KEYWORD_INVALID) { }

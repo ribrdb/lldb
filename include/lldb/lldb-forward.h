@@ -99,7 +99,7 @@ class   File;
 class   FileSpec;
 class   FileSpecList;
 class   Flags;
-class GoASTContext;
+class   GoASTContext;
 class   TypeCategoryImpl;
 class   FormatManager;
 class   FormattersMatchCandidate;

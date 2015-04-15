@@ -829,8 +829,132 @@ ClangASTType::GetValueAsScalar (const lldb_private::DataExtractor &data,
 {
     if (!IsValid())
         return false;
-
-   return m_type_system->GetValueAsScalar(m_type, data, data_byte_offset, data_byte_size, value);
+    
+    if (IsAggregateType ())
+    {
+        return false;   // Aggregate types don't have scalar values
+    }
+    else
+    {
+        uint64_t count = 0;
+        lldb::Encoding encoding = GetEncoding (count);
+        
+        if (encoding == lldb::eEncodingInvalid || count != 1)
+            return false;
+        
+        const uint64_t byte_size = GetByteSize(nullptr);
+        lldb::offset_t offset = data_byte_offset;
+        switch (encoding)
+        {
+            case lldb::eEncodingInvalid:
+                break;
+            case lldb::eEncodingVector:
+                break;
+            case lldb::eEncodingUint:
+                if (byte_size <= sizeof(unsigned long long))
+                {
+                    uint64_t uval64 = data.GetMaxU64 (&offset, byte_size);
+                    if (byte_size <= sizeof(unsigned int))
+                    {
+                        value = (unsigned int)uval64;
+                        return true;
+                    }
+                    else if (byte_size <= sizeof(unsigned long))
+                    {
+                        value = (unsigned long)uval64;
+                        return true;
+                    }
+                    else if (byte_size <= sizeof(unsigned long long))
+                    {
+                        value = (unsigned long long )uval64;
+                        return true;
+                    }
+                    else
+                        value.Clear();
+                }
+                break;
+                
+            case lldb::eEncodingSint:
+                if (byte_size <= sizeof(long long))
+                {
+                    int64_t sval64 = data.GetMaxS64 (&offset, byte_size);
+                    if (byte_size <= sizeof(int))
+                    {
+                        value = (int)sval64;
+                        return true;
+                    }
+                    else if (byte_size <= sizeof(long))
+                    {
+                        value = (long)sval64;
+                        return true;
+                    }
+                    else if (byte_size <= sizeof(long long))
+                    {
+                        value = (long long )sval64;
+                        return true;
+                    }
+                    else
+                        value.Clear();
+                }
+                break;
+                
+            case lldb::eEncodingIEEE754:
+                if (byte_size <= sizeof(long double))
+                {
+                    uint32_t u32;
+                    uint64_t u64;
+                    if (byte_size == sizeof(float))
+                    {
+                        if (sizeof(float) == sizeof(uint32_t))
+                        {
+                            u32 = data.GetU32(&offset);
+                            value = *((float *)&u32);
+                            return true;
+                        }
+                        else if (sizeof(float) == sizeof(uint64_t))
+                        {
+                            u64 = data.GetU64(&offset);
+                            value = *((float *)&u64);
+                            return true;
+                        }
+                    }
+                    else
+                        if (byte_size == sizeof(double))
+                        {
+                            if (sizeof(double) == sizeof(uint32_t))
+                            {
+                                u32 = data.GetU32(&offset);
+                                value = *((double *)&u32);
+                                return true;
+                            }
+                            else if (sizeof(double) == sizeof(uint64_t))
+                            {
+                                u64 = data.GetU64(&offset);
+                                value = *((double *)&u64);
+                                return true;
+                            }
+                        }
+                        else
+                            if (byte_size == sizeof(long double))
+                            {
+                                if (sizeof(long double) == sizeof(uint32_t))
+                                {
+                                    u32 = data.GetU32(&offset);
+                                    value = *((long double *)&u32);
+                                    return true;
+                                }
+                                else if (sizeof(long double) == sizeof(uint64_t))
+                                {
+                                    u64 = data.GetU64(&offset);
+                                    value = *((long double *)&u64);
+                                    return true;
+                                }
+                            }
+                }
+                break;
+        }
+    }
+    return false;
 }
 
 bool

@@ -6,7 +6,7 @@
 
 #include "go-system.h"
 
-#include "go-c.h"
+//#include "go-c.h"
 #include "types.h"
 #include "expressions.h"
 #include "gogo.h"
@@ -2984,7 +2984,7 @@ Goto_statement::do_check_types(Gogo*)
 {
   if (!this->label_->is_defined())
     {
-      error_at(this->location(), "reference to undefined label %qs",
+      error_at(this->location(), "reference to undefined label %s",
 	       Gogo::message_name(this->label_->name()).c_str());
       this->set_is_error();
     }
@@ -3293,11 +3293,10 @@ size_t
 Case_clauses::Hash_integer_value::operator()(Expression* pe) const
 {
   Numeric_constant nc;
-  mpz_t ival;
+  llvm::APInt ival;
   if (!pe->numeric_constant_value(&nc) || !nc.to_int(&ival))
     go_unreachable();
-  size_t ret = mpz_get_ui(ival);
-  mpz_clear(ival);
+  size_t ret = ival.getSExtValue();
   return ret;
 }
 
@@ -3314,17 +3313,15 @@ bool
 Case_clauses::Eq_integer_value::operator()(Expression* a, Expression* b) const
 {
   Numeric_constant anc;
-  mpz_t aval;
+  llvm::APInt aval;
   Numeric_constant bnc;
-  mpz_t bval;
+  llvm::APInt bval;
   if (!a->numeric_constant_value(&anc)
       || !anc.to_int(&aval)
       || !b->numeric_constant_value(&bnc)
       || !bnc.to_int(&bval))
     go_unreachable();
-  bool ret = mpz_cmp(aval, bval) == 0;
-  mpz_clear(aval);
-  mpz_clear(bval);
+  bool ret = aval == bval;
   return ret;
 }
 
@@ -3503,7 +3500,7 @@ Case_clauses::Case_clause::get_backend(Translate_context* context,
 	  if (e->classification() != Expression::EXPRESSION_INTEGER)
 	    {
 	      Numeric_constant nc;
-	      mpz_t ival;
+          llvm::APInt ival;
 	      if (!(*p)->numeric_constant_value(&nc) || !nc.to_int(&ival))
 		{
 		  // Something went wrong.  This can happen with a
@@ -3512,8 +3509,7 @@ Case_clauses::Case_clause::get_backend(Translate_context* context,
 		  continue;
 		}
 	      go_assert(nc.type() != NULL);
-	      e = Expression::make_integer_z(&ival, nc.type(), e->location());
-	      mpz_clear(ival);
+	      e = Expression::make_integer_z(ival, nc.type(), e->location());
 	    }
 
 	  std::pair<Case_constants::iterator, bool> ins =
@@ -4435,7 +4431,7 @@ Send_statement::do_check_types(Gogo*)
   Channel_type* channel_type = type->channel_type();
   if (channel_type == NULL)
     {
-      error_at(this->location(), "left operand of %<<-%> must be channel");
+      error_at(this->location(), "left operand of <<-> must be channel");
       this->set_is_error();
       return;
     }

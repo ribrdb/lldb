@@ -8,7 +8,7 @@
 
 #include <algorithm>
 
-#include "go-c.h"
+//#include "go-c.h"
 #include "gogo.h"
 #include "types.h"
 #include "export.h"
@@ -417,50 +417,8 @@ Bexpression*
 Expression::backend_numeric_constant_expression(Translate_context* context,
                                                 Numeric_constant* val)
 {
-  Gogo* gogo = context->gogo();
-  Type* type = val->type();
-  if (type == NULL)
-    return gogo->backend()->error_expression();
-
-  Btype* btype = type->get_backend(gogo);
-  Bexpression* ret;
-  if (type->integer_type() != NULL)
-    {
-      mpz_t ival;
-      if (!val->to_int(&ival))
-        {
-          go_assert(saw_errors());
-          return gogo->backend()->error_expression();
-        }
-      ret = gogo->backend()->integer_constant_expression(btype, ival);
-      mpz_clear(ival);
-    }
-  else if (type->float_type() != NULL)
-    {
-      mpfr_t fval;
-      if (!val->to_float(&fval))
-        {
-          go_assert(saw_errors());
-          return gogo->backend()->error_expression();
-        }
-      ret = gogo->backend()->float_constant_expression(btype, fval);
-      mpfr_clear(fval);
-    }
-  else if (type->complex_type() != NULL)
-    {
-      mpc_t cval;
-      if (!val->to_complex(&cval))
-        {
-          go_assert(saw_errors());
-          return gogo->backend()->error_expression();
-        }
-      ret = gogo->backend()->complex_constant_expression(btype, cval);
-      mpc_clear(cval);
-    }
-  else
-    go_unreachable();
-
-  return ret;
+    assert(false);
+  return nullptr;
 }
 
 // Return an expression which evaluates to true if VAL, of arbitrary integer
@@ -507,17 +465,10 @@ Expression::check_bounds(Expression* val, Location loc)
       || (val_type_size == bound_type_size
 	  && val_is_unsigned))
     {
-      mpz_t one;
-      mpz_init_set_ui(one, 1UL);
 
       // maxval = 2^(bound_type_size - 1) - 1
-      mpz_t maxval;
-      mpz_init(maxval);
-      mpz_mul_2exp(maxval, one, bound_type_size - 1);
-      mpz_sub_ui(maxval, maxval, 1);
-      Expression* max = Expression::make_integer_z(&maxval, val_type, loc);
-      mpz_clear(one);
-      mpz_clear(maxval);
+      llvm::APInt maxval = llvm::APInt::getMaxValue(bound_type_size);
+      Expression* max = Expression::make_integer_z(maxval, val_type, loc);
 
       index_overflows = Expression::make_binary(OPERATOR_GT, val, max, loc);
     }
@@ -1071,7 +1022,7 @@ Func_expression::get_code_pointer(Gogo* gogo, Named_object* no, Location loc)
   if (fntype->is_builtin())
     {
       error_at(loc,
-	       "invalid use of special builtin function %qs; must be called",
+	       "invalid use of special builtin function '%s'; must be called",
 	       no->message_name().c_str());
       return gogo->backend()->error_expression();
     }
@@ -1110,7 +1061,7 @@ Func_expression::do_get_backend(Translate_context* context)
 	  if (no->func_declaration_value()->type()->is_builtin())
 	    {
 	      error_at(this->location(),
-		       ("invalid use of special builtin function %qs; "
+		       ("invalid use of special builtin function '%s'; "
 			"must be called"),
 		       no->message_name().c_str());
 	      return gogo->backend()->error_expression();
@@ -1362,7 +1313,7 @@ Unknown_expression::do_lower(Gogo*, Named_object*, Statement_inserter*, int)
 	  if (this->is_composite_literal_key_)
 	    return this;
 	  if (!this->no_error_message_)
-	    error_at(location, "reference to undefined name %qs",
+	    error_at(location, "reference to undefined name '%s'",
 		     this->named_object_->message_name().c_str());
 	  return Expression::make_error(location);
 	}
@@ -1377,7 +1328,7 @@ Unknown_expression::do_lower(Gogo*, Named_object*, Statement_inserter*, int)
       if (this->is_composite_literal_key_)
 	return this;
       if (!this->no_error_message_)
-	error_at(location, "reference to undefined type %qs",
+	error_at(location, "reference to undefined type '%s'",
 		 real->message_name().c_str());
       return Expression::make_error(location);
     case Named_object::NAMED_OBJECT_VAR:
@@ -1553,10 +1504,8 @@ String_expression::do_get_backend(Translate_context* context)
   init[0] = gogo->backend()->address_expression(str_cst, loc);
 
   Btype* int_btype = Type::lookup_integer_type("int")->get_backend(gogo);
-  mpz_t lenval;
-  mpz_init_set_ui(lenval, this->val_.length());
+  llvm::APInt lenval(Type::lookup_integer_type("int")->bits(), this->val_.length());
   init[1] = gogo->backend()->integer_constant_expression(int_btype, lenval);
-  mpz_clear(lenval);
 
   return gogo->backend()->constructor_expression(btype, init, loc);
 }
@@ -1779,22 +1728,22 @@ Expression::make_string_info(Expression* string, String_info string_info,
 class Integer_expression : public Expression
 {
  public:
-  Integer_expression(const mpz_t* val, Type* type, bool is_character_constant,
+  Integer_expression(const llvm::APInt& val, Type* type, bool is_character_constant,
 		     Location location)
     : Expression(EXPRESSION_INTEGER, location),
-      type_(type), is_character_constant_(is_character_constant)
-  { mpz_init_set(this->val_, *val); }
+      val_(val), type_(type), is_character_constant_(is_character_constant)
+  {  }
 
   static Expression*
   do_import(Import*);
 
   // Write VAL to string dump.
   static void
-  export_integer(String_dump* exp, const mpz_t val);
+  export_integer(String_dump* exp, const llvm::APInt& val);
 
   // Write VAL to dump context.
   static void
-  dump_integer(Ast_dump_context* ast_dump_context, const mpz_t val);
+  dump_integer(Ast_dump_context* ast_dump_context, const llvm::APInt& val);
 
  protected:
   bool
@@ -1824,10 +1773,10 @@ class Integer_expression : public Expression
   do_copy()
   {
     if (this->is_character_constant_)
-      return Expression::make_character(&this->val_, this->type_,
+      return Expression::make_character(this->val_, this->type_,
 					this->location());
     else
-      return Expression::make_integer_z(&this->val_, this->type_,
+      return Expression::make_integer_z(this->val_, this->type_,
 					this->location());
   }
 
@@ -1839,7 +1788,7 @@ class Integer_expression : public Expression
 
  private:
   // The integer value.
-  mpz_t val_;
+  llvm::APInt& val_;
   // The type so far.
   Type* type_;
   // Whether this is a character constant.
@@ -1916,51 +1865,16 @@ Integer_expression::do_check_types(Gogo*)
 Bexpression*
 Integer_expression::do_get_backend(Translate_context* context)
 {
-  Type* resolved_type = NULL;
-  if (this->type_ != NULL && !this->type_->is_abstract())
-    resolved_type = this->type_;
-  else if (this->type_ != NULL && this->type_->float_type() != NULL)
-    {
-      // We are converting to an abstract floating point type.
-      resolved_type = Type::lookup_float_type("float64");
-    }
-  else if (this->type_ != NULL && this->type_->complex_type() != NULL)
-    {
-      // We are converting to an abstract complex type.
-      resolved_type = Type::lookup_complex_type("complex128");
-    }
-  else
-    {
-      // If we still have an abstract type here, then this is being
-      // used in a constant expression which didn't get reduced for
-      // some reason.  Use a type which will fit the value.  We use <,
-      // not <=, because we need an extra bit for the sign bit.
-      int bits = mpz_sizeinbase(this->val_, 2);
-      Type* int_type = Type::lookup_integer_type("int");
-      if (bits < int_type->integer_type()->bits())
-	resolved_type = int_type;
-      else if (bits < 64)
-        resolved_type = Type::lookup_integer_type("int64");
-      else
-        {
-          if (!saw_errors())
-            error_at(this->location(),
-                     "unknown type for large integer constant");
-          return context->gogo()->backend()->error_expression();
-        }
-    }
-  Numeric_constant nc;
-  nc.set_int(resolved_type, this->val_);
-  return Expression::backend_numeric_constant_expression(context, &nc);
+    assert(false);
+    return nullptr;
 }
 
 // Write VAL to export data.
 
 void
-Integer_expression::export_integer(String_dump* exp, const mpz_t val)
+Integer_expression::export_integer(String_dump* exp, const llvm::APInt& val)
 {
-  char* s = mpz_get_str(NULL, 10, val);
-  exp->write_c_string(s);
+  exp->write_c_string(val.toString(10, true).c_str());
   free(s);
 }
 
@@ -1996,7 +1910,7 @@ Integer_expression::do_import(Import* imp)
 	pos = plus_pos;
       else
 	{
-	  error_at(imp->location(), "bad number in import data: %qs",
+	  error_at(imp->location(), "bad number in import data: '%s'",
 		   num.c_str());
 	  return Expression::make_error(imp->location());
 	}
@@ -2007,7 +1921,7 @@ Integer_expression::do_import(Import* imp)
 	  std::string real_str = num.substr(0, pos);
 	  if (mpfr_init_set_str(real, real_str.c_str(), 10, GMP_RNDN) != 0)
 	    {
-	      error_at(imp->location(), "bad number in import data: %qs",
+	      error_at(imp->location(), "bad number in import data: '%s'",
 		       real_str.c_str());
 	      return Expression::make_error(imp->location());
 	    }
@@ -2022,7 +1936,7 @@ Integer_expression::do_import(Import* imp)
       mpfr_t imag;
       if (mpfr_init_set_str(imag, imag_str.c_str(), 10, GMP_RNDN) != 0)
 	{
-	  error_at(imp->location(), "bad number in import data: %qs",
+	  error_at(imp->location(), "bad number in import data: '%s'",
 		   imag_str.c_str());
 	  return Expression::make_error(imp->location());
 	}
@@ -2045,7 +1959,7 @@ Integer_expression::do_import(Import* imp)
       mpz_t val;
       if (mpz_init_set_str(val, num.c_str(), 10) != 0)
 	{
-	  error_at(imp->location(), "bad number in import data: %qs",
+	  error_at(imp->location(), "bad number in import data: '%s'",
 		   num.c_str());
 	  return Expression::make_error(imp->location());
 	}
@@ -2062,7 +1976,7 @@ Integer_expression::do_import(Import* imp)
       mpfr_t val;
       if (mpfr_init_set_str(val, num.c_str(), 10, GMP_RNDN) != 0)
 	{
-	  error_at(imp->location(), "bad number in import data: %qs",
+	  error_at(imp->location(), "bad number in import data: '%s'",
 		   num.c_str());
 	  return Expression::make_error(imp->location());
 	}
@@ -11118,7 +11032,7 @@ Interface_field_reference_expression::do_check_types(Gogo*)
 	interface_type->find_method(this->name_);
       if (method == NULL)
 	{
-	  error_at(this->location(), "method %qs not in interface",
+	  error_at(this->location(), "method '%s' not in interface",
 		   Gogo::message_name(this->name_).c_str());
 	  this->set_is_error();
 	}
@@ -12996,7 +12910,7 @@ Composite_literal_expression::lower_struct(Gogo* gogo, Type* type)
 	      if (Gogo::is_hidden_name(pf->field_name())
 		  || pf->is_embedded_builtin(gogo))
 		error_at(this->location(),
-			 "assignment of unexported field %qs in %qs literal",
+			 "assignment of unexported field '%s' in '%s' literal",
 			 Gogo::message_name(pf->field_name()).c_str(),
 			 type->named_type()->message_name().c_str());
 	    }
@@ -13151,7 +13065,7 @@ Composite_literal_expression::lower_struct(Gogo* gogo, Type* type)
       const Struct_field* sf = st->find_local_field(name, &index);
       if (sf == NULL)
 	{
-	  error_at(name_expr->location(), "unknown field %qs in %qs",
+	  error_at(name_expr->location(), "unknown field '%s' in '%s'",
 		   Gogo::message_name(name).c_str(),
 		   (type->named_type() != NULL
 		    ? type->named_type()->message_name().c_str()
@@ -13161,7 +13075,7 @@ Composite_literal_expression::lower_struct(Gogo* gogo, Type* type)
       if (vals[index] != NULL)
 	{
 	  error_at(name_expr->location(),
-		   "duplicate value for field %qs in %qs",
+		   "duplicate value for field '%s' in '%s'",
 		   Gogo::message_name(name).c_str(),
 		   (type->named_type() != NULL
 		    ? type->named_type()->message_name().c_str()
@@ -13174,7 +13088,7 @@ Composite_literal_expression::lower_struct(Gogo* gogo, Type* type)
 	  && (Gogo::is_hidden_name(sf->field_name())
 	      || sf->is_embedded_builtin(gogo)))
 	error_at(name_expr->location(),
-		 "assignment of unexported field %qs in %qs literal",
+		 "assignment of unexported field '%s' in '%s' literal",
 		 Gogo::message_name(sf->field_name()).c_str(),
 		 type->named_type()->message_name().c_str());
 
@@ -13186,12 +13100,12 @@ Composite_literal_expression::lower_struct(Gogo* gogo, Type* type)
     {
       // This is a weird case like bug462 in the testsuite.
       if (external_expr == NULL)
-	error_at(this->location(), "unknown field in %qs literal",
+	error_at(this->location(), "unknown field in '%s' literal",
 		 (type->named_type() != NULL
 		  ? type->named_type()->message_name().c_str()
 		  : "unnamed struct"));
       else
-	error_at(external_expr->location(), "unknown field %qs in %qs",
+	error_at(external_expr->location(), "unknown field '%s' in '%s'",
 		 external_no->message_name().c_str(),
 		 (type->named_type() != NULL
 		  ? type->named_type()->message_name().c_str()

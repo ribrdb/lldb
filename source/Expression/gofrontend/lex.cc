@@ -8,7 +8,31 @@
 
 #include "lex.h"
 
+#define ARRAY_SIZE(a)                               \
+((sizeof(a) / sizeof(*(a))) /                     \
+static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
+
 namespace go {
+    
+static int
+hex_value(char c)
+{
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return c - 'a';
+    if (c >= 'A' && c <= 'F')
+        return c - 'A';
+    return 0;
+}
+    
+static bool
+hex_p(char c) {
+    if (c == '0')
+        return true;
+    return hex_value(c) != 0;
+}
+    
 // Manage mapping from keywords to the Keyword codes.
 
 class Keywords
@@ -166,10 +190,10 @@ Token::clear()
 {
   if (this->classification_ == TOKEN_INTEGER
       || this->classification_ == TOKEN_CHARACTER)
-    mpz_clear(this->u_.integer_value);
+    delete this->u_.integer_value;
   else if (this->classification_ == TOKEN_FLOAT
 	   || this->classification_ == TOKEN_IMAGINARY)
-    mpfr_clear(this->u_.float_value);
+    delete this->u_.float_value;
 }
 
 // Construct a token.
@@ -194,11 +218,11 @@ Token::Token(const Token& tok)
       break;
     case TOKEN_CHARACTER:
     case TOKEN_INTEGER:
-      mpz_init_set(this->u_.integer_value, tok.u_.integer_value);
+      this->u_.integer_value = new llvm::APInt(*tok.u_.integer_value);
       break;
     case TOKEN_FLOAT:
     case TOKEN_IMAGINARY:
-      mpfr_init_set(this->u_.float_value, tok.u_.float_value, GMP_RNDN);
+      this->u_.float_value = new llvm::APFloat(*tok.u_.float_value);
       break;
     default:
       go_unreachable();
@@ -234,11 +258,11 @@ Token::operator=(const Token& tok)
       break;
     case TOKEN_CHARACTER:
     case TOKEN_INTEGER:
-      mpz_init_set(this->u_.integer_value, tok.u_.integer_value);
+      this->u_.integer_value = new llvm::APInt(*tok.u_.integer_value);
       break;
     case TOKEN_FLOAT:
     case TOKEN_IMAGINARY:
-      mpfr_init_set(this->u_.float_value, tok.u_.float_value, GMP_RNDN);
+      this->u_.float_value = new llvm::APFloat(*tok.u_.float_value);
       break;
     default:
       go_unreachable();
@@ -251,6 +275,7 @@ Token::operator=(const Token& tok)
 void
 Token::print(FILE* file) const
 {
+  llvm::SmallVector<char, 24> chars;
   switch (this->classification_)
     {
     case TOKEN_INVALID:
@@ -269,20 +294,18 @@ Token::print(FILE* file) const
       fprintf(file, "quoted string \"%s\"", this->u_.string_value->c_str());
       break;
     case TOKEN_CHARACTER:
-      fprintf(file, "character ");
-      mpz_out_str(file, 10, this->u_.integer_value);
+      fprintf(file, "character %s", this->u_.integer_value->toString(10, true).c_str());
       break;
     case TOKEN_INTEGER:
-      fprintf(file, "integer ");
-      mpz_out_str(file, 10, this->u_.integer_value);
+      fprintf(file, "integer %s", this->u_.integer_value->toString(10, true).c_str());
       break;
     case TOKEN_FLOAT:
-      fprintf(file, "float ");
-      mpfr_out_str(file, 10, 0, this->u_.float_value, GMP_RNDN);
+      this->u_.float_value->toString(chars);
+      fprintf(file, "float %s", std::string(chars.begin(), chars.end()).c_str());
       break;
     case TOKEN_IMAGINARY:
-      fprintf(file, "imaginary ");
-      mpfr_out_str(file, 10, 0, this->u_.float_value, GMP_RNDN);
+      this->u_.float_value->toString(chars);
+      fprintf(file, "imaginary %s", std::string(chars.begin(), chars.end()).c_str());
       break;
     case TOKEN_OPERATOR:
       fprintf(file, "operator ");
@@ -1001,6 +1024,15 @@ Lex::could_be_exponent(const char* p, const char* pend)
 
 // Pick up a number.
 
+static unsigned
+getIntBits(int base, int strlen)
+{
+    if (base > 8) {
+        return 1 + 4 * strlen;
+    }
+    return 1 + 3 * strlen;
+}
+
 Token
 Lex::gather_number()
 {
@@ -1053,16 +1085,13 @@ Lex::gather_number()
       if (base == 16 || (*p != '.' && *p != 'i' && !Lex::could_be_exponent(p, pend)))
 	{
 	  std::string s(pnum, p - pnum);
-	  mpz_t val;
-	  int r = mpz_init_set_str(val, s.c_str(), base);
-	  go_assert(r == 0);
+      llvm::APInt val(getIntBits(base, s.length()), s, base);
 
 	  if (neg)
-	    mpz_neg(val, val);
+          val = -val;
 
 	  this->lineoff_ = p - this->linebuf_;
 	  Token ret = Token::make_integer_token(val, location);
-	  mpz_clear(val);
 	  return ret;
 	}
     }
@@ -1077,16 +1106,13 @@ Lex::gather_number()
   if (*p != '.' && *p != 'i' && !Lex::could_be_exponent(p, pend))
     {
       std::string s(pnum, p - pnum);
-      mpz_t val;
-      int r = mpz_init_set_str(val, s.c_str(), 10);
-      go_assert(r == 0);
+      llvm::APInt val(getIntBits(10, s.length()), s, 10);
 
       if (neg)
-	mpz_neg(val, val);
+          val = -val;
 
       this->lineoff_ = p - this->linebuf_;
       Token ret = Token::make_integer_token(val, location);
-      mpz_clear(val);
       return ret;
     }
 
@@ -1124,12 +1150,10 @@ Lex::gather_number()
     }
 
   std::string s(pnum, p - pnum);
-  mpfr_t val;
-  int r = mpfr_init_set_str(val, s.c_str(), 10, GMP_RNDN);
-  go_assert(r == 0);
+  llvm::APFloat val(llvm::APFloat::IEEEquad, s);
 
   if (neg)
-    mpfr_neg(val, val, GMP_RNDN);
+    val.changeSign();
 
   bool is_imaginary = *p == 'i';
   if (is_imaginary)
@@ -1139,13 +1163,11 @@ Lex::gather_number()
   if (is_imaginary)
     {
       Token ret = Token::make_imaginary_token(val, location);
-      mpfr_clear(val);
       return ret;
     }
   else
     {
       Token ret = Token::make_float_token(val, location);
-      mpfr_clear(val);
       return ret;
     }
 }
@@ -1294,7 +1316,7 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
 	  return p + 1;
 
 	default:
-	  error_at(this->location(), "invalid character after %<\\%>");
+	  error_at(this->location(), "invalid character after <\\>");
 	  *value = *p;
 	  return p + 1;
 	}
@@ -1376,13 +1398,11 @@ Lex::gather_character()
       return this->make_invalid_token();
     }
 
-  mpz_t val;
-  mpz_init_set_ui(val, value);
+  llvm::APInt val(9, value, false);
 
   Location location = this->location();
   this->lineoff_ = p + 1 - this->linebuf_;
   Token ret = Token::make_character_token(val, location);
-  mpz_clear(val);
   return ret;
 }
 

@@ -3083,7 +3083,7 @@ ClangASTContext::IsDefined(void* type)
 bool
 ClangASTContext::IsObjCClassType (const ClangASTType& type)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
     {
         clang::QualType qual_type (GetCanonicalQualType(type));
         
@@ -3098,7 +3098,7 @@ ClangASTContext::IsObjCClassType (const ClangASTType& type)
 bool
 ClangASTContext::IsObjCObjectOrInterfaceType (const ClangASTType& type)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
         return GetCanonicalQualType(type)->isObjCObjectOrInterfaceType();
     return false;
 }
@@ -3342,7 +3342,7 @@ ClangASTContext::IsVoidType (void* type)
 bool
 ClangASTContext::GetCXXClassName (const ClangASTType& type, std::string &class_name)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
     {
         clang::QualType qual_type (GetCanonicalQualType(type));
         
@@ -3361,7 +3361,7 @@ ClangASTContext::GetCXXClassName (const ClangASTType& type, std::string &class_n
 bool
 ClangASTContext::IsCXXClassType (const ClangASTType& type)
 {
-    if (!type)
+    if (!type || !type.GetTypeSystem()->AsClangASTContext())
         return false;
     
     clang::QualType qual_type (GetCanonicalQualType(type));
@@ -3385,7 +3385,7 @@ ClangASTContext::IsBeingDefined (void* type)
 bool
 ClangASTContext::IsObjCObjectPointerType (const ClangASTType& type, ClangASTType *class_type_ptr)
 {
-    if (!type)
+    if (!type || !type.GetTypeSystem()->AsClangASTContext())
         return false;
 
     clang::QualType qual_type (GetCanonicalQualType(type));
@@ -3414,7 +3414,7 @@ ClangASTContext::IsObjCObjectPointerType (const ClangASTType& type, ClangASTType
 bool
 ClangASTContext::GetObjCClassName (const ClangASTType& type, std::string &class_name)
 {
-    if (!type)
+    if (!type  || !type.GetTypeSystem()->AsClangASTContext())
         return false;
     
     clang::QualType qual_type (GetCanonicalQualType(type));
@@ -6963,18 +6963,24 @@ IsOperator (const char *name, clang::OverloadedOperatorKind &op_kind)
 clang::EnumDecl *
 ClangASTContext::GetAsEnumDecl (const ClangASTType& type)
 {
-    const clang::EnumType *enutype = llvm::dyn_cast<clang::EnumType>(GetCanonicalQualType(type));
-    if (enutype)
-        return enutype->getDecl();
+    if (type && type.GetTypeSystem()->AsClangASTContext())
+    {
+        const clang::EnumType *enutype = llvm::dyn_cast<clang::EnumType>(GetCanonicalQualType(type));
+        if (enutype)
+            return enutype->getDecl();
+    }
     return NULL;
 }
 
 clang::RecordDecl *
 ClangASTContext::GetAsRecordDecl (const ClangASTType& type)
 {
-    const clang::RecordType *record_type = llvm::dyn_cast<clang::RecordType>(GetCanonicalQualType(type));
-    if (record_type)
-        return record_type->getDecl();
+    if (type && type.GetTypeSystem()->AsClangASTContext())
+    {
+        const clang::RecordType *record_type = llvm::dyn_cast<clang::RecordType>(GetCanonicalQualType(type));
+        if (record_type)
+            return record_type->getDecl();
+    }
     return nullptr;
 }
 
@@ -6987,9 +6993,12 @@ ClangASTContext::GetAsCXXRecordDecl (void* type)
 clang::ObjCInterfaceDecl *
 ClangASTContext::GetAsObjCInterfaceDecl (const ClangASTType& type)
 {
-    const clang::ObjCObjectType *objc_class_type = llvm::dyn_cast<clang::ObjCObjectType>(GetCanonicalQualType(type));
-    if (objc_class_type)
-        return objc_class_type->getInterface();
+    if (type && type.GetTypeSystem()->AsClangASTContext())
+    {
+        const clang::ObjCObjectType *objc_class_type = llvm::dyn_cast<clang::ObjCObjectType>(GetCanonicalQualType(type));
+        if (objc_class_type)
+            return objc_class_type->getInterface();
+    }
     return nullptr;
 }
 
@@ -7912,7 +7921,7 @@ ClangASTContext::SetHasExternalStorage (void* type, bool has_extern)
 bool
 ClangASTContext::StartTagDeclarationDefinition (const ClangASTType &type)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
     {
         
         clang::QualType qual_type (GetQualType(type));
@@ -7948,7 +7957,7 @@ ClangASTContext::StartTagDeclarationDefinition (const ClangASTType &type)
 bool
 ClangASTContext::CompleteTagDeclarationDefinition (const ClangASTType& type)
 {
-    if (type)
+    if (type && type.GetTypeSystem()->AsClangASTContext())
     {
         clang::QualType qual_type (GetQualType(type));
         if (qual_type.isNull())

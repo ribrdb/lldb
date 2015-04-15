@@ -6,10 +6,10 @@
 
 #include "go-system.h"
 
-#include "filenames.h"
-#include "simple-object.h"
+//#include "filenames.h"
+//#include "simple-object.h"
 
-#include "go-c.h"
+//#include "go-c.h"
 #include "gogo.h"
 #include "lex.h"
 #include "types.h"

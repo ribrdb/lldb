@@ -4,11 +4,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+#include <list>
 #include "go-system.h"
 
-#include "filenames.h"
+//#include "filenames.h"
 
-#include "go-c.h"
+//#include "go-c.h"
 #include "go-dump.h"
 #include "lex.h"
 #include "types.h"
@@ -313,7 +314,7 @@ Gogo::set_prefix(const std::string& arg)
 std::string
 Gogo::message_name(const std::string& name)
 {
-  return go_localize_identifier(Gogo::unpack_hidden_name(name).c_str());
+  return Gogo::unpack_hidden_name(name).c_str();
 }
 
 // Get the package name.
@@ -334,7 +335,7 @@ Gogo::set_package_name(const std::string& package_name,
   if (this->package_ != NULL)
     {
       if (this->package_->package_name() != package_name)
-	error_at(location, "expected package %<%s%>",
+	error_at(location, "expected package <%s>",
 		 Gogo::message_name(this->package_->package_name()).c_str());
       return;
     }
@@ -396,122 +397,7 @@ Gogo::import_package(const std::string& filename,
 		     bool is_local_name_exported,
 		     Location location)
 {
-  if (filename.empty())
-    {
-      error_at(location, "import path is empty");
-      return;
-    }
 
-  const char *pf = filename.data();
-  const char *pend = pf + filename.length();
-  while (pf < pend)
-    {
-      unsigned int c;
-      int adv = Lex::fetch_char(pf, &c);
-      if (adv == 0)
-	{
-	  error_at(location, "import path contains invalid UTF-8 sequence");
-	  return;
-	}
-      if (c == '\0')
-	{
-	  error_at(location, "import path contains NUL");
-	  return;
-	}
-      if (c < 0x20 || c == 0x7f)
-	{
-	  error_at(location, "import path contains control character");
-	  return;
-	}
-      if (c == '\\')
-	{
-	  error_at(location, "import path contains backslash; use slash");
-	  return;
-	}
-      if (Lex::is_unicode_space(c))
-	{
-	  error_at(location, "import path contains space character");
-	  return;
-	}
-      if (c < 0x7f && strchr("!\"#$%&'()*,:;<=>?[]^`{|}", c) != NULL)
-	{
-	  error_at(location, "import path contains invalid character '%c'", c);
-	  return;
-	}
-      pf += adv;
-    }
-
-  if (IS_ABSOLUTE_PATH(filename.c_str()))
-    {
-      error_at(location, "import path cannot be absolute path");
-      return;
-    }
-
-  if (local_name == "init")
-    error_at(location, "cannot import package as init");
-
-  if (filename == "unsafe")
-    {
-      this->import_unsafe(local_name, is_local_name_exported, location);
-      return;
-    }
-
-  Imports::const_iterator p = this->imports_.find(filename);
-  if (p != this->imports_.end())
-    {
-      Package* package = p->second;
-      package->set_location(location);
-      package->set_is_imported();
-      std::string ln = local_name;
-      bool is_ln_exported = is_local_name_exported;
-      if (ln.empty())
-	{
-	  ln = package->package_name();
-	  go_assert(!ln.empty());
-	  is_ln_exported = Lex::is_exported_name(ln);
-	}
-      if (ln == ".")
-	{
-	  Bindings* bindings = package->bindings();
-	  for (Bindings::const_declarations_iterator p =
-		 bindings->begin_declarations();
-	       p != bindings->end_declarations();
-	       ++p)
-	    this->add_dot_import_object(p->second);
-	}
-      else if (ln == "_")
-	package->set_uses_sink_alias();
-      else
-	{
-	  ln = this->pack_hidden_name(ln, is_ln_exported);
-	  this->package_->bindings()->add_package(ln, package);
-	}
-      return;
-    }
-
-  Import::Stream* stream = Import::open_package(filename, location,
-						this->relative_import_path_);
-  if (stream == NULL)
-    {
-      error_at(location, "import file %qs not found", filename.c_str());
-      return;
-    }
-
-  Import imp(stream, location);
-  imp.register_builtin_types(this);
-  Package* package = imp.import(this, local_name, is_local_name_exported);
-  if (package != NULL)
-    {
-      if (package->pkgpath() == this->pkgpath())
-	error_at(location,
-		 ("imported package uses same package path as package "
-		  "being compiled (see -fgo-pkgpath option)"));
-
-      this->imports_.insert(std::make_pair(filename, package));
-      package->set_is_imported();
-    }
-
-  delete stream;
 }
 
 // Add an import control function for an imported package to the list.
@@ -534,12 +420,12 @@ Gogo::add_import_init_fn(const std::string& package_name,
 	  // an error about it.
 	  if (p->package_name() != package_name)
 	    {
-	      error("duplicate package initialization name %qs",
+	      error("duplicate package initialization name %s",
 		    Gogo::message_name(init_name).c_str());
-	      inform(UNKNOWN_LOCATION, "used by package %qs at priority %d",
+	      error("used by package %s at priority %d",
 		     Gogo::message_name(p->package_name()).c_str(),
 		     p->priority());
-	      inform(UNKNOWN_LOCATION, " and by package %qs at priority %d",
+	      error(" and by package %s at priority %d",
 		     Gogo::message_name(package_name).c_str(), prio);
 	    }
 	  return;
@@ -1138,11 +1024,11 @@ sort_var_inits(Gogo* gogo, Var_inits* var_inits)
 	      if (ins.first->second)
 		{
 		  error_at(var->location(),
-			   ("initialization expressions for %qs and "
-			    "%qs depend upon each other"),
+			   ("initialization expressions for %s and "
+			    "%s depend upon each other"),
 			   var->message_name().c_str(),
 			   p2var->message_name().c_str());
-		  inform(p2->var()->location(), "%qs defined here",
+		  inform(p2->var()->location(), "%s defined here",
 			 p2var->message_name().c_str());
 		  init_loop = true;
 		  break;
@@ -1204,7 +1090,7 @@ sort_var_inits(Gogo* gogo, Var_inits* var_inits)
       if (init != NULL && dep == NULL
 	  && expression_requires(init, preinit, NULL, var))
 	error_at(var->location(),
-		 "initialization expression for %qs depends upon itself",
+		 "initialization expression for %s depends upon itself",
 		 var->message_name().c_str());
     }
 }
@@ -1334,7 +1220,7 @@ Gogo::write_globals()
 		  if (expression_requires(var->init(), NULL,
 					  this->var_depends_on(var), no))
 		    error_at(no->location(),
-			     "initialization expression for %qs depends "
+			     "initialization expression for %s depends "
 			     "upon itself",
 			     no->message_name().c_str());
 		  this->backend()->global_variable_set_init(bvar, var_binit);
@@ -2200,9 +2086,9 @@ Gogo::define_global_names()
 	{
 	  std::string n = p->second->message_name();
 	  error_at(p->second->location(),
-		   "%qs defined as both imported name and global name",
+		   "%s defined as both imported name and global name",
 		   n.c_str());
-	  inform(pf->second, "%qs imported here", n.c_str());
+	  inform(pf->second, "%s imported here", n.c_str());
 	}
 
       // No package scope identifier may be named "init".
@@ -3042,7 +2928,7 @@ Check_types_traverse::variable(Named_object* named_object)
 	       && !var->type()->is_error()
 	       && (init == NULL || !init->is_error_expression())
 	       && !Lex::is_invalid_identifier(named_object->name()))
-	error_at(var->location(), "%qs declared and not used",
+	error_at(var->location(), "%s declared and not used",
 		 named_object->message_name().c_str());
     }
   return TRAVERSE_CONTINUE;
@@ -4621,9 +4507,9 @@ Function::add_label_definition(Gogo* gogo, const std::string& label_name,
       label = ins.first->second;
       if (label->is_defined())
 	{
-	  error_at(location, "label %qs already defined",
+	  error_at(location, "label %s already defined",
 		   Gogo::message_name(label_name).c_str());
-	  inform(label->location(), "previous definition of %qs was here",
+	  inform(label->location(), "previous definition of %s was here",
 		 Gogo::message_name(label_name).c_str());
 	  return new Label(label_name);
 	}
@@ -4690,7 +4576,7 @@ Function::check_labels() const
     {
       Label* label = p->second;
       if (!label->is_used())
-	error_at(label->location(), "label %qs defined and not used",
+	error_at(label->location(), "label %s defined and not used",
 		 Gogo::message_name(label->name()).c_str());
     }
 }
@@ -5734,8 +5620,8 @@ Bindings_snapshot::check_goto_defs(Location loc, const Block* block,
       go_assert(p != block->bindings()->end_definitions());
 
       std::string n = (*p)->message_name();
-      error_at(loc, "goto jumps over declaration of %qs", n.c_str());
-      inform((*p)->location(), "%qs defined here", n.c_str());
+      error_at(loc, "goto jumps over declaration of %s", n.c_str());
+      inform((*p)->location(), "%s defined here", n.c_str());
     }
 }
 
@@ -6809,7 +6695,7 @@ Named_object::export_named_object(Export* exp) const
 
     case NAMED_OBJECT_TYPE_DECLARATION:
       error_at(this->type_declaration_value()->location(),
-	       "attempt to export %<%s%> which was declared but not defined",
+	       "attempt to export <%s> which was declared but not defined",
 	       this->message_name().c_str());
       break;
 
@@ -6955,7 +6841,7 @@ Named_object::get_backend(Gogo* gogo, std::vector<Bexpression*>& const_decls,
       break;
 
     case NAMED_OBJECT_TYPE_DECLARATION:
-      error("reference to undefined type %qs",
+      error("reference to undefined type %s",
 	    this->message_name().c_str());
       return;
 
@@ -7188,7 +7074,7 @@ Bindings::new_definition(Named_object* old_object, Named_object* new_object)
       if (new_object->is_function_declaration())
 	{
 	  if (!new_object->func_declaration_value()->asm_name().empty())
-	    sorry("__asm__ for function definitions");
+	    error("__asm__ for function definitions");
 	  Function_type* old_type = old_object->func_value()->type();
 	  Function_type* new_type =
 	    new_object->func_declaration_value()->type();
@@ -7213,7 +7099,7 @@ Bindings::new_definition(Named_object* old_object, Named_object* new_object)
 	    if (old_type->is_valid_redeclaration(new_type, &reason))
 	      {
 		if (!old_object->func_declaration_value()->asm_name().empty())
-		  sorry("__asm__ for function definitions");
+		  error("__asm__ for function definitions");
 		old_object->set_function_value(new_object->func_value());
 		this->named_objects_.push_back(old_object);
 		return old_object;
@@ -7228,12 +7114,12 @@ Bindings::new_definition(Named_object* old_object, Named_object* new_object)
 
   std::string n = old_object->message_name();
   if (reason.empty())
-    error_at(new_object->location(), "redefinition of %qs", n.c_str());
+    error_at(new_object->location(), "redefinition of %s", n.c_str());
   else
-    error_at(new_object->location(), "redefinition of %qs: %s", n.c_str(),
+    error_at(new_object->location(), "redefinition of %s: %s", n.c_str(),
 	     reason.c_str());
 
-  inform(old_object->location(), "previous definition of %qs was here",
+  inform(old_object->location(), "previous definition of %s was here",
 	 n.c_str());
 
   return old_object;

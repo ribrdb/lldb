@@ -129,6 +129,8 @@ public:
 
     virtual lldb_private::ClangASTContext &
                             GetClangASTContext ();
+    virtual lldb_private::GoASTContext &
+                            GetGoASTContext ();
 
     virtual lldb_private::ClangNamespaceDecl
             FindNamespace (const lldb_private::SymbolContext& sc, 
@@ -139,6 +141,9 @@ public:
     //------------------------------------------------------------------
     // ClangASTContext callbacks for external source lookups.
     //------------------------------------------------------------------
+    static void
+    CompleteType(void *baton, lldb_private::ClangASTType& type);
+
     static void
     CompleteTagDecl (void *baton, clang::TagDecl *);
     
@@ -599,7 +604,8 @@ protected:
     NameToDIE                           m_namespace_index;          // All type DIE offsets
     bool                                m_indexed:1,
                                         m_is_external_ast_source:1,
-                                        m_using_apple_tables:1;
+                                        m_using_apple_tables:1,
+                                        m_is_external_go_source:1;
     lldb_private::LazyBool              m_supports_DW_AT_APPLE_objc_complete_type;
 
     std::unique_ptr<DWARFDebugRanges>     m_ranges;

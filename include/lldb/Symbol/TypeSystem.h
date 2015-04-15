@@ -33,6 +33,9 @@ public:
     virtual ClangASTContext *
     AsClangASTContext() = 0;
     
+    virtual GoASTContext*
+    AsGoASTContext() = 0;
+    
     //----------------------------------------------------------------------
     // Tests
     //----------------------------------------------------------------------

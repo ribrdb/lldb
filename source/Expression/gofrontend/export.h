@@ -7,6 +7,9 @@
 #ifndef GO_EXPORT_H
 #define GO_EXPORT_H
 
+#include <map>
+#include <set>
+
 #include "string-dump.h"
 namespace go {
 struct sha1_ctx;

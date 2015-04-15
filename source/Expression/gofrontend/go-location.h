@@ -28,6 +28,9 @@ private:
 inline bool operator<(Location a, Location b) {
     return lldb_private::Declaration::Compare(a.GetDecl(), b.GetDecl()) < 0;
 }
+inline bool operator==(Location a, Location b) {
+    return lldb_private::Declaration::Compare(a.GetDecl(), b.GetDecl()) == 0;
+}
 } // namespace go 
 
 #define UNKNOWN_LOCATION
