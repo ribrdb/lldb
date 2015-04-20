@@ -91,6 +91,7 @@ public:
     
     static bool IsGoString(const ClangASTType& type);
     static bool IsGoSlice(const ClangASTType& type);
+    static bool IsGoInterface(const ClangASTType& type);
     
     virtual bool
     IsArrayType (void * type,

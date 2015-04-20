@@ -27,6 +27,7 @@ PARALLEL_DIRS := ABI/MacOSX-arm ABI/MacOSX-arm64 ABI/MacOSX-i386 ABI/SysV-x86_64
 	DynamicLoader/POSIX-DYLD \
 	DynamicLoader/Hexagon-DYLD \
 	DynamicLoader/MacOSX-DYLD \
+	OperatingSystem/Go \
 	OperatingSystem/Python \
 	SystemRuntime/MacOSX \
 	SymbolVendor/ELF \

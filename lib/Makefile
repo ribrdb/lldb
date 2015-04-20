@@ -59,6 +59,7 @@ USEDLIBS = lldbAPI.a \
 	lldbPluginSymbolVendorELF.a \
 	lldbPluginObjectFilePECOFF.a \
 	lldbPluginOperatingSystemPython.a \
+	lldbPluginOperatingSystemGo.a \
 	lldbPluginPlatformGDBServer.a \
 	lldbPluginProcessGDBRemote.a \
 	lldbPluginSymbolFileDWARF.a \

@@ -1327,13 +1327,20 @@ GoASTContext::IsGoString(const lldb_private::ClangASTType &type)
     return GoType::KIND_STRING == static_cast<GoType*>(type.GetOpaqueQualType())->GetGoKind();
 }
     
-    
 bool
 GoASTContext::IsGoSlice(const lldb_private::ClangASTType &type)
 {
     if (!type.IsValid() || !type.GetTypeSystem()->AsGoASTContext())
         return false;
     return GoType::KIND_SLICE == static_cast<GoType*>(type.GetOpaqueQualType())->GetGoKind();
+}
+    
+bool
+GoASTContext::IsGoInterface(const lldb_private::ClangASTType &type)
+{
+    if (!type.IsValid() || !type.GetTypeSystem()->AsGoASTContext())
+        return false;
+    return GoType::KIND_INTERFACE == static_cast<GoType*>(type.GetOpaqueQualType())->GetGoKind();
 }
     
 }  // namespace lldb_private

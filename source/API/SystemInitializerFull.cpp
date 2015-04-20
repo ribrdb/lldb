@@ -27,6 +27,7 @@
 #include "Plugins/InstrumentationRuntime/AddressSanitizer/AddressSanitizerRuntime.h"
 #include "Plugins/JITLoader/GDB/JITLoaderGDB.h"
 #include "Plugins/LanguageRuntime/CPlusPlus/ItaniumABI/ItaniumABILanguageRuntime.h"
+#include "Plugins/LanguageRuntime/Go/GoLanguageRuntime.h"
 #include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntimeV1.h"
 #include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntimeV2.h"
 #include "Plugins/LanguageRuntime/RenderScript/RenderScriptRuntime/RenderScriptRuntime.h"
@@ -257,6 +258,7 @@ SystemInitializerFull::Initialize()
     AppleObjCRuntimeV2::Initialize();
     AppleObjCRuntimeV1::Initialize();
     SystemRuntimeMacOSX::Initialize();
+    GoLanguageRuntime::Initialize();
     RenderScriptRuntime::Initialize();
 
 #if defined(__linux__)
@@ -360,6 +362,7 @@ SystemInitializerFull::Terminate()
     AppleObjCRuntimeV2::Terminate();
     AppleObjCRuntimeV1::Terminate();
     SystemRuntimeMacOSX::Terminate();
+    GoLanguageRuntime::Terminate();
     RenderScriptRuntime::Terminate();
 
 #if defined(__APPLE__)

@@ -6021,7 +6021,7 @@ SymbolFileDWARF::ParseType (const SymbolContext& sc, DWARFCompileUnit* dwarf_cu,
                     // Set a bit that lets us know that we are currently parsing this
                     m_die_to_type[die] = DIE_IS_BEING_PARSED;
                     bool byte_size_valid = false;
-
+                    
                     LanguageType class_language = eLanguageTypeUnknown;
                     bool is_complete_objc_class = false;
                     int go_kind = 0;

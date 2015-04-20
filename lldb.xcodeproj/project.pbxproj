@@ -872,6 +872,8 @@
 		AE45AC3D1AE04CD000AA7CE7 /* GoFormatterFunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE45AC3C1AE04CD000AA7CE7 /* GoFormatterFunctions.cpp */; };
 		AE8F624919EF3E1E00326B21 /* OperatingSystemGo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */; };
 		AEB74D931A8C1BE300FE1A4A /* OperatingSystemGo.h in Headers */ = {isa = PBXBuildFile; fileRef = AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */; };
+		AED2693C1A0AED90005CF9EC /* GoLanguageRuntime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AED2693A1A0AED90005CF9EC /* GoLanguageRuntime.cpp */; };
+		AED2693D1A0AED90005CF9EC /* GoLanguageRuntime.h in Headers */ = {isa = PBXBuildFile; fileRef = AED2693B1A0AED90005CF9EC /* GoLanguageRuntime.h */; };
 		AEEA34051AC88A7400AB639D /* TypeSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEEA34041AC88A7400AB639D /* TypeSystem.cpp */; };
 		AEFFBA7E1AC4835D0087B932 /* GoASTContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEFFBA7C1AC4835D0087B932 /* GoASTContext.cpp */; };
 		AF061F87182C97ED00B6A19C /* RegisterContextHistory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */; };
@@ -2634,6 +2636,8 @@
 		AE45AC3C1AE04CD000AA7CE7 /* GoFormatterFunctions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoFormatterFunctions.cpp; path = source/DataFormatters/GoFormatterFunctions.cpp; sourceTree = "<group>"; };
 		AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = OperatingSystemGo.cpp; path = Go/OperatingSystemGo.cpp; sourceTree = "<group>"; };
 		AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OperatingSystemGo.h; path = Go/OperatingSystemGo.h; sourceTree = "<group>"; };
+		AED2693A1A0AED90005CF9EC /* GoLanguageRuntime.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoLanguageRuntime.cpp; path = Go/GoLanguageRuntime.cpp; sourceTree = "<group>"; };
+		AED2693B1A0AED90005CF9EC /* GoLanguageRuntime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GoLanguageRuntime.h; path = Go/GoLanguageRuntime.h; sourceTree = "<group>"; };
 		AEEA33F61AC74FE700AB639D /* TypeSystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TypeSystem.h; path = include/lldb/Symbol/TypeSystem.h; sourceTree = "<group>"; };
 		AEEA34041AC88A7400AB639D /* TypeSystem.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = TypeSystem.cpp; path = source/Symbol/TypeSystem.cpp; sourceTree = "<group>"; };
 		AEEA340F1ACA08A000AB639D /* GoASTContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GoASTContext.h; path = include/lldb/Symbol/GoASTContext.h; sourceTree = "<group>"; };
@@ -2859,7 +2863,6 @@
 				08FB7795FE84155DC02AAC07 /* Source */,
 				26F5C22410F3D950009D5894 /* Tools */,
 				2690CD181A6DC0D000E717C8 /* lldb-mi */,
-				AE45AC291AD4595500AA7CE7 /* gofrontend */,
 				1AB674ADFE9D54B511CA2CBB /* Products */,
 			);
 			name = lldb;
@@ -4954,6 +4957,7 @@
 			isa = PBXGroup;
 			children = (
 				49724D961AD6ECFA0033C538 /* RenderScript */,
+				AED269391A0AED67005CF9EC /* Go */,
 				4CCA643B13B40B82003BDF98 /* CPlusPlus */,
 				4CCA644013B40B82003BDF98 /* ObjC */,
 			);
@@ -5203,18 +5207,20 @@
 			name = DataFormatters;
 			sourceTree = "<group>";
 		};
-		AE45AC291AD4595500AA7CE7 /* gofrontend */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = gofrontend;
-			sourceTree = "<group>";
-		};
 		AE8F624519EF3DFC00326B21 /* Go */ = {
 			isa = PBXGroup;
 			children = (
 				AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */,
 				AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */,
+			);
+			name = Go;
+			sourceTree = "<group>";
+		};
+		AED269391A0AED67005CF9EC /* Go */ = {
+			isa = PBXGroup;
+			children = (
+				AED2693A1A0AED90005CF9EC /* GoLanguageRuntime.cpp */,
+				AED2693B1A0AED90005CF9EC /* GoLanguageRuntime.h */,
 			);
 			name = Go;
 			sourceTree = "<group>";
@@ -5395,6 +5401,7 @@
 				26474CCA18D0CB5B0073DEBA /* RegisterContextMemory.h in Headers */,
 				26474CA018D0CAEC0073DEBA /* RegisterContext_mips64.h in Headers */,
 				26BC17AE18C7F4CB00D2196D /* RegisterContextPOSIXCore_mips64.h in Headers */,
+				AED2693D1A0AED90005CF9EC /* GoLanguageRuntime.h in Headers */,
 				26FFC19A14FC072100087D58 /* AuxVector.h in Headers */,
 				AF25AB27188F685C0030DEC3 /* AppleGetQueuesHandler.h in Headers */,
 				26CA97A2172B1FD5005DC71B /* RegisterContextThreadMemory.h in Headers */,
@@ -6504,6 +6511,7 @@
 				260CC64D15D0440D002BF2E0 /* OptionValueEnumeration.cpp in Sources */,
 				260CC64E15D0440D002BF2E0 /* OptionValueFileSpec.cpp in Sources */,
 				AF2BCA6C18C7EFDE005B4526 /* JITLoaderGDB.cpp in Sources */,
+				AED2693C1A0AED90005CF9EC /* GoLanguageRuntime.cpp in Sources */,
 				260CC64F15D0440D002BF2E0 /* OptionValueFileSpecLIst.cpp in Sources */,
 				490A36C0180F0E6F00BA31F8 /* PlatformWindows.cpp in Sources */,
 				260CC65015D0440D002BF2E0 /* OptionValueFormat.cpp in Sources */,
