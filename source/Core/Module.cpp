@@ -27,6 +27,7 @@
 #include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/CompileUnit.h"
+#include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/SymbolVendor.h"
@@ -149,12 +150,14 @@ Module::Module (const ModuleSpec &module_spec) :
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
+    m_go_ast(new GoASTContext),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
+    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -253,12 +256,14 @@ Module::Module(const FileSpec& file_spec,
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
+    m_go_ast(new GoASTContext),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
+    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -299,12 +304,14 @@ Module::Module () :
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
+    m_go_ast(new GoASTContext),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
+    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -447,6 +454,24 @@ Module::GetClangASTContext ()
         }
     }
     return *m_ast;
+}
+
+
+GoASTContext &
+Module::GetGoASTContext ()
+{
+    Mutex::Locker locker (m_mutex);
+    if (m_did_init_go == false)
+    {
+        ObjectFile * objfile = GetObjectFile();
+        ArchSpec object_arch;
+        if (objfile && objfile->GetArchitecture(object_arch))
+        {
+            m_did_init_go = true;
+            m_go_ast->SetAddressByteSize(object_arch.GetAddressByteSize());
+        }
+    }
+    return *m_go_ast;
 }
 
 void

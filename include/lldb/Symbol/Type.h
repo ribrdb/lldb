@@ -14,6 +14,7 @@
 #include "lldb/Core/ClangForward.h"
 #include "lldb/Core/ConstString.h"
 #include "lldb/Core/UserID.h"
+#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/ClangASTType.h"
 #include "lldb/Symbol/Declaration.h"
 
@@ -438,8 +439,8 @@ public:
     GetReferenceType () const
     {
         if (type_sp)
-            return type_sp->GetClangLayoutType().GetLValueReferenceType();
-        return clang_type.GetLValueReferenceType();
+            return ClangASTContext::GetLValueReferenceType(type_sp->GetClangLayoutType());
+        return ClangASTContext::GetLValueReferenceType(clang_type);
     }
 
     ClangASTType
@@ -474,10 +475,10 @@ public:
         return clang_type.GetCanonicalType();
     }
     
-    clang::ASTContext *
-    GetClangASTContext () const
+    TypeSystem *
+    GetTypeSystem () const
     {
-        return clang_type.GetASTContext();
+        return clang_type.GetTypeSystem();
     }
     
     lldb::ModuleSP
@@ -573,8 +574,8 @@ public:
     ClangASTType
     GetClangASTType (bool prefer_dynamic);
     
-    clang::ASTContext *
-    GetClangASTContext (bool prefer_dynamic);
+    TypeSystem *
+    GetTypeSystem (bool prefer_dynamic);
     
     bool
     GetDescription (lldb_private::Stream &strm, 
