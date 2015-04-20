@@ -386,7 +386,7 @@ ClangASTType::GetTypeName () const
     std::string type_name;
     if (IsValid())
     {
-        m_type_system->GetTypeName(m_type);
+        return m_type_system->GetTypeName(m_type);
     }
     return ConstString(type_name);
 }

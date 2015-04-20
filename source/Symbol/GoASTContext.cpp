@@ -1241,44 +1241,6 @@ GoASTContext::DumpTypeDescription (void * type, Stream *s)
     assert(false);
 }
 
-bool
-GoASTContext::GetValueAsScalar (void * type,
-                  const DataExtractor &data,
-                  lldb::offset_t data_offset,
-                  size_t data_byte_size,
-                  Scalar &value)
-{
-    
-}
-
-bool
-GoASTContext::SetValueFromScalar (void * type,
-                    const Scalar &value,
-                    Stream &strm)
-{
-    assert(false);
-}
-
-bool
-GoASTContext::ReadFromMemory (void * type,
-                ExecutionContext *exe_ctx,
-                lldb::addr_t addr,
-                AddressType address_type,
-                DataExtractor &data)
-{
-    assert(false);
-}
-
-bool
-GoASTContext::WriteToMemory (void * type,
-               ExecutionContext *exe_ctx,
-               lldb::addr_t addr,
-               AddressType address_type,
-               StreamString &new_value)
-{
-    assert(false);
-}
-
 ClangASTType
 GoASTContext::CreateArrayType(const ConstString& name,
                               const ClangASTType& element_type,
@@ -1292,9 +1254,7 @@ GoASTContext::CreateArrayType(const ConstString& name,
 ClangASTType
 GoASTContext::CreateBaseType(int go_kind, const lldb_private::ConstString &name, uint64_t byte_size)
 {
-    if (go_kind == GoType::KIND_UINTPTR)
-        m_pointer_byte_size = byte_size;
-    else if (go_kind == GoType::KIND_UINT || go_kind == GoType::KIND_INT)
+    if (go_kind == GoType::KIND_UINT || go_kind == GoType::KIND_INT)
         m_int_byte_size = byte_size;
     GoType* type = new GoType(go_kind, name);
     (*m_types)[name].reset(type);
@@ -1359,5 +1319,21 @@ GoASTContext::CreateFunctionType(const lldb_private::ConstString &name, ClangAST
     return ClangASTType(this, type);
 }
     
+bool
+GoASTContext::IsGoString(const lldb_private::ClangASTType &type)
+{
+    if (!type.IsValid() || !type.GetTypeSystem()->AsGoASTContext())
+        return false;
+    return GoType::KIND_STRING == static_cast<GoType*>(type.GetOpaqueQualType())->GetGoKind();
+}
+    
+    
+bool
+GoASTContext::IsGoSlice(const lldb_private::ClangASTType &type)
+{
+    if (!type.IsValid() || !type.GetTypeSystem()->AsGoASTContext())
+        return false;
+    return GoType::KIND_SLICE == static_cast<GoType*>(type.GetOpaqueQualType())->GetGoKind();
+}
     
 }  // namespace lldb_private

@@ -1167,9 +1167,6 @@ lldb_private::formatters::VectorIteratorSyntheticFrontEnd::Update()
     if (!valobj_sp)
         return false;
     
-    if (!valobj_sp)
-        return false;
-    
     ValueObjectSP item_ptr(valobj_sp->GetChildMemberWithName(m_item_name,true));
     if (!item_ptr)
         return false;

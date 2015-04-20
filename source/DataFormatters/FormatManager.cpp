@@ -18,7 +18,9 @@
 
 #include "lldb/Core/Debugger.h"
 #include "lldb/DataFormatters/CXXFormatterFunctions.h"
+#include "lldb/DataFormatters/GoFormatterFunctions.h"
 #include "lldb/Interpreter/ScriptInterpreterPython.h"
+#include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Platform.h"
 #include "llvm/ADT/STLExtras.h"
@@ -1602,6 +1604,33 @@ FormatManager::LoadHardcodedFormatters()
                                             }
                                             return nullptr;
                                         });
+        m_hardcoded_summaries.push_back(
+                                        [](lldb_private::ValueObject& valobj,
+                                           lldb::DynamicValueType,
+                                           FormatManager&) -> TypeSummaryImpl::SharedPointer {
+                                            static CXXFunctionSummaryFormat::SharedPointer formatter_sp(new CXXFunctionSummaryFormat(TypeSummaryImpl::Flags().SetDontShowChildren(true), lldb_private::formatters::GoStringSummaryProvider, "Go string summary provider"));
+                                            if (GoASTContext::IsGoString(valobj.GetClangType()))
+                                            {
+                                                return formatter_sp;
+                                            }
+                                            if (GoASTContext::IsGoString(valobj.GetClangType().GetPointeeType()))
+                                            {
+                                                return formatter_sp;
+                                            }
+                                            return nullptr;
+                                        });
+        m_hardcoded_summaries.push_back(
+                                        [](lldb_private::ValueObject& valobj,
+                                           lldb::DynamicValueType,
+                                           FormatManager&) -> TypeSummaryImpl::SharedPointer {
+                                            static  lldb::TypeSummaryImplSP formatter_sp(new StringSummaryFormat(TypeSummaryImpl::Flags().SetHideItemNames(true),                                                                                                                 "(len ${var.len}, cap ${var.cap})"));
+                                            if (GoASTContext::IsGoSlice(valobj.GetClangType()))
+                                            {
+                                                return formatter_sp;
+                                            }
+                                            return nullptr;
+                                        });
+       
     }
     {
         // insert code to load synthetics here
@@ -1619,6 +1648,20 @@ FormatManager::LoadHardcodedFormatters()
                                              }
                                              return nullptr;
                                          });
+        m_hardcoded_synthetics.push_back(
+                                         [](lldb_private::ValueObject& valobj,
+                                            lldb::DynamicValueType,
+                                            FormatManager& fmt_mgr) -> SyntheticChildren::SharedPointer {
+                                             static CXXSyntheticChildren::SharedPointer formatter_sp(new CXXSyntheticChildren(SyntheticChildren::Flags(),
+                                                                                                                              "slice synthetic children",
+                                                                                                                              lldb_private::formatters::GoSliceSyntheticFrontEndCreator));
+                                             if (GoASTContext::IsGoSlice(valobj.GetClangType()))
+                                             {
+                                                 return formatter_sp;
+                                             }
+                                             return nullptr;
+                                         });
+
     }
     {
         // insert code to load validators here

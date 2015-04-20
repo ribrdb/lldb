@@ -157,6 +157,7 @@ Module::Module (const ModuleSpec &module_spec) :
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
+    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -262,6 +263,7 @@ Module::Module(const FileSpec& file_spec,
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
+    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -309,6 +311,7 @@ Module::Module () :
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
+    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -458,6 +461,16 @@ GoASTContext &
 Module::GetGoASTContext ()
 {
     Mutex::Locker locker (m_mutex);
+    if (m_did_init_go == false)
+    {
+        ObjectFile * objfile = GetObjectFile();
+        ArchSpec object_arch;
+        if (objfile && objfile->GetArchitecture(object_arch))
+        {
+            m_did_init_go = true;
+            m_go_ast->SetAddressByteSize(object_arch.GetAddressByteSize());
+        }
+    }
     return *m_go_ast;
 }
 

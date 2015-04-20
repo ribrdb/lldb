@@ -42,6 +42,8 @@ public:
         return this;
     }
     
+    void SetAddressByteSize(int byte_size) { m_pointer_byte_size = byte_size; }
+    
     //----------------------------------------------------------------------
     // Creating Types
     //----------------------------------------------------------------------
@@ -86,6 +88,9 @@ public:
     //----------------------------------------------------------------------
     // Tests
     //----------------------------------------------------------------------
+    
+    static bool IsGoString(const ClangASTType& type);
+    static bool IsGoSlice(const ClangASTType& type);
     
     virtual bool
     IsArrayType (void * type,
@@ -300,13 +305,6 @@ public:
     virtual void
     DumpTypeDescription (void * type, Stream *s);
     
-    virtual bool
-    GetValueAsScalar (void * type,
-                      const DataExtractor &data,
-                      lldb::offset_t data_offset,
-                      size_t data_byte_size,
-                      Scalar &value);
-    
     //----------------------------------------------------------------------
     // TODO: These methods appear unused. Should they be removed?
     //----------------------------------------------------------------------
@@ -321,26 +319,7 @@ public:
                  const DataExtractor &data,
                  lldb::offset_t data_offset,
                  size_t data_byte_size);
-    
-    virtual bool
-    SetValueFromScalar (void * type,
-                        const Scalar &value,
-                        Stream &strm);
-    
-    virtual bool
-    ReadFromMemory (void * type,
-                    ExecutionContext *exe_ctx,
-                    lldb::addr_t addr,
-                    AddressType address_type,
-                    DataExtractor &data);
-    
-    virtual bool
-    WriteToMemory (void * type,
-                   ExecutionContext *exe_ctx,
-                   lldb::addr_t addr,
-                   AddressType address_type,
-                   StreamString &new_value);
-    
+        
     // Converts "s" to a floating point value and place resulting floating
     // point bytes in the "dst" buffer.
     virtual size_t

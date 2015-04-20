@@ -870,6 +870,7 @@
 		9AC703B1117675490086C050 /* SBInstructionList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AC703B0117675490086C050 /* SBInstructionList.cpp */; };
 		A36FF33C17D8E94600244D40 /* OptionParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A36FF33B17D8E94600244D40 /* OptionParser.cpp */; };
 		AE45AC351AD4596100AA7CE7 /* types.cc in Sources */ = {isa = PBXBuildFile; fileRef = AE45AC031AD457E700AA7CE7 /* types.cc */; };
+		AE45AC3D1AE04CD000AA7CE7 /* GoFormatterFunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE45AC3C1AE04CD000AA7CE7 /* GoFormatterFunctions.cpp */; };
 		AEEA34051AC88A7400AB639D /* TypeSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEEA34041AC88A7400AB639D /* TypeSystem.cpp */; };
 		AEFFBA7E1AC4835D0087B932 /* GoASTContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEFFBA7C1AC4835D0087B932 /* GoASTContext.cpp */; };
 		AF061F87182C97ED00B6A19C /* RegisterContextHistory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */; };
@@ -2668,6 +2669,8 @@
 		AE45AC041AD457E700AA7CE7 /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
 		AE45AC051AD457E700AA7CE7 /* unsafe.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = unsafe.cc; sourceTree = "<group>"; };
 		AE45AC281AD4595500AA7CE7 /* libgofrontend.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libgofrontend.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		AE45AC3B1AE04C0E00AA7CE7 /* GoFormatterFunctions.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoFormatterFunctions.h; path = include/lldb/DataFormatters/GoFormatterFunctions.h; sourceTree = "<group>"; };
+		AE45AC3C1AE04CD000AA7CE7 /* GoFormatterFunctions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoFormatterFunctions.cpp; path = source/DataFormatters/GoFormatterFunctions.cpp; sourceTree = "<group>"; };
 		AEEA33F61AC74FE700AB639D /* TypeSystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TypeSystem.h; path = include/lldb/Symbol/TypeSystem.h; sourceTree = "<group>"; };
 		AEEA34041AC88A7400AB639D /* TypeSystem.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = TypeSystem.cpp; path = source/Symbol/TypeSystem.cpp; sourceTree = "<group>"; };
 		AEEA340F1ACA08A000AB639D /* GoASTContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GoASTContext.h; path = include/lldb/Symbol/GoASTContext.h; sourceTree = "<group>"; };
@@ -5202,6 +5205,8 @@
 				94CB256216B069800059775D /* FormatManager.h */,
 				94CB255A16B069770059775D /* FormatManager.cpp */,
 				94EE33F218643C6900CD703B /* FormattersContainer.h */,
+				AE45AC3B1AE04C0E00AA7CE7 /* GoFormatterFunctions.h */,
+				AE45AC3C1AE04CD000AA7CE7 /* GoFormatterFunctions.cpp */,
 				94D0B10A16D5535900EA9C70 /* LibCxx.cpp */,
 				942AFF0619F84C02007B43B4 /* LibCxxInitializerList.cpp */,
 				94CD704F16F8DF1C00CF1E42 /* LibCxxList.cpp */,
@@ -6424,6 +6429,7 @@
 				2689010413353E6F00698AC0 /* ThreadPlanStepInRange.cpp in Sources */,
 				2689010513353E6F00698AC0 /* ThreadPlanStepOverRange.cpp in Sources */,
 				3FDFE56D19AF9C44009756A7 /* HostThreadPosix.cpp in Sources */,
+				AE45AC3D1AE04CD000AA7CE7 /* GoFormatterFunctions.cpp in Sources */,
 				2689010613353E6F00698AC0 /* ThreadPlanRunToAddress.cpp in Sources */,
 				2689010713353E6F00698AC0 /* ThreadPlanStepThrough.cpp in Sources */,
 				2689010813353E6F00698AC0 /* ThreadPlanStepUntil.cpp in Sources */,
@@ -9300,6 +9306,7 @@
 				AE45AC341AD4595500AA7CE7 /* BuildAndIntegration */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = BuildAndIntegration;
 		};
 		EDC6D4A614E5C19B001B75F8 /* Build configuration list for PBXNativeTarget "launcherXPCService" */ = {
 			isa = XCConfigurationList;
