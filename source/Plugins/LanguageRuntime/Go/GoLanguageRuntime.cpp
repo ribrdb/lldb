@@ -35,6 +35,44 @@
 using namespace lldb;
 using namespace lldb_private;
 
+namespace {
+ValueObjectSP GetChild(ValueObject& obj, const char* name, bool dereference = true) {
+    ConstString name_const_str(name);
+    ValueObjectSP result = obj.GetChildMemberWithName(name_const_str, true);
+    if (dereference && result && result->IsPointerType()) {
+        Error err;
+        result = result->Dereference(err);
+        if (err.Fail())
+            result.reset();
+    }
+    return result;
+}
+
+ConstString ReadString(ValueObject& str, Process* process) {
+    ConstString result;
+    ValueObjectSP data = GetChild(str, "str", false);
+    ValueObjectSP len = GetChild(str, "len");
+    if (len && data)
+    {
+        Error err;
+        lldb::addr_t addr = data->GetPointerValue();
+        if (addr == LLDB_INVALID_ADDRESS)
+            return result;
+        uint64_t byte_size = len->GetValueAsUnsigned(0);
+        char* buf = new char[byte_size + 1];
+        buf[byte_size] = 0;
+        size_t bytes_read = process->ReadMemory (addr,
+                                                 buf,
+                                                 byte_size,
+                                                 err);
+        if (!(err.Fail() || bytes_read != byte_size))
+            result = ConstString(buf, bytes_read);
+        delete[] buf;
+    }
+    return result;
+}
+}
+
 bool
 GoLanguageRuntime::CouldHaveDynamicValue (ValueObject &in_value)
 {
@@ -50,77 +88,39 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
     class_type_or_name.Clear();
     if (CouldHaveDynamicValue (in_value))
     {
-        ConstString tab_cs("tab");
-        ConstString type_cs("_type");
         ConstString data_cs("data");
-        ConstString string_cs("_string");
-        ConstString str_cs("str");
-        ConstString size_cs("size");
-        ConstString len_cs("len");
         Error err;
         ValueObjectSP iface = in_value.GetStaticValue();
-        ValueObjectSP type = iface->GetChildMemberWithName(tab_cs, true);
-        if (type)
+        ValueObjectSP type = GetChild(*iface, "tab");
+        if (!type)
         {
-            iface = type->Dereference(err);
-            if (err.Fail()) {
-                return false;
-            }
+            type = GetChild(*iface, "_type");
         }
-        type = iface->GetChildMemberWithName(type_cs, true);
         if (!type)
         {
             return false;
         }
-        ValueObjectSP name = type->GetChildMemberWithName(string_cs, true);
+        
+        ValueObjectSP name = GetChild(*type, "_string");
         if (!name)
         {
             return false;
         }
-        if (name->IsPointerType())
-            name = name->Dereference(err);
-        if (err.Fail())
-            return false;
-        ValueObjectSP namedata = name->GetChildMemberWithName(str_cs, true);
-        if (!namedata)
-        {
-            return false;
-        }
+        
         ExecutionContext exe_ctx (in_value.GetExecutionContextRef());
         
         Target *target = exe_ctx.GetTargetPtr();
         Process *process = exe_ctx.GetProcessPtr();
 
+        ConstString const_typename = ReadString(*name, process);
         
-        AddressType address_type;
-        lldb::addr_t name_ptr = namedata->GetPointerValue(&address_type);
-        if (name_ptr == LLDB_INVALID_ADDRESS)
-            return false;
-        ValueObjectSP len_sp = name->GetChildMemberWithName(len_cs, true);
-        if (!len_sp)
-            return false;
-        uint64_t len = len_sp->GetValueAsUnsigned(0);
-        char* buf = new char[len + 1];
-        buf[len] = 0;
-        size_t bytes_read = process->ReadMemory (name_ptr,
-                                                 buf,
-                                                 len,
-                                                 err);
-
-        if (err.Fail() || (bytes_read != len))
-        {
-            return false;
-        }
-
-        ConstString const_typename(buf);
-        delete[] buf;
         SymbolContext sc;
         TypeList type_list;
         uint32_t num_matches = target->GetImages().FindTypes (sc,
-                                                 const_typename,
-                                                 false,
-                                                 2,
-                                                 type_list);
+                                                              const_typename,
+                                                              false,
+                                                              2,
+                                                              type_list);
         if (num_matches == 1) {
             TypeSP final_type = type_list.GetTypeAtIndex(0);
             class_type_or_name.SetTypeSP(final_type);
@@ -128,20 +128,26 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
         } else {
             class_type_or_name.SetName(const_typename);
         }
-        ValueObjectSP size_sp = type->GetChildMemberWithName(size_cs, true);
+        ValueObjectSP size_sp = GetChild(*type, "size");
         if (!size_sp)
             return false;
-        // size is a uintptr
-        uint64_t value_size_bytes = size_sp->GetValueAsUnsigned(0);
+        ValueObjectSP data_sp = GetChild(*iface, "data", false);
+        if (!data_sp)
+            return false;
         
-        if (value_size_bytes > in_value.GetClangType().GetPointerByteSize())
+        // Note: runtime-gdb.py suggests that small interface values get inlined,
+        // but that doesn't seem to be true.
+        // uint64_t value_size_bytes = size_sp->GetValueAsUnsigned(0);
+        
+        // if (value_size_bytes > in_value.GetClangType().GetPointerByteSize())
         {
             if (class_type_or_name.HasTypeSP())
             {
-                class_type_or_name.SetClangASTType(class_type_or_name.GetTypeSP()->GetClangLayoutType().GetPointeeType());
+                // Need to implement reference types to get rid of this pointer.
+                class_type_or_name.SetClangASTType(class_type_or_name.GetTypeSP()->GetClangLayoutType().GetPointerType());
             }
         }
-        dynamic_address.SetLoadAddress(iface->GetChildMemberWithName(data_cs, true)->GetAddressOf(), target);
+        dynamic_address.SetLoadAddress(data_sp->GetPointerValue(), target);
 
         return true;
     }

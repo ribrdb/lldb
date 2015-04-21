@@ -391,7 +391,7 @@ GoASTContext::IsIntegerType (void * type, bool &is_signed)
     if (type)
     {
         int kind = static_cast<GoType*>(type)->GetGoKind();
-        if (kind < GoType::KIND_UINTPTR) {
+        if (kind <= GoType::KIND_UINTPTR) {
             is_signed = (kind != GoType::KIND_BOOL) & (kind <= GoType::KIND_INT64);
             return true;
         }

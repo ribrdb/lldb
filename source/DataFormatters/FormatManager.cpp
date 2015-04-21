@@ -1628,6 +1628,10 @@ FormatManager::LoadHardcodedFormatters()
                                             {
                                                 return formatter_sp;
                                             }
+                                            if (GoASTContext::IsGoSlice(valobj.GetClangType().GetPointeeType()))
+                                            {
+                                                return formatter_sp;
+                                            }
                                             return nullptr;
                                         });
        

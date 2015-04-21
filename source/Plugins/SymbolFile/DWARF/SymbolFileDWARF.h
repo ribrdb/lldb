@@ -617,7 +617,7 @@ protected:
     bool                                m_indexed:1,
                                         m_is_external_ast_source:1,
                                         m_using_apple_tables:1,
-                                        m_is_external_go_source:1;
+                                        m_is_external_go_source:1,
                                         m_fetched_external_modules:1;
     lldb_private::LazyBool              m_supports_DW_AT_APPLE_objc_complete_type;
 
