@@ -51,6 +51,7 @@ USEDLIBS = lldbAPI.a \
 	lldbPluginLanguageRuntimeCPlusPlusItaniumABI.a \
 	lldbPluginLanguageRuntimeObjCAppleObjCRuntime.a \
 	lldbPluginLanguageRuntimeRenderScriptRuntime.a \
+	lldbPluginLanguageRuntimeGo.a \
 	lldbPluginMemoryHistoryASan.a \
 	lldbPluginObjectContainerBSDArchive.a \
 	lldbPluginObjectContainerUniversalMachO.a \

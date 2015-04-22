@@ -1,4 +1,4 @@
-##===- Source/Plugins/LangRuntime/RenderScript/RenderScriptRuntime/Makefile ----*- Makefile -*-===##
+##===- Source/Plugins/LangRuntime/Go/Makefile ----*- Makefile -*-===##
 # 
 #                     The LLVM Compiler Infrastructure
 #
@@ -7,8 +7,8 @@
 # 
 ##===----------------------------------------------------------------------===##
 
-LLDB_LEVEL := ../../../../..
-LIBRARYNAME := lldbPluginLanguageRuntimeGoRuntime
+LLDB_LEVEL := ../../../..
+LIBRARYNAME := lldbPluginLanguageRuntimeGo
 BUILD_ARCHIVE = 1
 
 include $(LLDB_LEVEL)/Makefile
