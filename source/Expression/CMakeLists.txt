@@ -15,6 +15,7 @@ add_lldb_library(lldbExpression
   ClangUtilityFunction.cpp
   DWARFExpression.cpp
   ExpressionSourceCode.cpp
+  GoUserExpression.cpp
   IRDynamicChecks.cpp
   IRExecutionUnit.cpp
   IRForTarget.cpp

@@ -36,6 +36,7 @@
 #include "lldb/Expression/ClangASTSource.h"
 #include "lldb/Expression/ClangPersistentVariables.h"
 #include "lldb/Expression/ClangUserExpression.h"
+#include "lldb/Expression/GoUserExpression.h"
 #include "lldb/Expression/ClangModulesDeclVendor.h"
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Host/Host.h"
@@ -45,6 +46,7 @@
 #include "lldb/Interpreter/OptionValues.h"
 #include "lldb/Interpreter/Property.h"
 #include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/ObjCLanguageRuntime.h"
@@ -1998,13 +2000,37 @@ Target::EvaluateExpression
     else
     {
         const char *prefix = GetExpressionPrefixContentsAsCString();
+        bool use_clang = true;
+        if (!frame)
+        {
+            frame = exe_ctx.GetFramePtr();
+        }
+        if (frame)
+        {
+            const SymbolContext& sc = frame->GetSymbolContext(eSymbolContextCompUnit);
+            if (sc.comp_unit && sc.comp_unit->GetLanguage() == eLanguageTypeGo)
+                use_clang = false;
+        }
         Error error;
-        execution_results = ClangUserExpression::Evaluate (exe_ctx, 
-                                                           options,
-                                                           expr_cstr,
-                                                           prefix, 
-                                                           result_valobj_sp,
-                                                           error);
+        if (use_clang)
+        {
+            execution_results = ClangUserExpression::Evaluate (exe_ctx,
+                                                               options,
+                                                               expr_cstr,
+                                                               prefix,
+                                                               result_valobj_sp,
+                                                               error);
+        }
+        else
+        {
+            execution_results = GoUserExpression::Evaluate (exe_ctx,
+                                                            options,
+                                                            expr_cstr,
+                                                            prefix,
+                                                            result_valobj_sp,
+                                                            error);
+            
+        }
     }
     
     m_suppress_stop_hooks = old_suppress_value;

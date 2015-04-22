@@ -91,11 +91,9 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
         ConstString data_cs("data");
         Error err;
         ValueObjectSP iface = in_value.GetStaticValue();
-        ValueObjectSP type = GetChild(*iface, "tab");
-        if (!type)
-        {
-            type = GetChild(*iface, "_type");
-        }
+        if (ValueObjectSP tab = GetChild(*iface, "tab"))
+            iface = tab;
+        ValueObjectSP type = GetChild(*iface, "_type");
         if (!type)
         {
             return false;
