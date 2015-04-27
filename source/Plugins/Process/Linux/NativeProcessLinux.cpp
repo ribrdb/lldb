@@ -1796,6 +1796,12 @@ NativeProcessLinux::Launch(LaunchArgs *args, Error &error)
             if (!DupDescriptor(args->m_stderr_path.c_str (), STDERR_FILENO, O_WRONLY | O_CREAT | O_TRUNC))
                 exit(eDupStderrFailed);
 
+        // Close everything besides stdin, stdout, and stderr that has no file
+        // action to avoid leaking
+        for (int fd = 3; fd < sysconf(_SC_OPEN_MAX); ++fd)
+            if (!args->m_launch_info.GetFileActionForFD(fd))
+                close(fd);
+
         // Change working directory
         if (working_dir != NULL && working_dir[0])
           if (0 != ::chdir(working_dir))
@@ -2260,62 +2266,25 @@ NativeProcessLinux::MonitorSIGTRAP(const siginfo_t *info, lldb::pid_t pid)
 
     case (SIGTRAP | (PTRACE_EVENT_CLONE << 8)):
     {
-        lldb::tid_t tid = LLDB_INVALID_THREAD_ID;
+        // This is the notification on the parent thread which informs us of new thread
+        // creation. We are not interested in these events at this point (an interesting use
+        // case would be to stop the process upon thread creation), so we just resume the thread.
+        // We will pickup the new thread when we get its SIGSTOP notification.
 
-        // The main thread is stopped here.
-        if (thread_sp)
-            std::static_pointer_cast<NativeThreadLinux> (thread_sp)->SetStoppedBySignal (SIGTRAP);
-        NotifyThreadStop (pid);
-
-        unsigned long event_message = 0;
-        if (GetEventMessage (pid, &event_message).Success())
+        if (log)
         {
-            tid = static_cast<lldb::tid_t> (event_message);
-            if (log)
+            unsigned long event_message = 0;
+            if (GetEventMessage (pid, &event_message).Success())
+            {
+                lldb::tid_t tid = static_cast<lldb::tid_t> (event_message);
                 log->Printf ("NativeProcessLinux::%s() pid %" PRIu64 " received thread creation event for tid %" PRIu64, __FUNCTION__, pid, tid);
 
-            // If we don't track the thread yet: create it, mark as stopped.
-            // If we do track it, this is the wait we needed.  Now resume the new thread.
-            // In all cases, resume the current (i.e. main process) thread.
-            bool created_now = false;
-            NativeThreadProtocolSP new_thread_sp = GetOrCreateThread (tid, created_now);
-            assert (new_thread_sp.get() && "failed to get or create the tracking data for newly created inferior thread");
-
-            // If the thread was already tracked, it means the created thread already received its SI_USER notification of creation.
-            if (!created_now)
-            {
-                // We can now resume the newly created thread since it is fully created.
-                NotifyThreadCreateStopped (tid);
-                m_coordinator_up->RequestThreadResume (tid,
-                                                       [=](lldb::tid_t tid_to_resume, bool supress_signal)
-                                                       {
-                                                           std::static_pointer_cast<NativeThreadLinux> (new_thread_sp)->SetRunning ();
-                                                           return Resume (tid_to_resume, LLDB_INVALID_SIGNAL_NUMBER);
-                                                       },
-                                                       CoordinatorErrorHandler);
             }
             else
-            {
-                // Mark the thread as currently launching.  Need to wait for SIGTRAP clone on the main thread before
-                // this thread is ready to go.
-                std::static_pointer_cast<NativeThreadLinux> (new_thread_sp)->SetLaunching ();
-            }
-        }
-        else
-        {
-            if (log)
                 log->Printf ("NativeProcessLinux::%s() pid %" PRIu64 " received thread creation event but GetEventMessage failed so we don't know the new tid", __FUNCTION__, pid);
         }
 
-        // In all cases, we can resume the main thread here.
-        m_coordinator_up->RequestThreadResume (pid,
-                                               [=](lldb::tid_t tid_to_resume, bool supress_signal)
-                                               {
-                                                   std::static_pointer_cast<NativeThreadLinux> (thread_sp)->SetRunning ();
-                                                   return Resume (tid_to_resume, LLDB_INVALID_SIGNAL_NUMBER);
-                                               },
-                                               CoordinatorErrorHandler);
-
+        Resume (pid, LLDB_INVALID_SIGNAL_NUMBER);
         break;
     }
 
@@ -2640,31 +2609,12 @@ NativeProcessLinux::MonitorSignal(const siginfo_t *info, lldb::pid_t pid, bool e
             log->Printf ("NativeProcessLinux::%s() pid = %" PRIu64 " tid %" PRIu64 ": new thread notification",
                      __FUNCTION__, GetID (), pid);
 
-        // Did we already create the thread?
-        bool created_now = false;
-        thread_sp = GetOrCreateThread (pid, created_now);
-        assert (thread_sp.get() && "failed to get or create the tracking data for newly created inferior thread");
-
-        // If the thread was already tracked, it means the main thread already received its SIGTRAP for the create.
-        if (!created_now)
-        {
-            // We can now resume the newly created thread since it is fully created.
-            NotifyThreadCreateStopped (pid);
-            m_coordinator_up->RequestThreadResume (pid,
-                                                   [=](lldb::tid_t tid_to_resume, bool supress_signal)
-                                                   {
-                                                       std::static_pointer_cast<NativeThreadLinux> (thread_sp)->SetRunning ();
-                                                       return Resume (tid_to_resume, LLDB_INVALID_SIGNAL_NUMBER);
-                                                   },
-                                                   CoordinatorErrorHandler);
-        }
-        else
-        {
-            // Mark the thread as currently launching.  Need to wait for SIGTRAP clone on the main thread before
-            // this thread is ready to go.
-            std::static_pointer_cast<NativeThreadLinux> (thread_sp)->SetLaunching ();
-        }
-
+        thread_sp = AddThread(pid);
+        assert (thread_sp.get() && "failed to create the tracking data for newly created inferior thread");
+        // We can now resume the newly created thread.
+        std::static_pointer_cast<NativeThreadLinux> (thread_sp)->SetRunning ();
+        Resume (pid, LLDB_INVALID_SIGNAL_NUMBER);
+        m_coordinator_up->NotifyThreadCreate (pid, false, CoordinatorErrorHandler);
         // Done handling.
         return;
     }
@@ -2782,6 +2732,190 @@ NativeProcessLinux::MonitorSignal(const siginfo_t *info, lldb::pid_t pid, bool e
                                  });
 }
 
+namespace {
+
+struct EmulatorBaton
+{
+    NativeProcessLinux* m_process;
+    NativeRegisterContext* m_reg_context;
+
+    // eRegisterKindDWARF -> RegsiterValue
+    std::unordered_map<uint32_t, RegisterValue> m_register_values;
+
+    EmulatorBaton(NativeProcessLinux* process, NativeRegisterContext* reg_context) :
+            m_process(process), m_reg_context(reg_context) {}
+};
+
+} // anonymous namespace
+
+static size_t
+ReadMemoryCallback (EmulateInstruction *instruction,
+                    void *baton,
+                    const EmulateInstruction::Context &context, 
+                    lldb::addr_t addr, 
+                    void *dst,
+                    size_t length)
+{
+    EmulatorBaton* emulator_baton = static_cast<EmulatorBaton*>(baton);
+
+    lldb::addr_t bytes_read;
+    emulator_baton->m_process->ReadMemory(addr, dst, length, bytes_read);
+    return bytes_read;
+}
+
+static bool
+ReadRegisterCallback (EmulateInstruction *instruction,
+                      void *baton,
+                      const RegisterInfo *reg_info,
+                      RegisterValue &reg_value)
+{
+    EmulatorBaton* emulator_baton = static_cast<EmulatorBaton*>(baton);
+
+    auto it = emulator_baton->m_register_values.find(reg_info->kinds[eRegisterKindDWARF]);
+    if (it != emulator_baton->m_register_values.end())
+    {
+        reg_value = it->second;
+        return true;
+    }
+
+    // The emulator only fill in the dwarf regsiter numbers (and in some case
+    // the generic register numbers). Get the full register info from the
+    // register context based on the dwarf register numbers.
+    const RegisterInfo* full_reg_info = emulator_baton->m_reg_context->GetRegisterInfo(
+            eRegisterKindDWARF, reg_info->kinds[eRegisterKindDWARF]);
+
+    Error error = emulator_baton->m_reg_context->ReadRegister(full_reg_info, reg_value);
+    if (error.Success())
+    {
+        emulator_baton->m_register_values[reg_info->kinds[eRegisterKindDWARF]] = reg_value;
+        return true;
+    }
+    return false;
+}
+
+static bool
+WriteRegisterCallback (EmulateInstruction *instruction,
+                       void *baton,
+                       const EmulateInstruction::Context &context,
+                       const RegisterInfo *reg_info,
+                       const RegisterValue &reg_value)
+{
+    EmulatorBaton* emulator_baton = static_cast<EmulatorBaton*>(baton);
+    emulator_baton->m_register_values[reg_info->kinds[eRegisterKindDWARF]] = reg_value;
+    return true;
+}
+
+static size_t
+WriteMemoryCallback (EmulateInstruction *instruction,
+                     void *baton,
+                     const EmulateInstruction::Context &context, 
+                     lldb::addr_t addr, 
+                     const void *dst,
+                     size_t length)
+{
+    return length;
+}
+
+static lldb::addr_t
+ReadFlags (NativeRegisterContext* regsiter_context)
+{
+    const RegisterInfo* flags_info = regsiter_context->GetRegisterInfo(
+            eRegisterKindGeneric, LLDB_REGNUM_GENERIC_FLAGS);
+    return regsiter_context->ReadRegisterAsUnsigned(flags_info, LLDB_INVALID_ADDRESS);
+}
+
+Error
+NativeProcessLinux::SetupSoftwareSingleStepping(NativeThreadProtocolSP thread_sp)
+{
+    Error error;
+    NativeRegisterContextSP register_context_sp = thread_sp->GetRegisterContext();
+
+    std::unique_ptr<EmulateInstruction> emulator_ap(
+        EmulateInstruction::FindPlugin(m_arch, eInstructionTypePCModifying, nullptr));
+
+    if (emulator_ap == nullptr)
+        return Error("Instruction emulator not found!");
+
+    EmulatorBaton baton(this, register_context_sp.get());
+    emulator_ap->SetBaton(&baton);
+    emulator_ap->SetReadMemCallback(&ReadMemoryCallback);
+    emulator_ap->SetReadRegCallback(&ReadRegisterCallback);
+    emulator_ap->SetWriteMemCallback(&WriteMemoryCallback);
+    emulator_ap->SetWriteRegCallback(&WriteRegisterCallback);
+
+    if (!emulator_ap->ReadInstruction())
+        return Error("Read instruction failed!");
+
+    bool emulation_result = emulator_ap->EvaluateInstruction(eEmulateInstructionOptionAutoAdvancePC);
+
+    const RegisterInfo* reg_info_pc = register_context_sp->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_PC);
+    const RegisterInfo* reg_info_flags = register_context_sp->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_FLAGS);
+
+    auto pc_it = baton.m_register_values.find(reg_info_pc->kinds[eRegisterKindDWARF]);
+    auto flags_it = baton.m_register_values.find(reg_info_flags->kinds[eRegisterKindDWARF]);
+
+    lldb::addr_t next_pc;
+    lldb::addr_t next_flags;
+    if (emulation_result)
+    {
+        assert(pc_it != baton.m_register_values.end() && "Emulation was successfull but PC wasn't updated");
+        next_pc = pc_it->second.GetAsUInt64();
+
+        if (flags_it != baton.m_register_values.end())
+            next_flags = flags_it->second.GetAsUInt64();
+        else
+            next_flags = ReadFlags (register_context_sp.get());
+    }
+    else if (pc_it == baton.m_register_values.end())
+    {
+        // Emulate instruction failed and it haven't changed PC. Advance PC
+        // with the size of the current opcode because the emulation of all
+        // PC modifying instruction should be successful. The failure most
+        // likely caused by a not supported instruction which don't modify PC.
+        next_pc = register_context_sp->GetPC() + emulator_ap->GetOpcode().GetByteSize();
+        next_flags = ReadFlags (register_context_sp.get());
+    }
+    else
+    {
+        // The instruction emulation failed after it modified the PC. It is an
+        // unknown error where we can't continue because the next instruction is
+        // modifying the PC but we don't  know how.
+        return Error ("Instruction emulation failed unexpectedly.");
+    }
+
+    if (m_arch.GetMachine() == llvm::Triple::arm)
+    {
+        if (next_flags & 0x20)
+        {
+            // Thumb mode
+            error = SetSoftwareBreakpoint(next_pc, 2);
+        }
+        else
+        {
+            // Arm mode
+            error = SetSoftwareBreakpoint(next_pc, 4);
+        }
+    }
+    else
+    {
+        // No size hint is given for the next breakpoint
+        error = SetSoftwareBreakpoint(next_pc, 0);
+    }
+
+    if (error.Fail())
+        return error;
+
+    m_threads_stepping_with_breakpoint.insert({thread_sp->GetID(), next_pc});
+
+    return Error();
+}
+
+bool
+NativeProcessLinux::SupportHardwareSingleStepping() const
+{
+    return m_arch.GetMachine() != llvm::Triple::arm;
+}
+
 Error
 NativeProcessLinux::Resume (const ResumeActionList &resume_actions)
 {
@@ -2794,8 +2928,28 @@ NativeProcessLinux::Resume (const ResumeActionList &resume_actions)
     int deferred_signo = 0;
     NativeThreadProtocolSP deferred_signal_thread_sp;
     bool stepping = false;
+    bool software_single_step = !SupportHardwareSingleStepping();
 
     Mutex::Locker locker (m_threads_mutex);
+
+    if (software_single_step)
+    {
+        for (auto thread_sp : m_threads)
+        {
+            assert (thread_sp && "thread list should not contain NULL threads");
+
+            const ResumeAction *const action = resume_actions.GetActionForThread (thread_sp->GetID (), true);
+            if (action == nullptr)
+                continue;
+
+            if (action->state == eStateStepping)
+            {
+                Error error = SetupSoftwareSingleStepping(thread_sp);
+                if (error.Fail())
+                    return error;
+            }
+        }
+    }
 
     for (auto thread_sp : m_threads)
     {
@@ -2845,7 +2999,13 @@ NativeProcessLinux::Resume (const ResumeActionList &resume_actions)
                                                    [=](lldb::tid_t tid_to_step, bool supress_signal)
                                                    {
                                                        std::static_pointer_cast<NativeThreadLinux> (thread_sp)->SetStepping ();
-                                                       const auto step_result = SingleStep (tid_to_step,(signo > 0 && !supress_signal) ? signo : LLDB_INVALID_SIGNAL_NUMBER);
+
+                                                       Error step_result;
+                                                       if (software_single_step)
+                                                           step_result = Resume (tid_to_step, (signo > 0 && !supress_signal) ? signo : LLDB_INVALID_SIGNAL_NUMBER);
+                                                       else
+                                                           step_result = SingleStep (tid_to_step,(signo > 0 && !supress_signal) ? signo : LLDB_INVALID_SIGNAL_NUMBER);
+
                                                        assert (step_result.Success() && "SingleStep() failed");
                                                        if (step_result.Success())
                                                            SetState(eStateStepping, true);
@@ -3361,6 +3521,7 @@ NativeProcessLinux::GetSoftwareBreakpointPCOffset (NativeRegisterContextSP conte
     // set per architecture.  Need ARM, MIPS support here.
     static const uint8_t g_aarch64_opcode[] = { 0x00, 0x00, 0x20, 0xd4 };
     static const uint8_t g_i386_opcode [] = { 0xCC };
+    static const uint8_t g_mips64_opcode[] = { 0x00, 0x00, 0x00, 0x0d };
 
     switch (m_arch.GetMachine ())
     {
@@ -3377,6 +3538,11 @@ NativeProcessLinux::GetSoftwareBreakpointPCOffset (NativeRegisterContextSP conte
             actual_opcode_size = static_cast<uint32_t> (sizeof(g_i386_opcode));
             return Error ();
 
+        case llvm::Triple::mips64:
+        case llvm::Triple::mips64el:
+            actual_opcode_size = static_cast<uint32_t> (sizeof(g_mips64_opcode));
+            return Error ();
+        
         default:
             assert(false && "CPU type not supported!");
             return Error ("CPU type not supported");
@@ -3700,171 +3866,6 @@ NativeProcessLinux::Resume (lldb::tid_t tid, uint32_t signo)
     return op.GetError();
 }
 
-#if defined(__arm__)
-
-namespace {
-
-struct EmulatorBaton
-{
-    NativeProcessLinux* m_process;
-    NativeRegisterContext* m_reg_context;
-    RegisterValue m_pc;
-    RegisterValue m_cpsr;
-
-    EmulatorBaton(NativeProcessLinux* process, NativeRegisterContext* reg_context) : 
-            m_process(process), m_reg_context(reg_context) {}
-};
-
-} // anonymous namespace
-
-static size_t
-ReadMemoryCallback (EmulateInstruction *instruction,
-                    void *baton,
-                    const EmulateInstruction::Context &context, 
-                    lldb::addr_t addr, 
-                    void *dst,
-                    size_t length)
-{
-    EmulatorBaton* emulator_baton = static_cast<EmulatorBaton*>(baton);
-
-    lldb::addr_t bytes_read;
-    emulator_baton->m_process->ReadMemory(addr, dst, length, bytes_read);
-    return bytes_read;
-}
-
-static bool
-ReadRegisterCallback (EmulateInstruction *instruction,
-                      void *baton,
-                      const RegisterInfo *reg_info,
-                      RegisterValue &reg_value)
-{
-    EmulatorBaton* emulator_baton = static_cast<EmulatorBaton*>(baton);
-
-    // The emulator only fill in the dwarf regsiter numbers (and in some case
-    // the generic register numbers). Get the full register info from the
-    // register context based on the dwarf register numbers.
-    const RegisterInfo* full_reg_info = emulator_baton->m_reg_context->GetRegisterInfo(
-            eRegisterKindDWARF, reg_info->kinds[eRegisterKindDWARF]);
-
-    Error error = emulator_baton->m_reg_context->ReadRegister(full_reg_info, reg_value);
-    return error.Success();
-}
-
-static bool
-WriteRegisterCallback (EmulateInstruction *instruction,
-                       void *baton,
-                       const EmulateInstruction::Context &context,
-                       const RegisterInfo *reg_info,
-                       const RegisterValue &reg_value)
-{
-    EmulatorBaton* emulator_baton = static_cast<EmulatorBaton*>(baton);
-
-    switch (reg_info->kinds[eRegisterKindGeneric])
-    {
-    case LLDB_REGNUM_GENERIC_PC:
-        emulator_baton->m_pc = reg_value;
-        break;
-    case LLDB_REGNUM_GENERIC_FLAGS:
-        emulator_baton->m_cpsr = reg_value;
-        break;
-    }
-
-    return true;
-}
-
-static size_t
-WriteMemoryCallback (EmulateInstruction *instruction,
-                     void *baton,
-                     const EmulateInstruction::Context &context, 
-                     lldb::addr_t addr, 
-                     const void *dst,
-                     size_t length)
-{
-    return length;
-}
-
-static lldb::addr_t
-ReadCpsr (NativeRegisterContext* regsiter_context)
-{
-    const RegisterInfo* cpsr_info = regsiter_context->GetRegisterInfo(
-            eRegisterKindGeneric, LLDB_REGNUM_GENERIC_FLAGS);
-    return regsiter_context->ReadRegisterAsUnsigned(cpsr_info, LLDB_INVALID_ADDRESS);
-}
-
-Error
-NativeProcessLinux::SingleStep(lldb::tid_t tid, uint32_t signo)
-{
-    Error error;
-    NativeRegisterContextSP register_context_sp = GetThreadByID(tid)->GetRegisterContext();
-
-    std::unique_ptr<EmulateInstruction> emulator_ap(
-        EmulateInstruction::FindPlugin(m_arch, eInstructionTypePCModifying, nullptr));
-
-    if (emulator_ap == nullptr)
-        return Error("Instruction emulator not found!");
-
-    EmulatorBaton baton(this, register_context_sp.get());
-    emulator_ap->SetBaton(&baton);
-    emulator_ap->SetReadMemCallback(&ReadMemoryCallback);
-    emulator_ap->SetReadRegCallback(&ReadRegisterCallback);
-    emulator_ap->SetWriteMemCallback(&WriteMemoryCallback);
-    emulator_ap->SetWriteRegCallback(&WriteRegisterCallback);
-
-    if (!emulator_ap->ReadInstruction())
-        return Error("Read instruction failed!");
-
-    lldb::addr_t next_pc;
-    lldb::addr_t next_cpsr;
-    if (emulator_ap->EvaluateInstruction(eEmulateInstructionOptionAutoAdvancePC))
-    {
-        next_pc = baton.m_pc.GetAsUInt32();
-        if (baton.m_cpsr.GetType() != RegisterValue::eTypeInvalid)
-            next_cpsr = baton.m_cpsr.GetAsUInt32();
-        else
-            next_cpsr = ReadCpsr (register_context_sp.get());
-    }
-    else if (baton.m_pc.GetType() == RegisterValue::eTypeInvalid)
-    {
-        // Emulate instruction failed and it haven't changed PC. Advance PC
-        // with the size of the current opcode because the emulation of all
-        // PC modifying instruction should be successful. The failure most
-        // likely caused by a not supported instruction which don't modify PC.
-        next_pc = register_context_sp->GetPC() + emulator_ap->GetOpcode().GetByteSize();
-        next_cpsr = ReadCpsr (register_context_sp.get());
-    }
-    else
-    {
-        // The instruction emulation failed after it modified the PC. It is an
-        // unknown error where we can't continue because the next instruction is
-        // modifying the PC but we don't  know how.
-        return Error ("Instruction emulation failed unexpectedly.");
-    }
-
-    if (next_cpsr & 0x20)
-    {
-        // Thumb mode
-        error = SetBreakpoint(next_pc, 2, false);
-    }
-    else
-    {
-        // Arm mode
-        error = SetBreakpoint(next_pc, 4, false);
-    }
-
-    if (error.Fail())
-        return error;
-
-    m_threads_stepping_with_breakpoint.insert({tid, next_pc});
-
-    error = Resume(tid, signo);
-    if (error.Fail())
-        return error;
-
-    return Error();
-}
-
-#else // defined(__arm__)
-
 Error
 NativeProcessLinux::SingleStep(lldb::tid_t tid, uint32_t signo)
 {
@@ -3872,8 +3873,6 @@ NativeProcessLinux::SingleStep(lldb::tid_t tid, uint32_t signo)
     m_monitor_up->DoOperation(&op);
     return op.GetError();
 }
-
-#endif // defined(__arm__)
 
 Error
 NativeProcessLinux::GetSignalInfo(lldb::tid_t tid, void *siginfo)
@@ -4069,48 +4068,6 @@ NativeProcessLinux::AddThread (lldb::tid_t thread_id)
     NativeThreadProtocolSP thread_sp (new NativeThreadLinux (this, thread_id));
     m_threads.push_back (thread_sp);
 
-    return thread_sp;
-}
-
-NativeThreadProtocolSP
-NativeProcessLinux::GetOrCreateThread (lldb::tid_t thread_id, bool &created)
-{
-    Log *log (GetLogIfAllCategoriesSet (LIBLLDB_LOG_THREAD));
-
-    Mutex::Locker locker (m_threads_mutex);
-    if (log)
-    {
-        log->Printf ("NativeProcessLinux::%s pid %" PRIu64 " get/create thread with tid %" PRIu64,
-                     __FUNCTION__,
-                     GetID (),
-                     thread_id);
-    }
-
-    // Retrieve the thread if it is already getting tracked.
-    NativeThreadProtocolSP thread_sp = MaybeGetThreadNoLock (thread_id);
-    if (thread_sp)
-    {
-        if (log)
-            log->Printf ("NativeProcessLinux::%s pid %" PRIu64 " tid %" PRIu64 ": thread already tracked, returning",
-                         __FUNCTION__,
-                         GetID (),
-                         thread_id);
-        created = false;
-        return thread_sp;
-
-    }
-
-    // Create the thread metadata since it isn't being tracked.
-    if (log)
-        log->Printf ("NativeProcessLinux::%s pid %" PRIu64 " tid %" PRIu64 ": thread didn't exist, tracking now",
-                     __FUNCTION__,
-                     GetID (),
-                     thread_id);
-
-    thread_sp.reset (new NativeThreadLinux (this, thread_id));
-    m_threads.push_back (thread_sp);
-    created = true;
-    
     return thread_sp;
 }
 

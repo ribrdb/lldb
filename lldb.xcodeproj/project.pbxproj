@@ -3258,7 +3258,7 @@
 				B2A5872514313B480092BFBA /* SBWatchpoint.i */,
 			);
 			name = interface;
-			path = scripts/Python/interface;
+			path = scripts/interface;
 			sourceTree = SOURCE_ROOT;
 		};
 		26274FA414030F79006BA130 /* Darwin-Kernel */ = {
@@ -3273,8 +3273,6 @@
 		262D3190111B4341004E6F88 /* API */ = {
 			isa = PBXGroup;
 			children = (
-				254FBBA41A91670E00BD6378 /* SBAttachInfo.cpp */,
-				254FBBA21A9166F100BD6378 /* SBAttachInfo.h */,
 				2611FEEE142D83060017FEA3 /* interface */,
 				26BC7C2510F1B3BC00F91463 /* lldb-defines.h */,
 				26BC7C2610F1B3BC00F91463 /* lldb-enumerations.h */,
@@ -3286,6 +3284,8 @@
 				9A9830FC1125FC5800A56CB0 /* SBDefines.h */,
 				26DE204211618ACA00A093E2 /* SBAddress.h */,
 				26DE204411618ADA00A093E2 /* SBAddress.cpp */,
+				254FBBA21A9166F100BD6378 /* SBAttachInfo.h */,
+				254FBBA41A91670E00BD6378 /* SBAttachInfo.cpp */,
 				26DE205611618FC500A093E2 /* SBBlock.h */,
 				26DE20601161902600A093E2 /* SBBlock.cpp */,
 				9AF16A9E11402D69007A7B3F /* SBBreakpoint.h */,

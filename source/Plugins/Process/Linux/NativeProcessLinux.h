@@ -277,6 +277,12 @@ namespace process_linux {
         void
         MonitorSignal(const siginfo_t *info, lldb::pid_t pid, bool exited);
 
+        bool
+        SupportHardwareSingleStepping() const;
+
+        Error
+        SetupSoftwareSingleStepping(NativeThreadProtocolSP thread_sp);
+
 #if 0
         static ::ProcessMessage::CrashReason
         GetCrashReasonForSIGSEGV(const siginfo_t *info);
@@ -315,9 +321,6 @@ namespace process_linux {
 
         NativeThreadProtocolSP
         AddThread (lldb::tid_t thread_id);
-
-        NativeThreadProtocolSP
-        GetOrCreateThread (lldb::tid_t thread_id, bool &created);
 
         Error
         GetSoftwareBreakpointPCOffset (NativeRegisterContextSP context_sp, uint32_t &actual_opcode_size);

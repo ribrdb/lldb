@@ -40,6 +40,9 @@ CMICmnLLDBDebugSessionInfo::CMICmnLLDBDebugSessionInfo(void)
     , m_currentSelectedThread(LLDB_INVALID_THREAD_ID)
     , m_constStrSharedDataKeyWkDir("Working Directory")
     , m_constStrSharedDataSolibPath("Solib Path")
+    , m_constStrPrintCharArrayAsString("Print CharArrayAsString")
+    , m_constStrPrintExpandAggregates("Print ExpandAggregates")
+    , m_constStrPrintAggregateFieldNames("Print AggregateFieldNames")
 {
 }
 
