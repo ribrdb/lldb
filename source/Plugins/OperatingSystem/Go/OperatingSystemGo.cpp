@@ -234,7 +234,7 @@ OperatingSystemGo::GetPluginVersion()
 bool
 OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &real_thread_list, ThreadList &new_thread_list)
 {
-    new_thread_list = real_thread_list;
+    new_thread_list.Update(real_thread_list);
     Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
 
     if (!(m_allg_sp || Init(real_thread_list)) ||

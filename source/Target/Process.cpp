@@ -4275,7 +4275,8 @@ Process::StartPrivateStateThread (bool force)
     }
 
     // Create the private state thread, and start it running.
-    m_private_state_thread = ThreadLauncher::LaunchThread(thread_name, Process::PrivateStateThread, this, NULL);
+    ProcessSP* shared_this = new ProcessSP(CalculateProcess());
+    m_private_state_thread = ThreadLauncher::LaunchThread(thread_name, Process::PrivateStateThread, shared_this, NULL);
     if (m_private_state_thread.IsJoinable())
     {
         ResumePrivateStateThread();
@@ -4501,8 +4502,9 @@ Process::HandlePrivateEvent (EventSP &event_sp)
 thread_result_t
 Process::PrivateStateThread (void *arg)
 {
-    Process *proc = static_cast<Process*> (arg);
-    thread_result_t result = proc->RunPrivateStateThread();
+    ProcessSP *proc = static_cast<ProcessSP*> (arg);
+    thread_result_t result = (*proc)->RunPrivateStateThread();
+    delete proc;
     return result;
 }
 

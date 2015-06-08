@@ -748,9 +748,15 @@ ThreadList::Update (ThreadList &rhs)
 {
     if (this != &rhs)
     {
-        // Lock both mutexes to make sure neither side changes anyone on us
+        // Lock all the mutexes to make sure neither side changes anyone on us
         // while the assignement occurs
-        Mutex::Locker locker(GetMutex());
+        Mutex::Locker self_locker(m_mutex);
+        Mutex::Locker rhs_locker(rhs.ThreadCollection::GetMutex());
+        Mutex::Locker proc_locker(GetMutex());
+        Mutex::Locker rhs_proc_locker;
+        if (m_process != rhs.m_process)
+            rhs_proc_locker.Lock(rhs.GetMutex());
+        
         m_process = rhs.m_process;
         m_stop_id = rhs.m_stop_id;
         m_threads.swap(rhs.m_threads);
@@ -796,6 +802,7 @@ ThreadList::Flush ()
 Mutex &
 ThreadList::GetMutex ()
 {
+    Mutex::Locker locker(ThreadCollection::GetMutex());
     return m_process->m_thread_mutex;
 }
 

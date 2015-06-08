@@ -26,6 +26,7 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StreamString.h"
 #include "lldb/Core/ValueObjectConstResult.h"
+#include "lldb/Core/ValueObjectRegister.h"
 #include "lldb/Expression/ClangExpression.h"
 #include "lldb/Expression/ClangPersistentVariables.h"
 #include "lldb/Expression/GoAST.h"
@@ -35,6 +36,7 @@
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
+#include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/ThreadPlan.h"
@@ -250,7 +252,60 @@ ValueObjectSP
 GoInterpreter::VisitIdent(const GoASTIdent* e)
 {
     VariableSP var_sp;
-    ValueObjectSP val = m_frame->GetValueForVariableExpressionPath(e->GetName().m_value.str().c_str(), m_use_dynamic, 0, var_sp, m_error);
+    std::string varname = e->GetName().m_value.str();
+    if (varname.size() > 1 && varname[0] == '$')
+    {
+        RegisterContextSP reg_ctx_sp = m_frame->GetRegisterContext();
+        const RegisterInfo* reg = reg_ctx_sp->GetRegisterInfoByName(varname.c_str() + 1);
+        if (reg)
+        {
+            std::string type;
+            switch (reg->encoding)
+            {
+                case lldb::eEncodingSint:
+                    type.append("int");
+                    break;
+                case lldb::eEncodingUint:
+                    type.append("uint");
+                    break;
+                case lldb::eEncodingIEEE754:
+                    type.append("float");
+                    break;
+                default:
+                    m_error.SetErrorString("Invaild register encoding");
+                    return nullptr;
+            }
+            switch (reg->byte_size)
+            {
+                case 8:
+                    type.append("64");
+                    break;
+                case 4:
+                    type.append("32");
+                    break;
+                case 2:
+                    type.append("16");
+                    break;
+                case 1:
+                    type.append("8");
+                    break;
+                default:
+                    m_error.SetErrorString("Invaild register size");
+                    return nullptr;
+            }
+            ValueObjectSP regVal = ValueObjectRegister::Create(m_frame.get(), reg_ctx_sp, reg->kinds[eRegisterKindLLDB]);
+            ClangASTType goType = LookupType(m_frame->CalculateTarget(), ConstString(type));
+            if (regVal)
+            {
+                regVal = regVal->Cast(goType);
+                return regVal;
+            }
+        }
+        m_error.SetErrorString("Invaild register name");
+        return nullptr;
+    }
+    
+    ValueObjectSP val = m_frame->GetValueForVariableExpressionPath(varname.c_str(), m_use_dynamic, 0, var_sp, m_error);
     if (m_error.Fail())
     {
         m_error.Clear();
@@ -436,6 +491,11 @@ GoInterpreter::EvaluateType(const GoASTExpr* e)
     }
     if (auto* paren = llvm::dyn_cast<GoASTParenExpr>(e))
         return EvaluateType(paren->GetX());
+    if (auto* array = llvm::dyn_cast<GoASTArrayType>(e))
+    {
+        ClangASTType elem = EvaluateType(array->GetElt());
+        
+    }
     
     m_error.SetErrorStringWithFormat("Invalid %s in type expression", e->GetKindName());
     return ClangASTType();

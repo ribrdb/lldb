@@ -38,6 +38,8 @@ public:
     {
         if (idx < m_len)
         {
+            if (idx >= m_children.size())
+                m_children.resize(idx + 1);
             ValueObjectSP& cached = m_children[idx];
             if (!cached)
             {
