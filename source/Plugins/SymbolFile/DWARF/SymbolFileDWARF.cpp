@@ -26,6 +26,7 @@
 
 #include "llvm/Support/Casting.h"
 
+#include "lldb/Core/ArchSpec.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -971,38 +972,24 @@ SymbolFileDWARF::ParseCompileUnit (DWARFCompileUnit* dwarf_cu, uint32_t cu_idx)
                     const DWARFDebugInfoEntry * cu_die = dwarf_cu->GetCompileUnitDIEOnly ();
                     if (cu_die)
                     {
-                        const char * cu_die_name = cu_die->GetName(this, dwarf_cu);
-                        const char * cu_comp_dir = cu_die->GetAttributeValueAsString(this, dwarf_cu, DW_AT_comp_dir, NULL);
-                        LanguageType cu_language = (LanguageType)cu_die->GetAttributeValueAsUnsigned(this, dwarf_cu, DW_AT_language, 0);
-                        if (cu_die_name)
+                        FileSpec cu_file_spec{cu_die->GetName(this, dwarf_cu), false};
+                        if (cu_file_spec)
                         {
-                            std::string ramapped_file;
-                            FileSpec cu_file_spec;
-
-                            if (cu_die_name[0] == '/' || cu_comp_dir == NULL || cu_comp_dir[0] == '\0')
-                            {
-                                // If we have a full path to the compile unit, we don't need to resolve
-                                // the file.  This can be expensive e.g. when the source files are NFS mounted.
-                                if (module_sp->RemapSourceFile(cu_die_name, ramapped_file))
-                                    cu_file_spec.SetFile (ramapped_file.c_str(), false);
-                                else
-                                    cu_file_spec.SetFile (cu_die_name, false);
-                            }
-                            else
+                            // If we have a full path to the compile unit, we don't need to resolve
+                            // the file.  This can be expensive e.g. when the source files are NFS mounted.
+                            if (cu_file_spec.IsRelativeToCurrentWorkingDirectory())
                             {
                                 // DWARF2/3 suggests the form hostname:pathname for compilation directory.
                                 // Remove the host part if present.
-                                cu_comp_dir = removeHostnameFromPathname(cu_comp_dir);
-                                std::string fullpath(cu_comp_dir);
-
-                                if (*fullpath.rbegin() != '/')
-                                    fullpath += '/';
-                                fullpath += cu_die_name;
-                                if (module_sp->RemapSourceFile (fullpath.c_str(), ramapped_file))
-                                    cu_file_spec.SetFile (ramapped_file.c_str(), false);
-                                else
-                                    cu_file_spec.SetFile (fullpath.c_str(), false);
+                                const char *cu_comp_dir{cu_die->GetAttributeValueAsString(this, dwarf_cu, DW_AT_comp_dir, nullptr)};
+                                cu_file_spec.PrependPathComponent(removeHostnameFromPathname(cu_comp_dir));
                             }
+
+                            std::string remapped_file;
+                            if (module_sp->RemapSourceFile(cu_file_spec.GetCString(), remapped_file))
+                                cu_file_spec.SetFile(remapped_file, false);
+
+                            LanguageType cu_language = (LanguageType)cu_die->GetAttributeValueAsUnsigned(this, dwarf_cu, DW_AT_language, 0);
 
                             cu_sp.reset(new CompileUnit (module_sp,
                                                          dwarf_cu,
@@ -1102,7 +1089,7 @@ SymbolFileDWARF::ParseCompileUnitFunction (const SymbolContext& sc, DWARFCompile
                 func_name.SetValue(ConstString(mangled), true);
             else if (die->GetParent()->Tag() == DW_TAG_compile_unit &&
                      LanguageRuntime::LanguageIsCPlusPlus(dwarf_cu->GetLanguageType()) &&
-                     strcmp(name, "main") != 0)
+                     name && strcmp(name, "main") != 0)
             {
                 // If the mangled name is not present in the DWARF, generate the demangled name
                 // using the decl context. We skip if the function is "main" as its name is
@@ -2342,8 +2329,15 @@ SymbolFileDWARF::ParseChildMembers
                     }
 
                     Type *base_class_type = ResolveTypeUID(encoding_uid);
-                    assert(base_class_type);
-                    
+                    if (base_class_type == NULL)
+                    {
+                        GetObjectFile()->GetModule()->ReportError("0x%8.8x: DW_TAG_inheritance failed to resolve a the base class at 0x%8.8" PRIx64 " from enclosing type 0x%8.8x. \nPlease file a bug and attach the file at the start of this error message",
+                                                                  die->GetOffset(),
+                                                                  encoding_uid,
+                                                                  parent_die->GetOffset());
+                        break;
+                    }
+
                     ClangASTType base_class_clang_type = base_class_type->GetClangFullType();
                     assert (base_class_clang_type);
                     if (class_language == eLanguageTypeObjC)
@@ -4057,14 +4051,21 @@ SymbolFileDWARF::FindFunctions (const ConstString &name,
             // functions debugging FreeBSD and Linux binaries.
             // If we didn't find any functions in the global namespace try
             // looking in the basename index but ignore any returned
-            // functions that have a namespace (ie. mangled names starting with 
-            // '_ZN') but keep functions which have an anonymous namespace
+            // functions that have a namespace but keep functions which
+            // have an anonymous namespace
+            // TODO: The arch in the object file isn't correct for MSVC
+            // binaries on windows, we should find a way to make it
+            // correct and handle those symbols as well.
             if (sc_list.GetSize() == 0)
             {
-                SymbolContextList temp_sc_list;
-                FindFunctions (name, m_function_basename_index, include_inlines, temp_sc_list);
-                if (!namespace_decl)
+                ArchSpec arch;
+                if (!namespace_decl &&
+                    GetObjectFile()->GetArchitecture(arch) &&
+                    (arch.GetTriple().isOSFreeBSD() || arch.GetTriple().isOSLinux() ||
+                     arch.GetMachine() == llvm::Triple::hexagon))
                 {
+                    SymbolContextList temp_sc_list;
+                    FindFunctions (name, m_function_basename_index, include_inlines, temp_sc_list);
                     SymbolContext sc;
                     for (uint32_t i = 0; i < temp_sc_list.GetSize(); i++)
                     {
@@ -4072,6 +4073,8 @@ SymbolFileDWARF::FindFunctions (const ConstString &name,
                         {
                             ConstString mangled_name = sc.GetFunctionName(Mangled::ePreferMangled);
                             ConstString demangled_name = sc.GetFunctionName(Mangled::ePreferDemangled);
+                            // Mangled names on Linux and FreeBSD are of the form:
+                            // _ZN18function_namespace13function_nameEv.
                             if (strncmp(mangled_name.GetCString(), "_ZN", 3) ||
                                 !strncmp(demangled_name.GetCString(), "(anonymous namespace)", 21))
                             {

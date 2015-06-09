@@ -80,6 +80,10 @@ public:
 
     explicit FileSpec (const char *path, bool resolve_path, ArchSpec arch);
 
+    explicit FileSpec(const std::string &path, bool resolve_path, PathSyntax syntax = ePathSyntaxHostNative);
+
+    explicit FileSpec(const std::string &path, bool resolve_path, ArchSpec arch);
+
     //------------------------------------------------------------------
     /// Copy constructor
     ///
@@ -261,7 +265,7 @@ public:
     ///     The stream to which to dump the object description.
     //------------------------------------------------------------------
     void
-    Dump (Stream *s) const;
+    Dump(Stream *s) const;
 
     //------------------------------------------------------------------
     /// Existence test.
@@ -409,6 +413,9 @@ public:
     //------------------------------------------------------------------
     std::string
     GetPath (bool denormalize = true) const;
+
+    const char *
+    GetCString(bool denormalize = true) const;
 
     //------------------------------------------------------------------
     /// Extract the full path to the file.
@@ -631,9 +638,12 @@ public:
     lldb::DataBufferSP
     ReadFileContentsAsCString(Error *error_ptr = NULL);
 
-    static void Normalize(llvm::SmallVectorImpl<char> &path, PathSyntax syntax = ePathSyntaxHostNative);
-    static void DeNormalize(llvm::SmallVectorImpl<char> &path, PathSyntax syntax = ePathSyntaxHostNative);
-
+    //------------------------------------------------------------------
+    /// Normalize a pathname by collapsing redundant separators and
+    /// up-level references.
+    //------------------------------------------------------------------
+    void
+    NormalizePath ();
 
     //------------------------------------------------------------------
     /// Run through the input string, replaying the effect of any ".." and produce
@@ -664,6 +674,15 @@ public:
     //------------------------------------------------------------------
     void
     SetFile (const char *path, bool resolve_path, PathSyntax syntax = ePathSyntaxHostNative);
+
+    void
+    SetFile(const char *path, bool resolve_path, ArchSpec arch);
+
+    void
+    SetFile(const std::string &path, bool resolve_path, PathSyntax syntax = ePathSyntaxHostNative);
+
+    void
+    SetFile(const std::string &path, bool resolve_path, ArchSpec arch);
 
     bool
     IsResolved () const
@@ -720,10 +739,25 @@ public:
     
     FileSpec
     CopyByRemovingLastPathComponent () const;
-    
+
     void
-    AppendPathComponent (const char *new_path);
-    
+    PrependPathComponent(const char *new_path);
+
+    void
+    PrependPathComponent(const std::string &new_path);
+
+    void
+    PrependPathComponent(const FileSpec &new_path);
+
+    void
+    AppendPathComponent(const char *new_path);
+
+    void
+    AppendPathComponent(const std::string &new_path);
+
+    void
+    AppendPathComponent(const FileSpec &new_path);
+
     void
     RemoveLastPathComponent ();
     

@@ -660,9 +660,12 @@ EmulateInstructionARM::EmulateADDRdSPImm (const uint32_t opcode, const ARMEncodi
         }
         addr_t sp_offset = imm32;
         addr_t addr = sp + sp_offset; // a pointer to the stack area
-        
+
         EmulateInstruction::Context context;
-        context.type = eContextSetFramePointer;
+        if (Rd == GetFramePointerRegisterNumber())
+            context.type = eContextSetFramePointer;
+        else
+            context.type = EmulateInstruction::eContextRegisterPlusOffset;
         RegisterInfo sp_reg;
         GetRegisterInfo (eRegisterKindDWARF, dwarf_sp, sp_reg);
         context.SetRegisterPlusOffset (sp_reg, sp_offset);
@@ -809,13 +812,16 @@ EmulateInstructionARM::EmulateMOVRdRm (const uint32_t opcode, const ARMEncoding 
         uint32_t result = ReadCoreReg(Rm, &success);
         if (!success)
             return false;
-        
+
         // The context specifies that Rm is to be moved into Rd.
         EmulateInstruction::Context context;
-        context.type = EmulateInstruction::eContextRegisterLoad;
+        if (Rd == 13)
+            context.type = EmulateInstruction::eContextAdjustStackPointer;
+        else
+            context.type = EmulateInstruction::eContextRegisterPlusOffset;
         RegisterInfo dwarf_reg;
         GetRegisterInfo (eRegisterKindDWARF, dwarf_r0 + Rm, dwarf_reg);
-        context.SetRegister (dwarf_reg);
+        context.SetRegisterPlusOffset (dwarf_reg, 0);
 
         if (!WriteCoreRegOptionalFlags(context, result, Rd, setflags))
             return false;
@@ -12624,7 +12630,7 @@ EmulateInstructionARM::GetThumbOpcodeForInstruction (const uint32_t opcode, uint
         { 0xf800d001, 0xf000c000, ARMV5_ABOVE,   eEncodingT2, No_VFP, eSize32, &EmulateInstructionARM::EmulateBLXImmediate, "blx <label>"},
         { 0xffffff87, 0x00004780, ARMV5_ABOVE,   eEncodingT1, No_VFP, eSize16, &EmulateInstructionARM::EmulateBLXRm, "blx <Rm>"},
         // for example, "bx lr"
-        { 0xffffff87, 0x00004700, ARMvAll,       eEncodingA1, No_VFP, eSize32, &EmulateInstructionARM::EmulateBXRm, "bx <Rm>"},
+        { 0xffffff87, 0x00004700, ARMvAll,       eEncodingT1, No_VFP, eSize32, &EmulateInstructionARM::EmulateBXRm, "bx <Rm>"},
         // bxj
         { 0xfff0ffff, 0xf3c08f00, ARMV5J_ABOVE,  eEncodingT1, No_VFP, eSize32, &EmulateInstructionARM::EmulateBXJRm, "bxj <Rm>"},
         // compare and branch

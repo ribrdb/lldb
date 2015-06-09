@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/Target/Target.h"
 
 // C Includes
@@ -273,10 +271,13 @@ Target::CreateSourceRegexBreakpoint (const FileSpecList *containingModules,
                                      const FileSpecList *source_file_spec_list,
                                      RegularExpression &source_regex,
                                      bool internal,
-                                     bool hardware)
+                                     bool hardware,
+                                     LazyBool move_to_nearest_code)
 {
     SearchFilterSP filter_sp(GetSearchFilterForModuleAndCUList (containingModules, source_file_spec_list));
-    BreakpointResolverSP resolver_sp(new BreakpointResolverFileRegex (NULL, source_regex));
+    if (move_to_nearest_code == eLazyBoolCalculate)
+        move_to_nearest_code = GetMoveToNearestCode() ? eLazyBoolYes : eLazyBoolNo;
+    BreakpointResolverSP resolver_sp(new BreakpointResolverFileRegex (NULL, source_regex, !static_cast<bool>(move_to_nearest_code)));
     return CreateBreakpoint (filter_sp, resolver_sp, internal, hardware, true);
 }
 
@@ -288,7 +289,8 @@ Target::CreateBreakpoint (const FileSpecList *containingModules,
                           LazyBool check_inlines,
                           LazyBool skip_prologue,
                           bool internal,
-                          bool hardware)
+                          bool hardware,
+                          LazyBool move_to_nearest_code)
 {
     if (check_inlines == eLazyBoolCalculate)
     {
@@ -325,12 +327,15 @@ Target::CreateBreakpoint (const FileSpecList *containingModules,
     }
     if (skip_prologue == eLazyBoolCalculate)
         skip_prologue = GetSkipPrologue() ? eLazyBoolYes : eLazyBoolNo;
+    if (move_to_nearest_code == eLazyBoolCalculate)
+        move_to_nearest_code = GetMoveToNearestCode() ? eLazyBoolYes : eLazyBoolNo;
 
     BreakpointResolverSP resolver_sp(new BreakpointResolverFileLine (NULL,
                                                                      file,
                                                                      line_no,
                                                                      check_inlines,
-                                                                     skip_prologue));
+                                                                     skip_prologue,
+                                                                     !static_cast<bool>(move_to_nearest_code)));
     return CreateBreakpoint (filter_sp, resolver_sp, internal, hardware, true);
 }
 
@@ -2377,9 +2382,8 @@ Target::Install (ProcessLaunchInfo *launch_info)
                                 if (is_main_executable) // TODO: add setting for always installing main executable???
                                 {
                                     // Always install the main executable
-                                    remote_file = FileSpec(module_sp->GetFileSpec().GetFilename().AsCString(),
-                                                           false, module_sp->GetArchitecture());
-                                    remote_file.GetDirectory() = platform_sp->GetWorkingDirectory();
+                                    remote_file = platform_sp->GetRemoteWorkingDirectory();
+                                    remote_file.AppendPathComponent(module_sp->GetFileSpec().GetFilename().GetCString());
                                 }
                             }
                             if (remote_file)
@@ -2390,7 +2394,7 @@ Target::Install (ProcessLaunchInfo *launch_info)
                                     module_sp->SetPlatformFileSpec(remote_file);
                                     if (is_main_executable)
                                     {
-                                        platform_sp->SetFilePermissions(remote_file.GetPath(false).c_str(), 0700);
+                                        platform_sp->SetFilePermissions(remote_file, 0700);
                                         if (launch_info)
                                             launch_info->SetExecutableFile(remote_file, false);
                                     }
@@ -2573,10 +2577,24 @@ Target::Launch (ProcessLaunchInfo &launch_info, Stream *stream)
         if (log)
             log->Printf ("Target::%s asking the platform to debug the process", __FUNCTION__);
 
+        // Get a weak pointer to the previous process if we have one
+        ProcessWP process_wp;
+        if (m_process_sp)
+            process_wp = m_process_sp;
         m_process_sp = GetPlatform()->DebugProcess (launch_info,
                                                     debugger,
                                                     this,
                                                     error);
+
+        // Cleanup the old process since someone might still have a strong
+        // reference to this process and we would like to allow it to cleanup
+        // as much as it can without the object being destroyed. We try to
+        // lock the shared pointer and if that works, then someone else still
+        // has a strong reference to the process.
+
+        ProcessSP old_process_sp(process_wp.lock());
+        if (old_process_sp)
+            old_process_sp->Finalize();
     }
     else
     {
@@ -2610,7 +2628,6 @@ Target::Launch (ProcessLaunchInfo &launch_info, Stream *stream)
     {
         if (synchronous_execution || launch_info.GetFlags().Test(eLaunchFlagStopAtEntry) == false)
         {
-            EventSP event_sp;
             ListenerSP hijack_listener_sp (launch_info.GetHijackListener());
             if (!hijack_listener_sp)
             {
@@ -2619,7 +2636,7 @@ Target::Launch (ProcessLaunchInfo &launch_info, Stream *stream)
                 m_process_sp->HijackProcessEvents(hijack_listener_sp.get());
             }
 
-            StateType state = m_process_sp->WaitForProcessToStop (NULL, &event_sp, false, hijack_listener_sp.get(), NULL);
+            StateType state = m_process_sp->WaitForProcessToStop (NULL, NULL, false, hijack_listener_sp.get(), NULL);
             
             if (state == eStateStopped)
             {
@@ -2649,14 +2666,6 @@ Target::Launch (ProcessLaunchInfo &launch_info, Stream *stream)
                         error2.SetErrorStringWithFormat("process resume at entry point failed: %s", error.AsCString());
                         error = error2;
                     }
-                }
-                else
-                {
-                    assert(synchronous_execution && launch_info.GetFlags().Test(eLaunchFlagStopAtEntry));
-
-                    // Target was stopped at entry as was intended. Need to notify the listeners about it.
-                    m_process_sp->RestoreProcessEvents();
-                    m_process_sp->HandlePrivateEvent(event_sp);
                 }
             }
             else if (state == eStateExited)
@@ -2928,6 +2937,7 @@ static PropertyDefinition
 g_properties[] =
 {
     { "default-arch"                       , OptionValue::eTypeArch      , true , 0                         , NULL, NULL, "Default architecture to choose, when there's a choice." },
+    { "move-to-nearest-code"               , OptionValue::eTypeBoolean   , false, true                      , NULL, NULL, "Move breakpoints to nearest code." },
     { "expr-prefix"                        , OptionValue::eTypeFileSpec  , false, 0                         , NULL, NULL, "Path to a file containing expressions to be prepended to all expressions." },
     { "prefer-dynamic-value"               , OptionValue::eTypeEnum      , false, eDynamicDontRunTarget     , NULL, g_dynamic_value_types, "Should printed values be shown as their dynamic value." },
     { "enable-synthetic-value"             , OptionValue::eTypeBoolean   , false, true                      , NULL, NULL, "Should synthetic values be used by default whenever available." },
@@ -2985,6 +2995,7 @@ g_properties[] =
 enum
 {
     ePropertyDefaultArch,
+    ePropertyMoveToNearestCode,
     ePropertyExprPrefix,
     ePropertyPreferDynamic,
     ePropertyEnableSynthetic,
@@ -3193,12 +3204,27 @@ TargetProperties::SetDefaultArchitecture (const ArchSpec& arch)
         return value->SetCurrentValue(arch, true);
 }
 
+bool
+TargetProperties::GetMoveToNearestCode() const
+{
+    const uint32_t idx = ePropertyMoveToNearestCode;
+    return m_collection_sp->GetPropertyAtIndexAsBoolean (NULL, idx, g_properties[idx].default_uint_value != 0);
+}
+
 lldb::DynamicValueType
 TargetProperties::GetPreferDynamicValue() const
 {
     const uint32_t idx = ePropertyPreferDynamic;
     return (lldb::DynamicValueType)m_collection_sp->GetPropertyAtIndexAsEnumeration (NULL, idx, g_properties[idx].default_uint_value);
 }
+
+bool
+TargetProperties::SetPreferDynamicValue (lldb::DynamicValueType d)
+{
+    const uint32_t idx = ePropertyPreferDynamic;
+    return m_collection_sp->SetPropertyAtIndexAsEnumeration(NULL, idx, d);
+}
+
 
 bool
 TargetProperties::GetDisableASLR () const
@@ -3593,21 +3619,21 @@ void
 TargetProperties::InputPathValueChangedCallback(void *target_property_ptr, OptionValue *)
 {
     TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
-    this_->m_launch_info.AppendOpenFileAction(STDIN_FILENO, this_->GetStandardInputPath().GetPath().c_str(), true, false);
+    this_->m_launch_info.AppendOpenFileAction(STDIN_FILENO, this_->GetStandardInputPath(), true, false);
 }
 
 void
 TargetProperties::OutputPathValueChangedCallback(void *target_property_ptr, OptionValue *)
 {
     TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
-    this_->m_launch_info.AppendOpenFileAction(STDOUT_FILENO, this_->GetStandardOutputPath().GetPath().c_str(), false, true);
+    this_->m_launch_info.AppendOpenFileAction(STDOUT_FILENO, this_->GetStandardOutputPath(), false, true);
 }
 
 void
 TargetProperties::ErrorPathValueChangedCallback(void *target_property_ptr, OptionValue *)
 {
     TargetProperties *this_ = reinterpret_cast<TargetProperties *>(target_property_ptr);
-    this_->m_launch_info.AppendOpenFileAction(STDERR_FILENO, this_->GetStandardErrorPath().GetPath().c_str(), false, true);
+    this_->m_launch_info.AppendOpenFileAction(STDERR_FILENO, this_->GetStandardErrorPath(), false, true);
 }
 
 void

@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 // C Includes
 #include <errno.h>
 #include <poll.h>
@@ -548,7 +546,96 @@ ReadRegOperation::Execute(ProcessMonitor *monitor)
 #endif
 }
 
-//------------------------------------------------------------------------------
+#if defined (__arm64__) || defined (__aarch64__)
+    //------------------------------------------------------------------------------
+    /// @class ReadDBGROperation
+    /// @brief Implements NativeProcessLinux::ReadDBGR.
+    class ReadDBGROperation : public Operation
+    {
+    public:
+        ReadDBGROperation(lldb::tid_t tid, unsigned int &count_wp, unsigned int &count_bp)
+            : m_tid(tid),
+              m_count_wp(count_wp),
+              m_count_bp(count_bp)
+            { }
+
+        void Execute(ProcessMonitor *monitor) override;
+
+    private:
+        lldb::tid_t m_tid;
+        unsigned int &m_count_wp;
+        unsigned int &m_count_bp;
+    };
+
+    void
+    ReadDBGROperation::Execute(ProcessMonitor *monitor)
+    {
+       int regset = NT_ARM_HW_WATCH;
+       struct iovec ioVec;
+       struct user_hwdebug_state dreg_state;
+
+       ioVec.iov_base = &dreg_state;
+       ioVec.iov_len = sizeof (dreg_state);
+
+       PTRACE(PTRACE_GETREGSET, m_tid, &regset, &ioVec, ioVec.iov_len);
+
+       m_count_wp = dreg_state.dbg_info & 0xff;
+       regset = NT_ARM_HW_BREAK;
+
+       PTRACE(PTRACE_GETREGSET, m_tid, &regset, &ioVec, ioVec.iov_len);
+       m_count_bp = dreg_state.dbg_info & 0xff;
+    }
+#endif
+
+#if defined (__arm64__) || defined (__aarch64__)
+    //------------------------------------------------------------------------------
+    /// @class WriteDBGROperation
+    /// @brief Implements NativeProcessLinux::WriteFPR.
+    class WriteDBGROperation : public Operation
+    {
+    public:
+        WriteDBGROperation(lldb::tid_t tid, lldb::addr_t *addr_buf, uint32_t *cntrl_buf, int type, int count)
+            : m_tid(tid),
+              m_addr_buf(addr_buf),
+              m_cntrl_buf(cntrl_buf),
+              m_type(type),
+              m_count(count)
+            { }
+
+        void Execute(ProcessMonitor *monitor) override;
+
+    private:
+        lldb::tid_t m_tid;
+        lldb::addr_t *m_addr_buf;
+        uint32_t *m_cntrl_buf;
+        int m_type;
+        int m_count;
+    };
+
+    void
+    WriteDBGROperation::Execute(ProcessMonitor *monitor)
+    {
+        struct iovec ioVec;
+        struct user_hwdebug_state dreg_state;
+
+        memset (&dreg_state, 0, sizeof (dreg_state));
+        ioVec.iov_base = &dreg_state;
+        ioVec.iov_len = sizeof(dreg_state);
+
+        if (m_type == 0)
+            m_type = NT_ARM_HW_WATCH;
+        else
+            m_type = NT_ARM_HW_BREAK;
+
+        for (int i = 0; i < m_count; i++)
+        {
+            dreg_state.dbg_regs[i].addr = m_addr_buf[i];
+            dreg_state.dbg_regs[i].ctrl = m_cntrl_buf[i];
+        }
+
+        PTRACE(PTRACE_SETREGSET, m_tid, &m_type, &ioVec, ioVec.iov_len);
+    }
+#endif//------------------------------------------------------------------------------
 /// @class WriteRegOperation
 /// @brief Implements ProcessMonitor::WriteRegisterValue.
 class WriteRegOperation : public Operation
@@ -1098,18 +1185,18 @@ ProcessMonitor::LaunchArgs::LaunchArgs(ProcessMonitor *monitor,
                                        lldb_private::Module *module,
                                        char const **argv,
                                        char const **envp,
-                                       const char *stdin_path,
-                                       const char *stdout_path,
-                                       const char *stderr_path,
-                                       const char *working_dir,
+                                       const FileSpec &stdin_file_spec,
+                                       const FileSpec &stdout_file_spec,
+                                       const FileSpec &stderr_file_spec,
+                                       const FileSpec &working_dir,
                                        const lldb_private::ProcessLaunchInfo &launch_info)
     : OperationArgs(monitor),
       m_module(module),
       m_argv(argv),
       m_envp(envp),
-      m_stdin_path(stdin_path),
-      m_stdout_path(stdout_path),
-      m_stderr_path(stderr_path),
+      m_stdin_file_spec(stdin_file_spec),
+      m_stdout_file_spec(stdout_file_spec),
+      m_stderr_file_spec(stderr_file_spec),
       m_working_dir(working_dir),
       m_launch_info(launch_info)
 {
@@ -1141,10 +1228,10 @@ ProcessMonitor::ProcessMonitor(ProcessPOSIX *process,
                                Module *module,
                                const char *argv[],
                                const char *envp[],
-                               const char *stdin_path,
-                               const char *stdout_path,
-                               const char *stderr_path,
-                               const char *working_dir,
+                               const FileSpec &stdin_file_spec,
+                               const FileSpec &stdout_file_spec,
+                               const FileSpec &stderr_file_spec,
+                               const FileSpec &working_dir,
                                const lldb_private::ProcessLaunchInfo &launch_info,
                                lldb_private::Error &error)
     : m_process(static_cast<ProcessLinux *>(process)),
@@ -1155,8 +1242,11 @@ ProcessMonitor::ProcessMonitor(ProcessPOSIX *process,
       m_operation(0)
 {
     std::unique_ptr<LaunchArgs> args(new LaunchArgs(this, module, argv, envp,
-                                     stdin_path, stdout_path, stderr_path,
-                                     working_dir, launch_info));
+                                                    stdin_file_spec,
+                                                    stdout_file_spec,
+                                                    stderr_file_spec,
+                                                    working_dir,
+                                                    launch_info));
 
     sem_init(&m_operation_pending, 0, 0);
     sem_init(&m_operation_done, 0, 0);
@@ -1291,10 +1381,10 @@ ProcessMonitor::Launch(LaunchArgs *args)
     ProcessLinux &process = monitor->GetProcess();
     const char **argv = args->m_argv;
     const char **envp = args->m_envp;
-    const char *stdin_path = args->m_stdin_path;
-    const char *stdout_path = args->m_stdout_path;
-    const char *stderr_path = args->m_stderr_path;
-    const char *working_dir = args->m_working_dir;
+    const FileSpec &stdin_file_spec = args->m_stdin_file_spec;
+    const FileSpec &stdout_file_spec = args->m_stdout_file_spec;
+    const FileSpec &stderr_file_spec = args->m_stderr_file_spec;
+    const FileSpec &working_dir = args->m_working_dir;
 
     lldb_utility::PseudoTerminal terminal;
     const size_t err_len = 1024;
@@ -1349,22 +1439,21 @@ ProcessMonitor::Launch(LaunchArgs *args)
         //
         // FIXME: If two or more of the paths are the same we needlessly open
         // the same file multiple times.
-        if (stdin_path != NULL && stdin_path[0])
-            if (!DupDescriptor(stdin_path, STDIN_FILENO, O_RDONLY))
+        if (stdin_file_spec)
+            if (!DupDescriptor(stdin_file_spec, STDIN_FILENO, O_RDONLY))
                 exit(eDupStdinFailed);
 
-        if (stdout_path != NULL && stdout_path[0])
-            if (!DupDescriptor(stdout_path, STDOUT_FILENO, O_WRONLY | O_CREAT))
+        if (stdout_file_spec)
+            if (!DupDescriptor(stdout_file_spec, STDOUT_FILENO, O_WRONLY | O_CREAT))
                 exit(eDupStdoutFailed);
 
-        if (stderr_path != NULL && stderr_path[0])
-            if (!DupDescriptor(stderr_path, STDERR_FILENO, O_WRONLY | O_CREAT))
+        if (stderr_file_spec)
+            if (!DupDescriptor(stderr_file_spec, STDERR_FILENO, O_WRONLY | O_CREAT))
                 exit(eDupStderrFailed);
 
         // Change working directory
-        if (working_dir != NULL && working_dir[0])
-          if (0 != ::chdir(working_dir))
-              exit(eChdirFailed);
+        if (working_dir && 0 != ::chdir(working_dir.GetCString()))
+            exit(eChdirFailed);
 
         // Disable ASLR if requested.
         if (args->m_launch_info.GetFlags ().Test (lldb::eLaunchFlagDisableASLR))
@@ -2159,6 +2248,27 @@ ProcessMonitor::ReadRegisterValue(lldb::tid_t tid, unsigned offset, const char* 
     return result;
 }
 
+#if defined (__arm64__) || defined (__aarch64__)
+
+bool
+ProcessMonitor::ReadHardwareDebugInfo (lldb::tid_t tid, unsigned int &watch_count , unsigned int &break_count)
+{
+    bool result = true;
+    ReadDBGROperation op(tid, watch_count, break_count);
+    DoOperation(&op);
+    return result;
+}
+
+bool
+ProcessMonitor::WriteHardwareDebugRegs (lldb::tid_t tid, lldb::addr_t *addr_buf, uint32_t *cntrl_buf, int type, int count)
+{
+    bool result = true;
+    WriteDBGROperation op(tid, addr_buf, cntrl_buf, type, count);
+    DoOperation(&op);
+    return result;
+}
+
+#endif
 bool
 ProcessMonitor::WriteRegisterValue(lldb::tid_t tid, unsigned offset,
                                    const char* reg_name, const RegisterValue &value)
@@ -2294,9 +2404,9 @@ ProcessMonitor::Detach(lldb::tid_t tid)
 }
 
 bool
-ProcessMonitor::DupDescriptor(const char *path, int fd, int flags)
+ProcessMonitor::DupDescriptor(const FileSpec &file_spec, int fd, int flags)
 {
-    int target_fd = open(path, flags, 0666);
+    int target_fd = open(file_spec.GetCString(), flags, 0666);
 
     if (target_fd == -1)
         return false;

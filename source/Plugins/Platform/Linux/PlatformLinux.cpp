@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "PlatformLinux.h"
 #include "lldb/Host/Config.h"
 
@@ -515,6 +513,8 @@ PlatformLinux::GetSupportedArchitectureAtIndex (uint32_t idx, ArchSpec &arch)
             case 4: triple.setArchName("mips64"); break;
             case 5: triple.setArchName("hexagon"); break;
             case 6: triple.setArchName("mips"); break;
+            case 7: triple.setArchName("mips64el"); break;
+            case 8: triple.setArchName("mipsel"); break;
             default: return false;
         }
         // Leave the vendor as "llvm::Triple:UnknownVendor" and don't specify the vendor by
@@ -614,6 +614,7 @@ PlatformLinux::GetSoftwareBreakpointTrapOpcode (Target &target,
             }
         }
         break;
+    case llvm::Triple::mips:
     case llvm::Triple::mips64:
         {
             static const uint8_t g_hex_opcode[] = { 0x00, 0x00, 0x00, 0x0d };
@@ -621,6 +622,7 @@ PlatformLinux::GetSoftwareBreakpointTrapOpcode (Target &target,
             trap_opcode_size = sizeof(g_hex_opcode);
         }
         break;
+    case llvm::Triple::mipsel:
     case llvm::Triple::mips64el:
         {
             static const uint8_t g_hex_opcode[] = { 0x0d, 0x00, 0x00, 0x00 };

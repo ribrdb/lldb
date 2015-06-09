@@ -597,6 +597,12 @@ OSABIAsCString (unsigned char osabi_byte)
 #undef _MAKE_OSABI_CASE
 }
 
+//
+// WARNING : This function is being deprecated
+// It's functionality has moved to ArchSpec::SetArchitecture
+// This function is only being kept to validate the move.
+//
+// TODO : Remove this function
 static bool
 GetOsFromOSABI (unsigned char osabi_byte, llvm::Triple::OSType &ostype)
 {
@@ -640,23 +646,28 @@ ObjectFileELF::GetModuleSpecifications (const lldb_private::FileSpec& file,
                 const uint32_t sub_type = subTypeFromElfHeader(header);
                 spec.GetArchitecture().SetArchitecture(eArchTypeELF,
                                                        header.e_machine,
-                                                       sub_type);
+                                                       sub_type,
+                                                       header.e_ident[EI_OSABI]);
 
                 if (spec.GetArchitecture().IsValid())
                 {
                     llvm::Triple::OSType ostype;
-                    // First try to determine the OS type from the OSABI field in the elf header.
+                    llvm::Triple::VendorType vendor;
+                    llvm::Triple::OSType spec_ostype = spec.GetArchitecture ().GetTriple ().getOS ();
 
                     if (log)
                         log->Printf ("ObjectFileELF::%s file '%s' module OSABI: %s", __FUNCTION__, file.GetPath ().c_str (), OSABIAsCString (header.e_ident[EI_OSABI]));
-                    if (GetOsFromOSABI (header.e_ident[EI_OSABI], ostype) && ostype != llvm::Triple::OSType::UnknownOS)
+
+                    // SetArchitecture should have set the vendor to unknown
+                    vendor = spec.GetArchitecture ().GetTriple ().getVendor ();
+                    assert(vendor == llvm::Triple::UnknownVendor);
+
+                    //
+                    // Validate it is ok to remove GetOsFromOSABI
+                    GetOsFromOSABI (header.e_ident[EI_OSABI], ostype);
+                    assert(spec_ostype == ostype);
+                    if (spec_ostype != llvm::Triple::OSType::UnknownOS)
                     {
-                        spec.GetArchitecture ().GetTriple ().setOS (ostype);
-
-                        // Also clear the vendor so we don't end up with situations like
-                        // x86_64-apple-FreeBSD.
-                        spec.GetArchitecture ().GetTriple ().setVendor (llvm::Triple::VendorType::UnknownVendor);
-
                         if (log)
                             log->Printf ("ObjectFileELF::%s file '%s' set ELF module OS type from ELF header OSABI.", __FUNCTION__, file.GetPath ().c_str ());
                     }
@@ -1387,8 +1398,15 @@ ObjectFileELF::GetSectionHeaderInfo(SectionHeaderColl &section_headers,
     // We'll refine this with note data as we parse the notes.
     if (arch_spec.GetTriple ().getOS () == llvm::Triple::OSType::UnknownOS)
     {
+        llvm::Triple::OSType ostype;
+        llvm::Triple::OSType spec_ostype;
         const uint32_t sub_type = subTypeFromElfHeader(header);
-        arch_spec.SetArchitecture (eArchTypeELF, header.e_machine, sub_type);
+        arch_spec.SetArchitecture (eArchTypeELF, header.e_machine, sub_type, header.e_ident[EI_OSABI]);
+        //
+        // Validate if it is ok to remove GetOsFromOSABI
+        GetOsFromOSABI (header.e_ident[EI_OSABI], ostype);
+        spec_ostype = arch_spec.GetTriple ().getOS ();
+        assert(spec_ostype == ostype);
     }
 
     // If there are no section headers we are done.
@@ -1915,18 +1933,25 @@ ObjectFileELF::ParseSymbols (Symtab *symtab,
 
             if (arch.GetMachine() == llvm::Triple::arm)
             {
-                // THUMB functions have the lower bit of their address set. Fixup
-                // the actual address and mark the symbol as THUMB.
-                if (symbol_type == eSymbolTypeCode && symbol.st_value & 1)
+                if (symbol_type == eSymbolTypeCode)
                 {
-                    // Substracting 1 from the address effectively unsets
-                    // the low order bit, which results in the address
-                    // actually pointing to the beginning of the symbol.
-                    // This delta will be used below in conjuction with
-                    // symbol.st_value to produce the final symbol_value
-                    // that we store in the symtab.
-                    symbol_value_offset = -1;
-                    additional_flags = ARM_ELF_SYM_IS_THUMB;
+                    if (symbol.st_value & 1)
+                    {
+                        // Subtracting 1 from the address effectively unsets
+                        // the low order bit, which results in the address
+                        // actually pointing to the beginning of the symbol.
+                        // This delta will be used below in conjunction with
+                        // symbol.st_value to produce the final symbol_value
+                        // that we store in the symtab.
+                        symbol_value_offset = -1;
+                        additional_flags = ARM_ELF_SYM_IS_THUMB;
+                        m_address_class_map[symbol.st_value^1] = eAddressClassCodeAlternateISA;
+                    }
+                    else
+                    {
+                        // This address is ARM
+                        m_address_class_map[symbol.st_value] = eAddressClassCode;
+                    }
                 }
             }
         }

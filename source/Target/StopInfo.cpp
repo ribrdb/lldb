@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/Target/StopInfo.h"
 
 // C Includes
@@ -40,6 +38,7 @@ StopInfo::StopInfo (Thread &thread, uint64_t value) :
     m_stop_id (thread.GetProcess()->GetStopID()),
     m_resume_id (thread.GetProcess()->GetResumeID()),
     m_value (value),
+    m_description (),
     m_override_should_notify (eLazyBoolCalculate),
     m_override_should_stop (eLazyBoolCalculate),
     m_extended_info()
@@ -112,7 +111,6 @@ class StopInfoBreakpoint : public StopInfo
 public:
     StopInfoBreakpoint (Thread &thread, break_id_t break_id) :
         StopInfo (thread, break_id),
-        m_description(),
         m_should_stop (false),
         m_should_stop_is_valid (false),
         m_should_perform_action (true),
@@ -125,7 +123,6 @@ public:
 
     StopInfoBreakpoint (Thread &thread, break_id_t break_id, bool should_stop) :
         StopInfo (thread, break_id),
-        m_description(),
         m_should_stop (should_stop),
         m_should_stop_is_valid (true),
         m_should_perform_action (true),
@@ -568,7 +565,6 @@ protected:
     }
 
 private:
-    std::string m_description;
     bool m_should_stop;
     bool m_should_stop_is_valid;
     bool m_should_perform_action; // Since we are trying to preserve the "state" of the system even if we run functions
@@ -621,7 +617,6 @@ public:
 
     StopInfoWatchpoint (Thread &thread, break_id_t watch_id) :
         StopInfo(thread, watch_id),
-        m_description(),
         m_should_stop(false),
         m_should_stop_is_valid(false)
     {
@@ -860,7 +855,6 @@ protected:
     }
         
 private:
-    std::string m_description;
     bool m_should_stop;
     bool m_should_stop_is_valid;
 };
@@ -875,9 +869,10 @@ class StopInfoUnixSignal : public StopInfo
 {
 public:
 
-    StopInfoUnixSignal (Thread &thread, int signo) :
+    StopInfoUnixSignal (Thread &thread, int signo, const char *description) :
         StopInfo (thread, signo)
     {
+        SetDescription (description);
     }
     
     virtual ~StopInfoUnixSignal ()
@@ -1165,9 +1160,9 @@ StopInfo::CreateStopReasonWithWatchpointID (Thread &thread, break_id_t watch_id)
 }
 
 StopInfoSP
-StopInfo::CreateStopReasonWithSignal (Thread &thread, int signo)
+StopInfo::CreateStopReasonWithSignal (Thread &thread, int signo, const char *description)
 {
-    return StopInfoSP (new StopInfoUnixSignal (thread, signo));
+    return StopInfoSP (new StopInfoUnixSignal (thread, signo, description));
 }
 
 StopInfoSP
