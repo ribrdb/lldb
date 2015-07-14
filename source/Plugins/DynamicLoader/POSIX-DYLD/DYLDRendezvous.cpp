@@ -316,6 +316,9 @@ DYLDRendezvous::TakeSnapshot(SOEntryList &entry_list)
     if (m_current.map_addr == 0)
         return false;
 
+    // Clear previous entries since we are about to obtain an up to date list.
+    entry_list.clear();
+
     for (addr_t cursor = m_current.map_addr; cursor != 0; cursor = entry.next)
     {
         if (!ReadSOEntryFromMemory(cursor, entry))
@@ -407,7 +410,21 @@ DYLDRendezvous::ReadSOEntryFromMemory(lldb::addr_t addr, SOEntry &entry)
     if (!(addr = ReadPointer(addr, &entry.prev)))
         return false;
 
-    entry.file_spec.SetFile(ReadStringFromMemory(entry.path_addr), false);
+    std::string file_path = ReadStringFromMemory(entry.path_addr);
+    entry.file_spec.SetFile(file_path, false);
+
+    // On Android L (5.0, 5.1) the load address of the "/system/bin/linker" isn't filled in
+    // correctly. To get the correct load address we fetch the load address of the file from the
+    // proc file system.
+    if (arch.GetTriple().getEnvironment() == llvm::Triple::Android && entry.base_addr == 0 &&
+        (file_path == "/system/bin/linker" || file_path == "/system/bin/linker64"))
+    {
+        lldb::addr_t load_addr = LLDB_INVALID_ADDRESS;
+        bool is_loaded = false;
+        Error error = m_process->GetFileLoadAddress(entry.file_spec, is_loaded, load_addr);
+        if (error.Success() && is_loaded)
+            entry.base_addr = load_addr;
+    }
 
     return true;
 }

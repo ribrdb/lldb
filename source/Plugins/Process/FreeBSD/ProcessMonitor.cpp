@@ -108,10 +108,8 @@ PtraceWrapper(int req, lldb::pid_t pid, void *addr, int data,
         if (req == PT_GETREGS) {
             struct reg *r = (struct reg *) addr;
 
-            log->Printf("PT_GETREGS: ip=0x%lx", r->r_rip);
-            log->Printf("PT_GETREGS: sp=0x%lx", r->r_rsp);
-            log->Printf("PT_GETREGS: bp=0x%lx", r->r_rbp);
-            log->Printf("PT_GETREGS: ax=0x%lx", r->r_rax);
+            log->Printf("PT_GETREGS: rip=0x%lx rsp=0x%lx rbp=0x%lx rax=0x%lx",
+                        r->r_rip, r->r_rsp, r->r_rbp, r->r_rax);
         }
         if (req == PT_GETDBREGS || req == PT_SETDBREGS) {
             struct dbreg *r = (struct dbreg *) addr;
@@ -1299,7 +1297,7 @@ ProcessMonitor::MonitorSignal(ProcessMonitor *monitor,
         if (log)
             log->Printf ("ProcessMonitor::%s() received signal %s with code %s, pid = %d",
                             __FUNCTION__,
-                            monitor->m_process->GetUnixSignals().GetSignalAsCString (signo),
+                            monitor->m_process->GetUnixSignals()->GetSignalAsCString (signo),
                             "SI_USER",
                             info->si_pid);
         if (info->si_pid == getpid())
@@ -1309,7 +1307,7 @@ ProcessMonitor::MonitorSignal(ProcessMonitor *monitor,
     }
 
     if (log)
-        log->Printf ("ProcessMonitor::%s() received signal %s", __FUNCTION__, monitor->m_process->GetUnixSignals().GetSignalAsCString (signo));
+        log->Printf ("ProcessMonitor::%s() received signal %s", __FUNCTION__, monitor->m_process->GetUnixSignals()->GetSignalAsCString (signo));
 
     switch (signo)
     {
@@ -1485,7 +1483,7 @@ ProcessMonitor::Resume(lldb::tid_t unused, uint32_t signo)
     Log *log (ProcessPOSIXLog::GetLogIfAllCategoriesSet (POSIX_LOG_PROCESS));
 
     if (log) {
-        const char *signame = m_process->GetUnixSignals().GetSignalAsCString (signo);
+        const char *signame = m_process->GetUnixSignals()->GetSignalAsCString (signo);
         if (signame == nullptr)
             signame = "<none>";
         log->Printf("ProcessMonitor::%s() resuming pid %"  PRIu64 " with signal %s",

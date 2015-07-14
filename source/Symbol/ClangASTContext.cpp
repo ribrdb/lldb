@@ -1611,6 +1611,7 @@ ClangASTContext::CreateObjCClass
                                                          SourceLocation(),
                                                          &ast->Idents.get(name),
                                                          nullptr,
+                                                         nullptr,
                                                          SourceLocation(),
                                                          /*isForwardDecl,*/
                                                          isInternal);
@@ -4433,6 +4434,24 @@ ClangASTContext::GetEncoding (void* type, uint64_t &count)
             case clang::BuiltinType::ObjCSel:       return lldb::eEncodingUint;
                 
             case clang::BuiltinType::NullPtr:       return lldb::eEncodingUint;
+                
+            case clang::BuiltinType::Kind::ARCUnbridgedCast:
+            case clang::BuiltinType::Kind::BoundMember:
+            case clang::BuiltinType::Kind::BuiltinFn:
+            case clang::BuiltinType::Kind::Dependent:
+            case clang::BuiltinType::Kind::Half:
+            case clang::BuiltinType::Kind::OCLEvent:
+            case clang::BuiltinType::Kind::OCLImage1d:
+            case clang::BuiltinType::Kind::OCLImage1dArray:
+            case clang::BuiltinType::Kind::OCLImage1dBuffer:
+            case clang::BuiltinType::Kind::OCLImage2d:
+            case clang::BuiltinType::Kind::OCLImage2dArray:
+            case clang::BuiltinType::Kind::OCLImage3d:
+            case clang::BuiltinType::Kind::OCLSampler:
+            case clang::BuiltinType::Kind::Overload:
+            case clang::BuiltinType::Kind::PseudoObject:
+            case clang::BuiltinType::Kind::UnknownAny:
+                break;
         }
             break;
             // All pointer types are represented as unsigned integer encodings.
@@ -7348,7 +7367,7 @@ ClangASTContext::AddMethodToCXXRecordType (void* type, const char *name,
             {
                 // Check the number of operator parameters. Sometimes we have
                 // seen bad DWARF that doesn't correctly describe operators and
-                // if we try to create a methed and add it to the class, clang
+                // if we try to create a method and add it to the class, clang
                 // will assert and crash, so we need to make sure things are
                 // acceptable.
                 if (!ClangASTContext::CheckOverloadedOperatorKindParameterCount (op_kind, num_params))
@@ -7520,13 +7539,18 @@ ClangASTContext::SetBaseClassesForClassType (void* type, clang::CXXBaseSpecifier
 bool
 ClangASTContext::SetObjCSuperClass (const ClangASTType& type, const ClangASTType &superclass_clang_type)
 {
+    ClangASTContext* ast = type.GetTypeSystem()->AsClangASTContext();
+    if (!ast)
+        return false;
+    clang::ASTContext* clang_ast = ast->getASTContext();
+
     if (type && superclass_clang_type.IsValid() && superclass_clang_type.GetTypeSystem() == type.GetTypeSystem())
     {
         clang::ObjCInterfaceDecl *class_interface_decl = GetAsObjCInterfaceDecl (type);
         clang::ObjCInterfaceDecl *super_interface_decl = GetAsObjCInterfaceDecl (superclass_clang_type);
         if (class_interface_decl && super_interface_decl)
         {
-            class_interface_decl->setSuperClass(super_interface_decl);
+            class_interface_decl->setSuperClass(clang_ast->getTrivialTypeSourceInfo(clang_ast->getObjCInterfaceType(super_interface_decl)));
             return true;
         }
     }
@@ -7575,6 +7599,7 @@ ClangASTContext::AddObjCClassProperty (const ClangASTType& type,
                                                                                       &clang_ast->Idents.get(property_name),
                                                                                       clang::SourceLocation(), //Source Location for AT
                                                                                       clang::SourceLocation(), //Source location for (
+                                                                                      ivar_decl ? ivar_decl->getType() : property_clang_type.GetQualType(),
                                                                                       prop_type_source);
             
             if (property_decl)
@@ -8238,7 +8263,7 @@ ClangASTContext::DumpValue (void* type, ExecutionContext *exe_ctx,
                 for (field = record_decl->field_begin(), field_end = record_decl->field_end(); field != field_end; ++field, ++field_idx, ++child_idx)
                 {
                     // Print the starting squiggly bracket (if this is the
-                    // first member) or comman (for member 2 and beyong) for
+                    // first member) or comma (for member 2 and beyond) for
                     // the struct/union/class member.
                     if (child_idx == 0)
                         s->PutChar('{');
@@ -8460,7 +8485,7 @@ ClangASTContext::DumpValue (void* type, ExecutionContext *exe_ctx,
             break;
             
         default:
-            // We are down the a scalar type that we just need to display.
+            // We are down to a scalar type that we just need to display.
             data.Dump(s,
                       data_byte_offset,
                       format,
@@ -8569,7 +8594,7 @@ ClangASTContext::DumpTypeValue (void* type, Stream *s,
                 // format was not enum, just fall through and dump the value as requested....
                 
             default:
-                // We are down the a scalar type that we just need to display.
+                // We are down to a scalar type that we just need to display.
             {
                 uint32_t item_count = 1;
                 // A few formats, we might need to modify our size and count for depending

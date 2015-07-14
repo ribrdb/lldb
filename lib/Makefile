@@ -39,6 +39,9 @@ USEDLIBS = lldbAPI.a \
 	lldbPluginABISysV_arm64.a \
 	lldbPluginABISysV_ppc.a \
 	lldbPluginABISysV_ppc64.a \
+	lldbPluginABISysV_mips.a \
+	lldbPluginABISysV_mips64.a \
+	lldbPluginABISysV_i386.a \
 	lldbPluginABISysV_x86_64.a \
 	lldbPluginABISysV_hexagon.a \
 	lldbPluginDisassemblerLLVM.a \
@@ -46,10 +49,11 @@ USEDLIBS = lldbAPI.a \
 	lldbPluginDynamicLoaderPOSIX.a \
 	lldbPluginDynamicLoaderHexagon.a \
 	lldbPluginDynamicLoaderMacOSX.a \
+	lldbPluginDynamicLoaderWindowsDYLD.a \
 	lldbPluginEmulateInstructionARM.a \
 	lldbPluginEmulateInstructionARM64.a \
-        lldbPluginEmulateInstructionMIPS.a \
-        lldbPluginEmulateInstructionMIPS64.a \
+	lldbPluginEmulateInstructionMIPS.a \
+	lldbPluginEmulateInstructionMIPS64.a \
 	lldbPluginInstrumentationRuntimeAddressSanitizer.a \
 	lldbPluginLanguageRuntimeCPlusPlusItaniumABI.a \
 	lldbPluginLanguageRuntimeObjCAppleObjCRuntime.a \
@@ -85,7 +89,6 @@ USEDLIBS = lldbAPI.a \
 	clangSema.a \
 	clangSerialization.a \
 	LLVMMCDisassembler.a \
-	LLVMObjCARCOpts.a \
 	LLVMProfileData.a \
 	lldbPluginPlatformMacOSX.a \
 	lldbPluginPlatformLinux.a \
@@ -186,7 +189,7 @@ ifeq ($(HOST_OS), $(filter $(HOST_OS), Linux GNU GNU/kFreeBSD))
     # Don't allow unresolved symbols.
     LLVMLibsOptions += -Wl,--no-undefined
     # Link in python
-    LLVMLibsOptions += $(PYTHON_BUILD_FLAGS) -lrt -ledit -lncurses -lpanel
+    LLVMLibsOptions += $(PYTHON_BUILD_FLAGS) -lrt -ledit -lncurses -lpanel -lpthread
     LLVMLibsOptions += -Wl,--soname,lib$(LIBRARYNAME)$(SHLIBEXT)
 endif
 
@@ -198,5 +201,5 @@ ifeq ($(HOST_OS),FreeBSD)
     LLVMLibsOptions += -Wl,--allow-shlib-undefined
     # Link in python
     LLVMLibsOptions += $(PYTHON_BUILD_FLAGS) -lrt -L/usr/local/lib -lexecinfo \
-                       -ledit -lncurses -lpanel
+                       -ledit -lncurses -lpanel -lpthread
 endif

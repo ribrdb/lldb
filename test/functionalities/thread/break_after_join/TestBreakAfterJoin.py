@@ -22,7 +22,7 @@ class BreakpointAfterJoinTestCase(TestBase):
 
     @expectedFailureDarwin("llvm.org/pr15824") # thread states not properly maintained
     @expectedFailureFreeBSD("llvm.org/pr18190") # thread states not properly maintained
-    @expectedFailureLLGS("llvm.org/pr15824") # thread states not properly maintained
+    @expectedFailureLinux("llvm.org/pr15824") # thread states not properly maintained
     @dwarf_test
     def test_with_dwarf(self):
         """Test breakpoint handling after a thread join."""
@@ -48,7 +48,7 @@ class BreakpointAfterJoinTestCase(TestBase):
             substrs = ["1: file = 'main.cpp', line = %d, exact_match = 0, locations = 1" % self.breakpoint])
 
         # Run the program.
-        self.runCmd("run", RUN_FAILED)
+        self.runCmd("run", RUN_SUCCEEDED)
 
         # The stop reason of the thread should be breakpoint.
         self.expect("thread list", STOPPED_DUE_TO_BREAKPOINT,

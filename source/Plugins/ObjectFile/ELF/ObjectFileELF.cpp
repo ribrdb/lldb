@@ -807,10 +807,10 @@ ObjectFileELF::ObjectFileELF (const lldb::ModuleSP &module_sp,
 }
 
 ObjectFileELF::ObjectFileELF (const lldb::ModuleSP &module_sp,
-                              DataBufferSP& data_sp,
+                              DataBufferSP& header_data_sp,
                               const lldb::ProcessSP &process_sp,
                               addr_t header_addr) :
-    ObjectFile(module_sp, process_sp, LLDB_INVALID_ADDRESS, data_sp),
+    ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
     m_header(),
     m_uuid(),
     m_gnu_debuglink_file(),
@@ -860,7 +860,14 @@ ObjectFileELF::SetLoadAddress (Target &target,
                     // if (section_sp && !section_sp->IsThreadSpecific())
                     if (section_sp && section_sp->Test(SHF_ALLOC))
                     {
-                        if (target.GetSectionLoadList().SetSectionLoadAddress (section_sp, section_sp->GetFileAddress() + value))
+                        lldb::addr_t load_addr = section_sp->GetFileAddress() + value;
+                        
+                        // On 32-bit systems the load address have to fit into 4 bytes. The rest of
+                        // the bytes are the overflow from the addition.
+                        if (GetAddressByteSize() == 4)
+                            load_addr &= 0xFFFFFFFF;
+
+                        if (target.GetSectionLoadList().SetSectionLoadAddress (section_sp, load_addr))
                             ++num_loaded_sections;
                     }
                 }
@@ -933,7 +940,28 @@ bool
 ObjectFileELF::ParseHeader()
 {
     lldb::offset_t offset = 0;
-    return m_header.Parse(m_data, &offset);
+    if (!m_header.Parse(m_data, &offset))
+        return false;
+
+    if (!IsInMemory())
+        return true;
+
+    // For in memory object files m_data might not contain the full object file. Try to load it
+    // until the end of the "Section header table" what is at the end of the ELF file.
+    addr_t file_size = m_header.e_shoff + m_header.e_shnum * m_header.e_shentsize;
+    if (m_data.GetByteSize() < file_size)
+    {
+        ProcessSP process_sp (m_process_wp.lock());
+        if (!process_sp)
+            return false;
+
+        DataBufferSP data_sp = ReadMemory(process_sp, m_memory_addr, file_size);
+        if (!data_sp)
+            return false;
+        m_data.SetData(data_sp, 0, file_size);
+    }
+
+    return true;
 }
 
 bool
@@ -1530,7 +1558,7 @@ ObjectFileELF::GetSegmentDataByIndex(lldb::user_id_t id)
 std::string
 ObjectFileELF::StripLinkerSymbolAnnotations(llvm::StringRef symbol_name) const
 {
-    size_t pos = symbol_name.find("@");
+    size_t pos = symbol_name.find('@');
     return symbol_name.substr(0, pos).str();
 }
 
@@ -1767,7 +1795,16 @@ ObjectFileELF::ParseSymbols (Symtab *symtab,
     static ConstString bss_section_name(".bss");
     static ConstString opd_section_name(".opd");    // For ppc64
 
-    //StreamFile strm(stdout, false);
+    // On Android the oatdata and the oatexec symbols in system@framework@boot.oat covers the full
+    // .text section what causes issues with displaying unusable symbol name to the user and very
+    // slow unwinding speed because the instruction emulation based unwind plans try to emulate all
+    // instructions in these symbols. Don't add these symbols to the symbol list as they have no
+    // use for the debugger and they are causing a lot of trouble.
+    // Filtering can't be restricted to Android because this special object file don't contain the
+    // note section specifying the environment to Android but the custom extension and file name
+    // makes it highly unlikely that this will collide with anything else.
+    bool skip_oatdata_oatexec = m_file.GetFilename() == ConstString("system@framework@boot.oat");
+
     unsigned i;
     for (i = 0; i < num_symbols; ++i)
     {
@@ -1781,7 +1818,10 @@ ObjectFileELF::ParseSymbols (Symtab *symtab,
             (symbol_name == NULL || symbol_name[0] == '\0'))
             continue;
 
-        //symbol.Dump (&strm, i, &strtab_data, section_list);
+        // Skipping oatdata and oatexec sections if it is requested. See details above the
+        // definition of skip_oatdata_oatexec for the reasons.
+        if (skip_oatdata_oatexec && (::strcmp(symbol_name, "oatdata") == 0 || ::strcmp(symbol_name, "oatexec") == 0))
+            continue;
 
         SectionSP symbol_section_sp;
         SymbolType symbol_type = eSymbolTypeInvalid;
@@ -2003,8 +2043,9 @@ ObjectFileELF::ParseSymbols (Symtab *symtab,
             if (! mangled_name.empty())
                 mangled.SetMangledName( ConstString((mangled_name + suffix).str()) );
 
-            llvm::StringRef demangled_name = mangled.GetDemangledName().GetStringRef();
-            if (! demangled_name.empty())
+            ConstString demangled = mangled.GetDemangledName(lldb::eLanguageTypeUnknown);
+            llvm::StringRef demangled_name = demangled.GetStringRef();
+            if (!demangled_name.empty())
                 mangled.SetDemangledName( ConstString((demangled_name + suffix).str()) );
         }
 
@@ -2020,9 +2061,9 @@ ObjectFileELF::ParseSymbols (Symtab *symtab,
                 symbol_section_sp,  // Section in which this symbol is defined or null.
                 symbol_value,       // Offset in section or symbol value.
                 symbol.st_size),    // Size in bytes of this symbol.
-            true,               // Size is valid
-            has_suffix,         // Contains linker annotations?
-            flags);             // Symbol flags.
+            symbol.st_size != 0,    // Size is valid if it is not 0
+            has_suffix,             // Contains linker annotations?
+            flags);                 // Symbol flags.
         symtab->AddSymbol(dc_symbol);
     }
     return i;
@@ -2381,7 +2422,7 @@ ObjectFileELF::RelocateSection(Symtab* symtab, const ELFHeader *hdr, const ELFSe
                 symbol = symtab->FindSymbolByID(reloc_symbol(rel));
                 if (symbol)
                 {
-                    addr_t value = symbol->GetAddress().GetFileAddress();
+                    addr_t value = symbol->GetAddressRef().GetFileAddress();
                     DataBufferSP& data_buffer_sp = debug_data.GetSharedDataBuffer();
                     uint64_t* dst = reinterpret_cast<uint64_t*>(data_buffer_sp->GetBytes() + rel_section->GetFileOffset() + ELFRelocation::RelocOffset64(rel));
                     *dst = value + ELFRelocation::RelocAddend64(rel);
@@ -2394,7 +2435,7 @@ ObjectFileELF::RelocateSection(Symtab* symtab, const ELFHeader *hdr, const ELFSe
                 symbol = symtab->FindSymbolByID(reloc_symbol(rel));
                 if (symbol)
                 {
-                    addr_t value = symbol->GetAddress().GetFileAddress();
+                    addr_t value = symbol->GetAddressRef().GetFileAddress();
                     value += ELFRelocation::RelocAddend32(rel);
                     assert((reloc_type(rel) == R_X86_64_32 && (value <= UINT32_MAX)) ||
                            (reloc_type(rel) == R_X86_64_32S &&
@@ -2526,6 +2567,7 @@ ObjectFileELF::GetSymtab()
                 ParseTrampolineSymbols (m_symtab_ap.get(), symbol_id, reloc_header, reloc_id);
             }
         }
+        m_symtab_ap->CalculateSymbolSizes();
     }
 
     for (SectionHeaderCollIter I = m_section_headers.begin();

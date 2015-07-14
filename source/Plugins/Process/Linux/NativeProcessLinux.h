@@ -40,21 +40,17 @@ namespace process_linux {
     /// Changes in the inferior process state are broadcasted.
     class NativeProcessLinux: public NativeProcessProtocol
     {
+        friend Error
+        NativeProcessProtocol::Launch (ProcessLaunchInfo &launch_info,
+                NativeDelegate &native_delegate,
+                NativeProcessProtocolSP &process_sp);
+
+        friend Error
+        NativeProcessProtocol::Attach (lldb::pid_t pid,
+            NativeProcessProtocol::NativeDelegate &native_delegate,
+            NativeProcessProtocolSP &native_process_sp);
+
     public:
-
-        static Error
-        LaunchProcess (
-            Module *exe_module,
-            ProcessLaunchInfo &launch_info,
-            NativeProcessProtocol::NativeDelegate &native_delegate,
-            NativeProcessProtocolSP &native_process_sp);
-
-        static Error
-        AttachToProcess (
-            lldb::pid_t pid,
-            NativeProcessProtocol::NativeDelegate &native_delegate,
-            NativeProcessProtocolSP &native_process_sp);
-
         //------------------------------------------------------------------------------
         /// @class Operation
         /// @brief Represents a NativeProcessLinux operation.
@@ -63,28 +59,8 @@ namespace process_linux {
         /// one that spawned or attached to the process from the start.  Therefore, when
         /// a NativeProcessLinux is asked to deliver or change the state of an inferior
         /// process the operation must be "funneled" to a specific thread to perform the
-        /// task.  The Operation class provides an abstract base for all services the
-        /// NativeProcessLinux must perform via the single virtual function Execute, thus
-        /// encapsulating the code that needs to run in the privileged context.
-        class Operation
-        {
-        public:
-            Operation () : m_error() { }
-
-            virtual
-            ~Operation() {}
-
-            virtual void
-            Execute (NativeProcessLinux *process) = 0;
-
-            const Error &
-            GetError () const { return m_error; }
-
-        protected:
-            Error m_error;
-        };
-
-        typedef std::unique_ptr<Operation> OperationUP;
+        /// task.
+        typedef std::function<Error()> Operation;
 
         // ---------------------------------------------------------------------
         // NativeProcessProtocol Interface
@@ -152,17 +128,22 @@ namespace process_linux {
         Error
         GetLoadedModuleFileSpec(const char* module_path, FileSpec& file_spec) override;
 
+        Error
+        GetFileLoadAddress(const llvm::StringRef& file_name, lldb::addr_t& load_addr) override;
+
         // ---------------------------------------------------------------------
         // Interface used by NativeRegisterContext-derived classes.
         // ---------------------------------------------------------------------
         Error
-        DoOperation(Operation* op);
+        DoOperation(const Operation &op);
 
-        Error
-        DoOperation(OperationUP op) { return DoOperation(op.get()); }
-
-        static long
-        PtraceWrapper(int req, lldb::pid_t pid, void *addr, void *data, size_t data_size, Error& error);
+        static Error
+        PtraceWrapper(int req,
+                      lldb::pid_t pid,
+                      void *addr = nullptr,
+                      void *data = nullptr,
+                      size_t data_size = 0,
+                      long *result = nullptr);
 
     protected:
         // ---------------------------------------------------------------------

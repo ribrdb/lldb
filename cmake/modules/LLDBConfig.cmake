@@ -88,32 +88,6 @@ endif()
 include_directories(../clang/include)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/../clang/include")
 
-# lldb requires c++11 to build. Make sure that we have a compiler and standard
-# library combination that can do that.
-if (NOT MSVC)
-  # gcc and clang require the -std=c++0x or -std=c++11 flag.
-  if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR
-      "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-    if (NOT ("${CMAKE_CXX_FLAGS}" MATCHES "-std=c\\+\\+0x" OR
-             "${CMAKE_CXX_FLAGS}" MATCHES "-std=gnu\\+\\+0x" OR
-             "${CMAKE_CXX_FLAGS}" MATCHES "-std=c\\+\\+11" OR
-             "${CMAKE_CXX_FLAGS}" MATCHES "-std=gnu\\+\\+11"))
-      if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.7")
-          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-        else()
-          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-        endif()
-      else()
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-      endif()
-    endif()
-  endif()
-elseif (MSVC_VERSION LESS 1700)
-  message(FATAL_ERROR "The selected compiler does not support c++11 which is "
-          "required to build lldb.")
-endif()
-
 # Disable GCC warnings
 check_cxx_compiler_flag("-Wno-deprecated-declarations"
                         CXX_SUPPORTS_NO_DEPRECATED_DECLARATIONS)
@@ -183,12 +157,14 @@ include_directories(BEFORE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   )
 
-install(DIRECTORY include/
-  DESTINATION include
-  FILES_MATCHING
-  PATTERN "*.h"
-  PATTERN ".svn" EXCLUDE
-  )
+if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+  install(DIRECTORY include/
+    DESTINATION include
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN ".svn" EXCLUDE
+    )
+endif()
 
 if (NOT LIBXML2_FOUND)
   find_package(LibXml2)
@@ -248,3 +224,27 @@ if(NOT LLDB_REQUIRES_RTTI)
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LLDB_COMPILE_FLAGS}")
+
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    # Check for syscall used by lldb-server on linux.
+    # If these are not found, it will fall back to ptrace (slow) for memory reads.
+    check_cxx_source_compiles("
+        #include <sys/uio.h>
+        int main() { process_vm_readv(0, nullptr, 0, nullptr, 0, 0); return 0; }"
+        HAVE_PROCESS_VM_READV)
+
+    if (HAVE_PROCESS_VM_READV)
+        add_definitions(-DHAVE_PROCESS_VM_READV)
+    else()
+        # If we don't have the syscall wrapper function, but we know the syscall number, we can
+        # still issue the syscall manually
+        check_cxx_source_compiles("
+            #include <sys/syscall.h>
+            int main() { return __NR_process_vm_readv; }"
+            HAVE_NR_PROCESS_VM_READV)
+
+        if (HAVE_NR_PROCESS_VM_READV)
+            add_definitions(-DHAVE_NR_PROCESS_VM_READV)
+        endif()
+    endif()
+endif()

@@ -53,6 +53,7 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::process_gdb_remote;
+using namespace llvm;
 
 //----------------------------------------------------------------------
 // GDBRemote Errors
@@ -74,10 +75,11 @@ namespace
 // GDBRemoteCommunicationServerLLGS constructor
 //----------------------------------------------------------------------
 GDBRemoteCommunicationServerLLGS::GDBRemoteCommunicationServerLLGS(
-        const lldb::PlatformSP& platform_sp) :
+        const lldb::PlatformSP& platform_sp,
+        MainLoop &mainloop) :
     GDBRemoteCommunicationServerCommon ("gdb-remote.server", "gdb-remote.server.rx_packet"),
     m_platform_sp (platform_sp),
-    m_async_thread (LLDB_INVALID_HOST_THREAD),
+    m_mainloop (mainloop),
     m_current_tid (LLDB_INVALID_THREAD_ID),
     m_continue_tid (LLDB_INVALID_THREAD_ID),
     m_debugged_process_mutex (Mutex::eMutexTypeRecursive),
@@ -87,7 +89,8 @@ GDBRemoteCommunicationServerLLGS::GDBRemoteCommunicationServerLLGS(
     m_active_auxv_buffer_sp (),
     m_saved_registers_mutex (),
     m_saved_registers_map (),
-    m_next_saved_registers_id (1)
+    m_next_saved_registers_id (1),
+    m_handshake_completed (false)
 {
     assert(platform_sp);
     RegisterPacketHandlers();
@@ -134,6 +137,8 @@ GDBRemoteCommunicationServerLLGS::RegisterPacketHandlers()
                                   &GDBRemoteCommunicationServerLLGS::Handle_qC);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qfThreadInfo,
                                   &GDBRemoteCommunicationServerLLGS::Handle_qfThreadInfo);
+    RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qFileLoadAddress,
+                                  &GDBRemoteCommunicationServerLLGS::Handle_qFileLoadAddress);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qGetWorkingDir,
                                   &GDBRemoteCommunicationServerLLGS::Handle_qGetWorkingDir);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qMemoryRegionInfo,
@@ -215,7 +220,7 @@ GDBRemoteCommunicationServerLLGS::LaunchProcess ()
     {
         Mutex::Locker locker (m_debugged_process_mutex);
         assert (!m_debugged_process_sp && "lldb-gdbserver creating debugged process but one already exists");
-        error = m_platform_sp->LaunchNativeProcess (
+        error = NativeProcessProtocol::Launch(
             m_process_launch_info,
             *this,
             m_debugged_process_sp);
@@ -303,7 +308,7 @@ GDBRemoteCommunicationServerLLGS::AttachToProcess (lldb::pid_t pid)
         }
 
         // Try to attach.
-        error = m_platform_sp->AttachNativeProcess (pid, *this, m_debugged_process_sp);
+        error = NativeProcessProtocol::Attach(pid, *this, m_debugged_process_sp);
         if (!error.Success ())
         {
             fprintf (stderr, "%s: failed to attach to process %" PRIu64 ": %s", __FUNCTION__, pid, error.AsCString ());
@@ -777,6 +782,58 @@ void
 GDBRemoteCommunicationServerLLGS::DidExec (NativeProcessProtocol *process)
 {
     ClearProcessSpecificData ();
+}
+
+void
+GDBRemoteCommunicationServerLLGS::DataAvailableCallback ()
+{
+    Log *log (GetLogIfAnyCategoriesSet(GDBR_LOG_COMM));
+
+    if (! m_handshake_completed)
+    {
+        if (! HandshakeWithClient())
+        {
+            if(log)
+                log->Printf("GDBRemoteCommunicationServerLLGS::%s handshake with client failed, exiting",
+                        __FUNCTION__);
+            m_read_handle_up.reset();
+            m_mainloop.RequestTermination();
+            return;
+        }
+        m_handshake_completed = true;
+    }
+
+    bool interrupt = false;
+    bool done = false;
+    Error error;
+    while (true)
+    {
+        const PacketResult result = GetPacketAndSendResponse (0, error, interrupt, done);
+        if (result == PacketResult::ErrorReplyTimeout)
+            break; // No more packets in the queue
+
+        if ((result != PacketResult::Success))
+        {
+            if(log)
+                log->Printf("GDBRemoteCommunicationServerLLGS::%s processing a packet failed: %s",
+                        __FUNCTION__, error.AsCString());
+            m_read_handle_up.reset();
+            m_mainloop.RequestTermination();
+            break;
+        }
+    }
+}
+
+Error
+GDBRemoteCommunicationServerLLGS::InitializeConnection (std::unique_ptr<Connection> &&connection)
+{
+    IOObjectSP read_object_sp = connection->GetReadObject();
+    GDBRemoteCommunicationServer::SetConnection(connection.release());
+
+    Error error;
+    m_read_handle_up = m_mainloop.RegisterReadObject(read_object_sp,
+            [this] (MainLoopBase &) { DataAvailableCallback(); }, error);
+    return error;
 }
 
 GDBRemoteCommunication::PacketResult
@@ -2597,6 +2654,34 @@ GDBRemoteCommunicationServerLLGS::Handle_qWatchpointSupportInfo (StringExtractor
     uint32_t num = m_debugged_process_sp->GetMaxWatchpoints();
     StreamGDBRemote response;
     response.Printf ("num:%d;", num);
+    return SendPacketNoLock(response.GetData(), response.GetSize());
+}
+
+GDBRemoteCommunication::PacketResult
+GDBRemoteCommunicationServerLLGS::Handle_qFileLoadAddress (StringExtractorGDBRemote &packet)
+{
+    // Fail if we don't have a current process.
+    if (!m_debugged_process_sp ||
+            m_debugged_process_sp->GetID () == LLDB_INVALID_PROCESS_ID)
+        return SendErrorResponse(67);
+
+    packet.SetFilePos(strlen("qFileLoadAddress:"));
+    if (packet.GetBytesLeft() == 0)
+        return SendErrorResponse(68);
+
+    std::string file_name;
+    packet.GetHexByteString(file_name);
+
+    lldb::addr_t file_load_address = LLDB_INVALID_ADDRESS;
+    Error error = m_debugged_process_sp->GetFileLoadAddress(file_name, file_load_address);
+    if (error.Fail())
+        return SendErrorResponse(69);
+
+    if (file_load_address == LLDB_INVALID_ADDRESS)
+        return SendErrorResponse(1); // File not loaded
+
+    StreamGDBRemote response;
+    response.PutHex64(file_load_address);
     return SendPacketNoLock(response.GetData(), response.GetSize());
 }
 

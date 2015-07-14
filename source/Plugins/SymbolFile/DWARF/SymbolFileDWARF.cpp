@@ -977,7 +977,7 @@ SymbolFileDWARF::ParseCompileUnit (DWARFCompileUnit* dwarf_cu, uint32_t cu_idx)
                         {
                             // If we have a full path to the compile unit, we don't need to resolve
                             // the file.  This can be expensive e.g. when the source files are NFS mounted.
-                            if (cu_file_spec.IsRelativeToCurrentWorkingDirectory())
+                            if (cu_file_spec.IsRelative())
                             {
                                 // DWARF2/3 suggests the form hostname:pathname for compilation directory.
                                 // Remove the host part if present.
@@ -988,24 +988,38 @@ SymbolFileDWARF::ParseCompileUnit (DWARFCompileUnit* dwarf_cu, uint32_t cu_idx)
                             std::string remapped_file;
                             if (module_sp->RemapSourceFile(cu_file_spec.GetCString(), remapped_file))
                                 cu_file_spec.SetFile(remapped_file, false);
+                        }
 
-                            LanguageType cu_language = (LanguageType)cu_die->GetAttributeValueAsUnsigned(this, dwarf_cu, DW_AT_language, 0);
+                        LanguageType cu_language = DWARFCompileUnit::LanguageTypeFromDWARF(cu_die->GetAttributeValueAsUnsigned(this, dwarf_cu, DW_AT_language, 0));
 
-                            cu_sp.reset(new CompileUnit (module_sp,
-                                                         dwarf_cu,
-                                                         cu_file_spec, 
-                                                         MakeUserID(dwarf_cu->GetOffset()),
-                                                         cu_language));
-                            if (cu_sp)
+                        cu_sp.reset(new CompileUnit (module_sp,
+                                                     dwarf_cu,
+                                                     cu_file_spec, 
+                                                     MakeUserID(dwarf_cu->GetOffset()),
+                                                     cu_language));
+                        if (cu_sp)
+                        {
+                            // If we just created a compile unit with an invalid file spec, try and get the
+                            // first entry in the supports files from the line table as that should be the
+                            // compile unit.
+                            if (!cu_file_spec)
                             {
-                                dwarf_cu->SetUserData(cu_sp.get());
-                                
-                                // Figure out the compile unit index if we weren't given one
-                                if (cu_idx == UINT32_MAX)
-                                    DebugInfo()->GetCompileUnit(dwarf_cu->GetOffset(), &cu_idx);
-                                
-                                m_obj_file->GetModule()->GetSymbolVendor()->SetCompileUnitAtIndex(cu_idx, cu_sp);
+                                cu_file_spec = cu_sp->GetSupportFiles().GetFileSpecAtIndex(1);
+                                if (cu_file_spec)
+                                {
+                                    (FileSpec &)(*cu_sp) = cu_file_spec;
+                                    // Also fix the invalid file spec which was copied from the compile unit.
+                                    cu_sp->GetSupportFiles().Replace(0, cu_file_spec);
+                                }
                             }
+
+                            dwarf_cu->SetUserData(cu_sp.get());
+                            
+                            // Figure out the compile unit index if we weren't given one
+                            if (cu_idx == UINT32_MAX)
+                                DebugInfo()->GetCompileUnit(dwarf_cu->GetOffset(), &cu_idx);
+                            
+                            m_obj_file->GetModule()->GetSymbolVendor()->SetCompileUnitAtIndex(cu_idx, cu_sp);
                         }
                     }
                 }
@@ -1192,11 +1206,7 @@ SymbolFileDWARF::ParseCompileUnitLanguage (const SymbolContext& sc)
     {
         const DWARFDebugInfoEntry *die = dwarf_cu->GetCompileUnitDIEOnly();
         if (die)
-        {
-            const uint32_t language = die->GetAttributeValueAsUnsigned(this, dwarf_cu, DW_AT_language, 0);
-            if (language)
-                return (lldb::LanguageType)language;
-        }
+            return DWARFCompileUnit::LanguageTypeFromDWARF(die->GetAttributeValueAsUnsigned(this, dwarf_cu, DW_AT_language, 0));
     }
     return eLanguageTypeUnknown;
 }
@@ -2210,7 +2220,7 @@ SymbolFileDWARF::ParseChildMembers
                             }
                         }
                         
-                        if (prop_name != NULL)
+                        if (prop_name != NULL && member_type)
                         {
                             clang::ObjCIvarDecl *ivar_decl = NULL;
                             
@@ -2331,7 +2341,7 @@ SymbolFileDWARF::ParseChildMembers
                     Type *base_class_type = ResolveTypeUID(encoding_uid);
                     if (base_class_type == NULL)
                     {
-                        GetObjectFile()->GetModule()->ReportError("0x%8.8x: DW_TAG_inheritance failed to resolve a the base class at 0x%8.8" PRIx64 " from enclosing type 0x%8.8x. \nPlease file a bug and attach the file at the start of this error message",
+                        GetObjectFile()->GetModule()->ReportError("0x%8.8x: DW_TAG_inheritance failed to resolve the base class at 0x%8.8" PRIx64 " from enclosing type 0x%8.8x. \nPlease file a bug and attach the file at the start of this error message",
                                                                   die->GetOffset(),
                                                                   encoding_uid,
                                                                   parent_die->GetOffset());
@@ -3786,9 +3796,10 @@ SymbolFileDWARF::FunctionDieMatchesPartialName (const DWARFDebugInfoEntry* die,
             }
         }
 
-        if (best_name.GetDemangledName())
+        const LanguageType cu_language = const_cast<DWARFCompileUnit *>(dwarf_cu)->GetLanguageType();
+        if (best_name.GetDemangledName(cu_language))
         {
-            const char *demangled = best_name.GetDemangledName().GetCString();
+            const char *demangled = best_name.GetDemangledName(cu_language).GetCString();
             if (demangled)
             {
                 std::string name_no_parens(partial_name, base_name_end - partial_name);
@@ -7652,7 +7663,7 @@ SymbolFileDWARF::ParseVariableDIE
                                     {
                                         if (exe_symbol->ValueIsAddress())
                                         {
-                                            const addr_t exe_file_addr = exe_symbol->GetAddress().GetFileAddress();
+                                            const addr_t exe_file_addr = exe_symbol->GetAddressRef().GetFileAddress();
                                             if (exe_file_addr != LLDB_INVALID_ADDRESS)
                                             {
                                                 if (location.Update_DW_OP_addr (exe_file_addr))
