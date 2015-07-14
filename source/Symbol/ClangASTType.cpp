@@ -377,12 +377,11 @@ ClangASTType::GetConstTypeName () const
 ConstString
 ClangASTType::GetTypeName () const
 {
-    std::string type_name;
     if (IsValid())
     {
-        m_type_system->GetTypeName(m_type);
+        return m_type_system->GetTypeName(m_type);
     }
-    return ConstString(type_name);
+    return ConstString("<invalid>");
 }
 
 ConstString
@@ -397,7 +396,7 @@ ClangASTType::GetTypeInfo (ClangASTType *pointee_or_element_clang_type) const
     if (!IsValid())
         return 0;
     
-    return m_type_system->GetTypeInfo(m_type);
+    return m_type_system->GetTypeInfo(m_type, pointee_or_element_clang_type);
 }
 
 

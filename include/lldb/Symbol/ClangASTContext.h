@@ -55,6 +55,8 @@ public:
     clang::ASTContext *
     getASTContext();
     
+    void setASTContext(clang::ASTContext* ast_ctx);
+    
     clang::Builtin::Context *
     getBuiltinContext();
 
@@ -542,7 +544,7 @@ public:
     IsFloatingPointType (void* type, uint32_t &count, bool &is_complex);
     
     bool
-    IsFunctionType (void* type, bool *is_variadic_ptr = NULL);
+    IsFunctionType (void* type, bool *is_variadic_ptr);
     
     uint32_t
     IsHomogeneousAggregate (void* type, ClangASTType* base_type_ptr);
@@ -584,13 +586,13 @@ public:
     IsRuntimeGeneratedType (void* type);
     
     bool
-    IsPointerType (void* type, ClangASTType *pointee_type = NULL);
+    IsPointerType (void* type, ClangASTType *pointee_type);
     
     bool
-    IsPointerOrReferenceType (void* type, ClangASTType *pointee_type = NULL);
+    IsPointerOrReferenceType (void* type, ClangASTType *pointee_type);
     
     bool
-    IsReferenceType (void* type, ClangASTType *pointee_type = nullptr, bool* is_rvalue = nullptr);
+    IsReferenceType (void* type, ClangASTType *pointee_type, bool* is_rvalue);
     
     bool
     IsScalarType (void* type);
@@ -623,7 +625,7 @@ public:
     GetTypeName (void* type);
     
     uint32_t
-    GetTypeInfo (void* type, ClangASTType *pointee_or_element_clang_type = NULL);
+    GetTypeInfo (void* type, ClangASTType *pointee_or_element_clang_type);
     
     lldb::LanguageType
     GetMinimumLanguage (void* type);
@@ -655,7 +657,7 @@ public:
                        clang::DeclContext *decl_ctx);
     
     ClangASTType
-    GetArrayElementType (void* type, uint64_t *stride = nullptr);
+    GetArrayElementType (void* type, uint64_t *stride);
     
     ClangASTType
     GetCanonicalType (void* type);
@@ -1040,6 +1042,7 @@ protected:
     CompleteObjCInterfaceDeclCallback               m_callback_objc_decl;
     void *                                          m_callback_baton;
     uint32_t                                        m_pointer_byte_size;
+    bool                                            m_ast_owned;
 private:
     //------------------------------------------------------------------
     // For ClangASTContext only

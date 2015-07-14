@@ -50,6 +50,7 @@
       debugDocumentVersioning = "YES"
       allowLocationSimulation = "YES">
       <PathRunnable
+         runnableDebuggingMode = "0"
          FilePath = "/System/Library/Frameworks/Python.framework/Versions/2.7/Resources/Python.app/Contents/MacOS/Python">
       </PathRunnable>
       <MacroExpansion>
@@ -79,7 +80,7 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "functionalities/breakpoint/breakpoint_conditions"
+            argument = "expression_command"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
@@ -97,7 +98,8 @@
       useCustomWorkingDirectory = "NO"
       buildConfiguration = "Release"
       debugDocumentVersioning = "YES">
-      <BuildableProductRunnable>
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "26F5C26910F3D9A4009D5894"

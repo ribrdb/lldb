@@ -59,7 +59,7 @@ public:
     IsFloatingPointType (void * type, uint32_t &count, bool &is_complex) = 0;
     
     virtual bool
-    IsFunctionType (void * type, bool *is_variadic_ptr = NULL) = 0;
+    IsFunctionType (void * type, bool *is_variadic_ptr) = 0;
     
     virtual size_t
     GetNumberOfFunctionArguments (void * type) = 0;
@@ -80,7 +80,7 @@ public:
                            bool check_objc) = 0;
     
     virtual bool
-    IsPointerType (void * type, ClangASTType *pointee_type = NULL) = 0;
+    IsPointerType (void * type, ClangASTType *pointee_type) = 0;
     
     virtual bool
     IsScalarType (void * type) = 0;
@@ -110,7 +110,7 @@ public:
     GetTypeName (void * type) = 0;
     
     virtual uint32_t
-    GetTypeInfo (void * type, ClangASTType *pointee_or_element_clang_type = NULL) = 0;
+    GetTypeInfo (void * type, ClangASTType *pointee_or_element_clang_type) = 0;
     
     virtual lldb::LanguageType
     GetMinimumLanguage (void * type) = 0;
@@ -123,7 +123,7 @@ public:
     //----------------------------------------------------------------------
     
     virtual ClangASTType
-    GetArrayElementType (void * type, uint64_t *stride = nullptr) = 0;
+    GetArrayElementType (void * type, uint64_t *stride) = 0;
     
     virtual ClangASTType
     GetCanonicalType (void * type) = 0;
@@ -278,7 +278,7 @@ public:
     //----------------------------------------------------------------------
 
     virtual bool
-    IsPointerOrReferenceType (void * type, ClangASTType *pointee_type = NULL) = 0;
+    IsPointerOrReferenceType (void * type, ClangASTType *pointee_type) = 0;
 
     virtual unsigned
     GetTypeQualifiers(void * type) = 0;
@@ -323,7 +323,7 @@ public:
     GetNonReferenceType (void * type) = 0;
     
     virtual bool
-    IsReferenceType (void * type, ClangASTType *pointee_type = nullptr, bool* is_rvalue = nullptr) = 0;
+    IsReferenceType (void * type, ClangASTType *pointee_type, bool* is_rvalue) = 0;
 };
     
 } // namespace lldb_private

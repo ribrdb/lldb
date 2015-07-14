@@ -296,7 +296,8 @@ ClangASTContext::ClangASTContext (const char *target_triple) :
     m_callback_tag_decl (nullptr),
     m_callback_objc_decl (nullptr),
     m_callback_baton (nullptr),
-    m_pointer_byte_size (0)
+    m_pointer_byte_size (0),
+    m_ast_owned(false)
 
 {
     if (target_triple && target_triple[0])
@@ -311,6 +312,8 @@ ClangASTContext::~ClangASTContext()
     if (m_ast_ap.get())
     {
         GetASTMap().Erase(m_ast_ap.get());
+        if (!m_ast_owned)
+            m_ast_ap.release();
     }
 
     m_builtins_ap.reset();
@@ -394,13 +397,23 @@ ClangASTContext::RemoveExternalSource ()
     }
 }
 
-
+void
+ClangASTContext::setASTContext(clang::ASTContext *ast_ctx)
+{
+    if (!m_ast_owned) {
+        m_ast_ap.release();
+    }
+    m_ast_owned = false;
+    m_ast_ap.reset(ast_ctx);
+    GetASTMap().Insert(ast_ctx, this);
+}
 
 ASTContext *
 ClangASTContext::getASTContext()
 {
     if (m_ast_ap.get() == nullptr)
     {
+        m_ast_owned = true;
         m_ast_ap.reset(new ASTContext (*getLanguageOptions(),
                                        *getSourceManager(),
                                        *getIdentifierTable(),
@@ -2619,7 +2632,7 @@ ClangASTContext::IsCStringType (void* type, uint32_t &length)
 {
     ClangASTType pointee_or_element_clang_type;
     length = 0;
-    Flags type_flags (GetTypeInfo (&pointee_or_element_clang_type));
+    Flags type_flags (GetTypeInfo (type, &pointee_or_element_clang_type));
     
     if (!pointee_or_element_clang_type.IsValid())
         return false;
@@ -2667,17 +2680,17 @@ ClangASTContext::IsFunctionType (void* type, bool *is_variadic_ptr)
             default:
                 break;
             case clang::Type::Typedef:
-                return IsFunctionType(llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType().getAsOpaquePtr());
+                return IsFunctionType(llvm::cast<clang::TypedefType>(qual_type)->getDecl()->getUnderlyingType().getAsOpaquePtr(), nullptr);
             case clang::Type::Elaborated:
-                return IsFunctionType(llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType().getAsOpaquePtr());
+                return IsFunctionType(llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType().getAsOpaquePtr(), nullptr);
             case clang::Type::Paren:
-                return IsFunctionType(llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr());
+                return IsFunctionType(llvm::cast<clang::ParenType>(qual_type)->desugar().getAsOpaquePtr(), nullptr);
             case clang::Type::LValueReference:
             case clang::Type::RValueReference:
             {
                 const clang::ReferenceType *reference_type = llvm::cast<clang::ReferenceType>(qual_type.getTypePtr());
                 if (reference_type)
-                    return IsFunctionType(reference_type->getPointeeType().getAsOpaquePtr());
+                    return IsFunctionType(reference_type->getPointeeType().getAsOpaquePtr(), nullptr);
             }
                 break;
         }
@@ -3325,7 +3338,7 @@ ClangASTContext::IsScalarType (void* type)
     if (!type)
         return false;
     
-    return (GetTypeInfo (nullptr) & eTypeIsScalar) != 0;
+    return (GetTypeInfo (type, nullptr) & eTypeIsScalar) != 0;
 }
 
 bool
@@ -5876,7 +5889,7 @@ ClangASTContext::GetChildClangTypeAtIndex (void* type, ExecutionContext *exe_ctx
                     if (element_type.GetCompleteType())
                     {
                         char element_name[64];
-                        ::snprintf (element_name, sizeof (element_name), "[%zu]", idx);
+                        ::snprintf (element_name, sizeof (element_name), "[%" PRIu64 "]", static_cast<uint64_t>(idx));
                         child_name.assign(element_name);
                         child_byte_size = element_type.GetByteSize(exe_ctx ? exe_ctx->GetBestExecutionContextScope() : NULL);
                         child_byte_offset = (int32_t)idx * (int32_t)child_byte_size;
@@ -5897,7 +5910,7 @@ ClangASTContext::GetChildClangTypeAtIndex (void* type, ExecutionContext *exe_ctx
                     if (element_type.GetCompleteType())
                     {
                         char element_name[64];
-                        ::snprintf (element_name, sizeof (element_name), "[%zu]", idx);
+                        ::snprintf (element_name, sizeof (element_name), "[%" PRIu64 "]", static_cast<uint64_t>(idx));
                         child_name.assign(element_name);
                         child_byte_size = element_type.GetByteSize(exe_ctx ? exe_ctx->GetBestExecutionContextScope() : NULL);
                         child_byte_offset = (int32_t)idx * (int32_t)child_byte_size;
