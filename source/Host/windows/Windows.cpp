@@ -198,8 +198,34 @@ int strncasecmp(const char* s1, const char* s2, size_t n)
 
 int usleep(uint32_t useconds)
 {
-	Sleep(useconds / 1000);
-	return 0;
+    Sleep(useconds / 1000);
+    return 0;
 }
+
+#if _MSC_VER < 1900
+namespace lldb_private {
+int vsnprintf(char *buffer, size_t count, const char *format, va_list argptr)
+{
+    int old_errno = errno;
+    int r = ::vsnprintf(buffer, count, format, argptr);
+    int new_errno = errno;
+    buffer[count-1] = '\0';
+    if (r == -1 || r == count)
+    {
+        FILE *nul = fopen("nul", "w");
+        int bytes_written = ::vfprintf(nul, format, argptr);
+        fclose(nul);
+        if (bytes_written < count)
+            errno = new_errno;
+        else
+        {
+            errno = old_errno;
+            r = bytes_written;
+        }
+    }
+    return r;
+}
+} // namespace lldb_private
+#endif
 
 #endif // _MSC_VER

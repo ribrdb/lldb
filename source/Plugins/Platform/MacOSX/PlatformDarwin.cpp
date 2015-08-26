@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "PlatformDarwin.h"
 
 // C Includes
@@ -326,7 +324,7 @@ static lldb_private::Error
 MakeCacheFolderForFile (const FileSpec& module_cache_spec)
 {
     FileSpec module_cache_folder = module_cache_spec.CopyByRemovingLastPathComponent();
-    return FileSystem::MakeDirectory(module_cache_folder.GetPath().c_str(), eFilePermissionsDirectoryDefault);
+    return FileSystem::MakeDirectory(module_cache_folder, eFilePermissionsDirectoryDefault);
 }
 
 static lldb_private::Error
@@ -651,17 +649,17 @@ PlatformDarwin::GetSoftwareBreakpointTrapOpcode (Target &target, BreakpointSite 
 bool
 PlatformDarwin::GetProcessInfo (lldb::pid_t pid, ProcessInstanceInfo &process_info)
 {
-    bool sucess = false;
+    bool success = false;
     if (IsHost())
     {
-        sucess = Platform::GetProcessInfo (pid, process_info);
+        success = Platform::GetProcessInfo (pid, process_info);
     }
     else
     {
         if (m_remote_platform_sp)
-            sucess = m_remote_platform_sp->GetProcessInfo (pid, process_info);
+            success = m_remote_platform_sp->GetProcessInfo (pid, process_info);
     }
-    return sucess;
+    return success;
 }
 
 uint32_t
@@ -1146,6 +1144,7 @@ PlatformDarwin::SetThreadCreationBreakpoint (Target &target)
                                      g_bp_names,
                                      llvm::array_lengthof(g_bp_names),
                                      eFunctionNameTypeFull,
+                                     eLanguageTypeUnknown,
                                      skip_prologue,
                                      internal,
                                      hardware);
@@ -1174,7 +1173,7 @@ PlatformDarwin::GetResumeCountForLaunchInfo (ProcessLaunchInfo &launch_info)
         // /bin/sh re-exec's itself as /bin/bash requiring another resume.
         // But it only does this if the COMMAND_MODE environment variable
         // is set to "legacy".
-        char * const *envp = (char * const*)launch_info.GetEnvironmentEntries().GetConstArgumentVector();
+        const char **envp = launch_info.GetEnvironmentEntries().GetConstArgumentVector();
         if (envp != NULL)
         {
             for (int i = 0; envp[i] != NULL; i++)
@@ -1346,7 +1345,7 @@ PlatformDarwin::DirectoryEnumerator(void *baton,
     }
     
     return FileSpec::EnumerateDirectoryResult::eEnumerateDirectoryResultNext;
-};
+}
 
 FileSpec
 PlatformDarwin::FindSDKInXcodeForModules (SDKType sdk_type,

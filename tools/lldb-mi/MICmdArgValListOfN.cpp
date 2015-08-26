@@ -24,7 +24,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValListOfN::CMICmdArgValListOfN(void)
+CMICmdArgValListOfN::CMICmdArgValListOfN()
 {
 }
 
@@ -51,7 +51,7 @@ CMICmdArgValListOfN::CMICmdArgValListOfN(const CMIUtilString &vrArgName, const b
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValListOfN::~CMICmdArgValListOfN(void)
+CMICmdArgValListOfN::~CMICmdArgValListOfN()
 {
 }
 
@@ -74,7 +74,7 @@ CMICmdArgValListOfN::Validate(CMICmdArgContext &vwArgContext)
     }
 
     if (vwArgContext.IsEmpty())
-        return MIstatus::success;
+        return m_bMandatory ? MIstatus::failure : MIstatus::success;
 
     const CMIUtilString &rArg(vwArgContext.GetArgsLeftToParse());
     if (IsListOfN(rArg) && CreateList(rArg))
@@ -170,7 +170,7 @@ CMICmdArgValListOfN::IsListOfN(const CMIUtilString &vrTxt) const
 // Throws:  None.
 //--
 const CMICmdArgValListBase::VecArgObjPtr_t &
-CMICmdArgValListOfN::GetExpectedOptions(void) const
+CMICmdArgValListOfN::GetExpectedOptions() const
 {
     return m_argValue;
 }

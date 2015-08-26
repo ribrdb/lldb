@@ -22,28 +22,35 @@ include(../../cmake/LLDBDependencies.cmake)
 
 if (BUILD_SHARED_LIBS )
   add_lldb_executable(lldb-server
-    lldb-server.cpp
     lldb-gdbserver.cpp
     lldb-platform.cpp
+    lldb-server.cpp
+    LLDBServerUtilities.cpp
     )
 
   target_link_libraries(lldb-server liblldb)
+  if (HAVE_LIBPTHREAD)
+    target_link_libraries(lldb-server pthread)
+  endif ()
 else()
   add_lldb_executable(lldb-server
-    lldb-server.cpp
     lldb-gdbserver.cpp
     lldb-platform.cpp
+    lldb-server.cpp
+    LLDBServerUtilities.cpp
     ../../source/lldb.cpp
     )
 
   # The Darwin linker doesn't understand --start-group/--end-group.
-  if (LLVM_COMPILER_IS_GCC_COMPATIBLE AND NOT "${CMAKE_SYSTEM_NAME}" MATCHES "Darwin")
+  if (LLDB_LINKER_SUPPORTS_GROUPS)
     target_link_libraries(lldb-server
                           -Wl,--start-group ${LLDB_USED_LIBS} -Wl,--end-group)
+    target_link_libraries(lldb-server
+                          -Wl,--start-group ${CLANG_USED_LIBS} -Wl,--end-group)
   else()
     target_link_libraries(lldb-server ${LLDB_USED_LIBS})
+    target_link_libraries(lldb-server ${CLANG_USED_LIBS})
   endif()
-  target_link_libraries(lldb-server ${CLANG_USED_LIBS})
   llvm_config(lldb-server ${LLVM_LINK_COMPONENTS})
 
   target_link_libraries(lldb-server ${LLDB_SYSTEM_LIBS})

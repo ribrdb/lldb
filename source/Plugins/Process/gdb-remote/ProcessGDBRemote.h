@@ -27,11 +27,11 @@
 #include "lldb/Core/ThreadSafeValue.h"
 #include "lldb/Host/HostThread.h"
 #include "lldb/lldb-private-forward.h"
+#include "lldb/Utility/StringExtractor.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Thread.h"
 
 #include "GDBRemoteCommunicationClient.h"
-#include "Utility/StringExtractor.h"
 #include "GDBRemoteRegisterContext.h"
 
 namespace lldb_private {
@@ -105,9 +105,6 @@ public:
     
     Error
     WillLaunchOrAttach ();
-
-    Error
-    DoAttachToProcessWithID (lldb::pid_t pid) override;
     
     Error
     DoAttachToProcessWithID (lldb::pid_t pid, const ProcessAttachInfo &attach_info) override;
@@ -163,6 +160,9 @@ public:
 
     lldb::addr_t
     GetImageInfoAddress() override;
+
+    void
+    WillPublicStop () override;
 
     //------------------------------------------------------------------
     // Process Memory
@@ -228,10 +228,10 @@ public:
     SendEventData(const char *data) override;
 
     //----------------------------------------------------------------------
-    // Override SetExitStatus so we can disconnect from the remote GDB server
+    // Override DidExit so we can disconnect from the remote GDB server
     //----------------------------------------------------------------------
-    bool
-    SetExitStatus (int exit_status, const char *cstr) override;
+    void
+    DidExit () override;
 
     void
     SetUserSpecifiedMaxMemoryTransferSize (uint64_t user_specified_max);
@@ -241,8 +241,17 @@ public:
                   const ArchSpec& arch,
                   ModuleSpec &module_spec) override;
 
-    virtual size_t
-    LoadModules () override;
+    size_t
+    LoadModules() override;
+
+    Error
+    GetFileLoadAddress(const FileSpec& file, bool& is_loaded, lldb::addr_t& load_addr) override;
+
+    void
+    ModulesDidLoad (ModuleList &module_list) override;
+
+    StructuredData::ObjectSP
+    GetLoadedDynamicLibrariesInfos (lldb::addr_t image_list_address, lldb::addr_t image_count) override;
 
 protected:
     friend class ThreadGDBRemote;
@@ -323,6 +332,12 @@ protected:
     void
     GetMaxMemorySize();
 
+    bool
+    CalculateThreadStopInfo (ThreadGDBRemote *thread);
+
+    size_t
+    UpdateThreadIDsFromStopReplyThreadsValue (std::string &value);
+
     //------------------------------------------------------------------
     /// Broadcaster event bits definitions.
     //------------------------------------------------------------------
@@ -336,7 +351,7 @@ protected:
     Flags m_flags;            // Process specific flags (see eFlags enums)
     GDBRemoteCommunicationClient m_gdb_comm;
     std::atomic<lldb::pid_t> m_debugserver_pid;
-    StringExtractorGDBRemote m_last_stop_packet;
+    std::vector<StringExtractorGDBRemote> m_stop_packet_stack;  // The stop packet stack replaces the last stop packet variable
     Mutex m_last_stop_packet_mutex;
     GDBRemoteDynamicRegisterInfo m_register_info;
     Broadcaster m_async_broadcaster;
@@ -345,7 +360,10 @@ protected:
     typedef std::vector<lldb::tid_t> tid_collection;
     typedef std::vector< std::pair<lldb::tid_t,int> > tid_sig_collection;
     typedef std::map<lldb::addr_t, lldb::addr_t> MMapMap;
+    typedef std::map<uint32_t, std::string> ExpeditedRegisterMap;
     tid_collection m_thread_ids; // Thread IDs for all threads. This list gets updated after stopping
+    StructuredData::ObjectSP m_jstopinfo_sp; // Stop info only for any threads that have valid stop infos
+    StructuredData::ObjectSP m_jthreadsinfo_sp; // Full stop info, expedited registers and memory for all threads if "jThreadsInfo" packet is supported
     tid_collection m_continue_c_tids;                  // 'c' for continue
     tid_sig_collection m_continue_C_tids; // 'C' for continue with signal
     tid_collection m_continue_s_tids;                  // 's' for step
@@ -358,6 +376,10 @@ protected:
     bool m_destroy_tried_resuming;
     lldb::CommandObjectSP m_command_sp;
     int64_t m_breakpoint_pc_offset;
+    lldb::tid_t m_initial_tid; // The initial thread ID, given by stub on attach
+
+    bool
+    HandleNotifyPacket(StringExtractorGDBRemote &packet);
 
     bool
     StartAsyncThread ();
@@ -377,6 +399,30 @@ protected:
 
     lldb::StateType
     SetThreadStopInfo (StringExtractor& stop_packet);
+
+    bool
+    GetThreadStopInfoFromJSON (ThreadGDBRemote *thread, const StructuredData::ObjectSP &thread_infos_sp);
+
+    lldb::ThreadSP
+    SetThreadStopInfo (StructuredData::Dictionary *thread_dict);
+
+    lldb::ThreadSP
+    SetThreadStopInfo (lldb::tid_t tid,
+                       ExpeditedRegisterMap &expedited_register_map,
+                       uint8_t signo,
+                       const std::string &thread_name,
+                       const std::string &reason,
+                       const std::string &description,
+                       uint32_t exc_type,
+                       const std::vector<lldb::addr_t> &exc_data,
+                       lldb::addr_t thread_dispatch_qaddr,
+                       bool queue_vars_valid,
+                       std::string &queue_name,
+                       lldb::QueueKind queue_kind,
+                       uint64_t queue_serial);
+
+    void
+    HandleStopReplySequence ();
 
     void
     ClearThreadIDList ();
@@ -406,7 +452,7 @@ protected:
     GetLoadedModuleList (GDBLoadedModuleInfoList &);
 
     lldb::ModuleSP
-    LoadModuleAtAddress (const FileSpec &file, lldb::addr_t base_addr);
+    LoadModuleAtAddress (const FileSpec &file, lldb::addr_t base_addr, bool value_is_offset);
 
 private:
     //------------------------------------------------------------------

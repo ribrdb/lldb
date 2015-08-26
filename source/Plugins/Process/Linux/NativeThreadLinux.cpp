@@ -13,15 +13,10 @@
 #include <sstream>
 
 #include "NativeProcessLinux.h"
-#include "NativeRegisterContextLinux_arm.h"
-#include "NativeRegisterContextLinux_arm64.h"
-#include "NativeRegisterContextLinux_x86_64.h"
-#include "NativeRegisterContextLinux_mips64.h"
+#include "NativeRegisterContextLinux.h"
 
 #include "lldb/Core/Log.h"
 #include "lldb/Core/State.h"
-#include "lldb/Host/Host.h"
-#include "lldb/Host/HostInfo.h"
 #include "lldb/Host/HostNativeThread.h"
 #include "lldb/Utility/LLDBAssert.h"
 #include "lldb/lldb-enumerations.h"
@@ -30,17 +25,10 @@
 
 #include "Plugins/Process/POSIX/CrashReason.h"
 
-#include "Plugins/Process/Utility/RegisterContextLinux_arm.h"
-#include "Plugins/Process/Utility/RegisterContextLinux_arm64.h"
-#include "Plugins/Process/Utility/RegisterContextLinux_i386.h"
-#include "Plugins/Process/Utility/RegisterContextLinux_x86_64.h"
-#include "Plugins/Process/Utility/RegisterContextLinux_mips64.h"
-#include "Plugins/Process/Utility/RegisterInfoInterface.h"
-
 #include <sys/syscall.h>
 // Try to define a macro to encapsulate the tgkill syscall
 #define tgkill(pid, tid, sig) \
-    syscall(SYS_tgkill, static_cast<::pid_t>(pid), static_cast<::pid_t>(tid), sig)
+    syscall(SYS_tgkill, static_cast< ::pid_t>(pid), static_cast< ::pid_t>(tid), sig)
 
 using namespace lldb;
 using namespace lldb_private;
@@ -134,15 +122,7 @@ NativeThreadLinux::GetStopReason (ThreadStopInfo &stop_info, std::string& descri
         if (log)
             LogThreadStopInfo (*log, m_stop_info, "m_stop_info in thread:");
         stop_info = m_stop_info;
-        switch (m_stop_info.reason)
-        {
-            case StopReason::eStopReasonException:
-            case StopReason::eStopReasonBreakpoint:
-            case StopReason::eStopReasonWatchpoint:
-                description = m_stop_description;
-            default:
-                break;
-        }
+        description = m_stop_description;
         if (log)
             LogThreadStopInfo (*log, stop_info, "returned stop_info:");
 
@@ -172,8 +152,6 @@ NativeThreadLinux::GetRegisterContext ()
     if (m_reg_context_sp)
         return m_reg_context_sp;
 
-    // First select the appropriate RegisterInfoInterface.
-    RegisterInfoInterface *reg_interface = nullptr;
     NativeProcessProtocolSP m_process_sp = m_process_wp.lock ();
     if (!m_process_sp)
         return NativeRegisterContextSP ();
@@ -182,93 +160,10 @@ NativeThreadLinux::GetRegisterContext ()
     if (!m_process_sp->GetArchitecture (target_arch))
         return NativeRegisterContextSP ();
 
-    switch (target_arch.GetTriple().getOS())
-    {
-        case llvm::Triple::Linux:
-            switch (target_arch.GetMachine())
-            {
-            case llvm::Triple::aarch64:
-                assert((HostInfo::GetArchitecture ().GetAddressByteSize() == 8) && "Register setting path assumes this is a 64-bit host");
-                reg_interface = static_cast<RegisterInfoInterface*>(new RegisterContextLinux_arm64(target_arch));
-                break;
-            case llvm::Triple::arm:
-                assert(HostInfo::GetArchitecture ().GetAddressByteSize() == 4);
-                reg_interface = static_cast<RegisterInfoInterface*>(new RegisterContextLinux_arm(target_arch));
-                break;
-            case llvm::Triple::x86:
-            case llvm::Triple::x86_64:
-                if (HostInfo::GetArchitecture().GetAddressByteSize() == 4)
-                {
-                    // 32-bit hosts run with a RegisterContextLinux_i386 context.
-                    reg_interface = static_cast<RegisterInfoInterface*>(new RegisterContextLinux_i386(target_arch));
-                }
-                else
-                {
-                    assert((HostInfo::GetArchitecture().GetAddressByteSize() == 8) &&
-                           "Register setting path assumes this is a 64-bit host");
-                    // X86_64 hosts know how to work with 64-bit and 32-bit EXEs using the x86_64 register context.
-                    reg_interface = static_cast<RegisterInfoInterface*> (new RegisterContextLinux_x86_64 (target_arch));
-                }
-                break;
-            case llvm::Triple::mips64:
-            case llvm::Triple::mips64el:
-                assert((HostInfo::GetArchitecture ().GetAddressByteSize() == 8)
-                    && "Register setting path assumes this is a 64-bit host");
-                reg_interface = static_cast<RegisterInfoInterface*>(new RegisterContextLinux_mips64 (target_arch));
-                break;
-            default:
-                break;
-            }
-            break;
-        default:
-            break;
-    }
-
-    assert(reg_interface && "OS or CPU not supported!");
-    if (!reg_interface)
-        return NativeRegisterContextSP ();
-
-    // Now create the register context.
-    switch (target_arch.GetMachine())
-    {
-#if 0
-        case llvm::Triple::mips64:
-        {
-            RegisterContextPOSIXProcessMonitor_mips64 *reg_ctx = new RegisterContextPOSIXProcessMonitor_mips64(*this, 0, reg_interface);
-            m_posix_thread = reg_ctx;
-            m_reg_context_sp.reset(reg_ctx);
-            break;
-        }
-#endif
-        case llvm::Triple::mips64:
-        case llvm::Triple::mips64el:
-        {
-            const uint32_t concrete_frame_idx = 0;
-            m_reg_context_sp.reset (new NativeRegisterContextLinux_mips64 (*this, concrete_frame_idx, reg_interface));
-            break;
-        }
-        case llvm::Triple::aarch64:
-        {
-            const uint32_t concrete_frame_idx = 0;
-            m_reg_context_sp.reset (new NativeRegisterContextLinux_arm64(*this, concrete_frame_idx, reg_interface));
-            break;
-        }
-        case llvm::Triple::arm:
-        {
-            const uint32_t concrete_frame_idx = 0;
-            m_reg_context_sp.reset (new NativeRegisterContextLinux_arm(*this, concrete_frame_idx, reg_interface));
-            break;
-        }
-        case llvm::Triple::x86:
-        case llvm::Triple::x86_64:
-        {
-            const uint32_t concrete_frame_idx = 0;
-            m_reg_context_sp.reset (new NativeRegisterContextLinux_x86_64(*this, concrete_frame_idx, reg_interface));
-            break;
-        }
-        default:
-            break;
-    }
+    const uint32_t concrete_frame_idx = 0;
+    m_reg_context_sp.reset (NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(target_arch,
+                                                                                             *this,
+                                                                                             concrete_frame_idx));
 
     return m_reg_context_sp;
 }
@@ -344,7 +239,7 @@ NativeThreadLinux::SetStepping ()
 }
 
 void
-NativeThreadLinux::SetStoppedBySignal (uint32_t signo)
+NativeThreadLinux::SetStoppedBySignal(uint32_t signo, const siginfo_t *info)
 {
     Log *log (GetLogIfAllCategoriesSet (LIBLLDB_LOG_THREAD));
     if (log)
@@ -356,6 +251,23 @@ NativeThreadLinux::SetStoppedBySignal (uint32_t signo)
 
     m_stop_info.reason = StopReason::eStopReasonSignal;
     m_stop_info.details.signal.signo = signo;
+
+    m_stop_description.clear();
+    if (info)
+    {
+        switch (signo)
+        {
+        case SIGSEGV:
+        case SIGBUS:
+        case SIGFPE:
+        case SIGILL:
+             //In case of MIPS64 target, SI_KERNEL is generated for invalid 64bit address.
+             const auto reason = (info->si_signo == SIGBUS && info->si_code == SI_KERNEL) ? 
+                                  CrashReason::eInvalidAddress : GetCrashReason(*info);
+             m_stop_description = GetCrashReasonString(reason, reinterpret_cast<uintptr_t>(info->si_addr));
+             break;
+        }
+    }
 }
 
 bool
@@ -418,6 +330,16 @@ NativeThreadLinux::SetStoppedByWatchpoint (uint32_t wp_index)
     std::ostringstream ostr;
     ostr << GetRegisterContext()->GetWatchpointAddress(wp_index) << " ";
     ostr << wp_index;
+
+    /*
+     * MIPS: Last 3bits of the watchpoint address are masked by the kernel. For example:
+     * 'n' is at 0x120010d00 and 'm' is 0x120010d04. When a watchpoint is set at 'm', then
+     * watch exception is generated even when 'n' is read/written. To handle this case,
+     * find the base address of the load/store instruction and append it in the stop-info 
+     * packet.
+    */
+    ostr << " " << GetRegisterContext()->GetWatchpointHitAddress(wp_index);
+
     m_stop_description = ostr.str();
 
     m_stop_info.reason = StopReason::eStopReasonWatchpoint;
@@ -450,28 +372,14 @@ NativeThreadLinux::SetStoppedByTrace ()
 }
 
 void
-NativeThreadLinux::SetCrashedWithException (const siginfo_t& info)
+NativeThreadLinux::SetStoppedWithNoReason ()
 {
-    const StateType new_state = StateType::eStateCrashed;
+    const StateType new_state = StateType::eStateStopped;
     MaybeLogStateChange (new_state);
     m_state = new_state;
 
-    m_stop_info.reason = StopReason::eStopReasonException;
-    m_stop_info.details.signal.signo = info.si_signo;
-
-    const auto reason = GetCrashReason (info);
-    m_stop_description = GetCrashReasonString (reason, reinterpret_cast<uintptr_t>(info.si_addr));
-}
-
-void
-NativeThreadLinux::SetSuspended ()
-{
-    const StateType new_state = StateType::eStateSuspended;
-    MaybeLogStateChange (new_state);
-    m_state = new_state;
-
-    // FIXME what makes sense here? Do we need a suspended StopReason?
     m_stop_info.reason = StopReason::eStopReasonNone;
+    m_stop_info.details.signal.signo = 0;
 }
 
 void
@@ -507,8 +415,6 @@ NativeThreadLinux::RequestStop ()
         if (log)
             log->Printf ("NativeThreadLinux::%s tgkill(%" PRIu64 ", %" PRIu64 ", SIGSTOP) failed: %s", __FUNCTION__, pid, tid, err.AsCString ());
     }
-    else
-        m_thread_context.stop_requested = true;
 
     return err;
 }

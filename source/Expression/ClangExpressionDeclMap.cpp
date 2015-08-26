@@ -28,7 +28,7 @@
 #include "lldb/Expression/Materializer.h"
 #include "lldb/Host/Endian.h"
 #include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangNamespaceDecl.h"
+#include "lldb/Symbol/CompilerDeclContext.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
@@ -596,29 +596,6 @@ ClangExpressionDeclMap::GetFunctionAddress
             sc_list_size = sc_list.GetSize();
         }
     }
-    
-    if (sc_list_size == 0)
-    {
-        // Sometimes we get a mangled name for a global function that actually should be "extern C."
-        // This is a hack to compensate.
-        
-        const bool is_mangled = true;
-        Mangled mangled(name, is_mangled);
-                
-        CPPLanguageRuntime::MethodName method_name(mangled.GetDemangledName());
-
-        // the C++ context must be empty before we can think of searching for symbol by a simple basename
-        if (method_name.GetContext().empty())
-        {
-            llvm::StringRef basename = method_name.GetBasename();
-            
-            if (!basename.empty())
-            {
-                FindCodeSymbolInContext(ConstString(basename), m_parser_vars->m_sym_ctx, sc_list);
-                sc_list_size = sc_list.GetSize();
-            }
-        }
-    }
 
     lldb::addr_t intern_callable_load_addr = LLDB_INVALID_ADDRESS;
 
@@ -688,74 +665,71 @@ ClangExpressionDeclMap::GetSymbolAddress (Target &target,
         SymbolContext sym_ctx;
         sc_list.GetContextAtIndex(i, sym_ctx);
 
-        const Address *sym_address = &sym_ctx.symbol->GetAddress();
+        const Address sym_address = sym_ctx.symbol->GetAddress();
 
-        if (!sym_address || !sym_address->IsValid())
+        if (!sym_address.IsValid())
             continue;
 
-        if (sym_address)
+        switch (sym_ctx.symbol->GetType())
         {
-            switch (sym_ctx.symbol->GetType())
-            {
-                case eSymbolTypeCode:
-                case eSymbolTypeTrampoline:
-                    symbol_load_addr = sym_address->GetCallableLoadAddress (&target);
-                    break;
+            case eSymbolTypeCode:
+            case eSymbolTypeTrampoline:
+                symbol_load_addr = sym_address.GetCallableLoadAddress (&target);
+                break;
 
-                case eSymbolTypeResolver:
-                    symbol_load_addr = sym_address->GetCallableLoadAddress (&target, true);
-                    break;
+            case eSymbolTypeResolver:
+                symbol_load_addr = sym_address.GetCallableLoadAddress (&target, true);
+                break;
 
-                case eSymbolTypeReExported:
+            case eSymbolTypeReExported:
+                {
+                    ConstString reexport_name = sym_ctx.symbol->GetReExportedSymbolName();
+                    if (reexport_name)
                     {
-                        ConstString reexport_name = sym_ctx.symbol->GetReExportedSymbolName();
-                        if (reexport_name)
+                        ModuleSP reexport_module_sp;
+                        ModuleSpec reexport_module_spec;
+                        reexport_module_spec.GetPlatformFileSpec() = sym_ctx.symbol->GetReExportedSymbolSharedLibrary();
+                        if (reexport_module_spec.GetPlatformFileSpec())
                         {
-                            ModuleSP reexport_module_sp;
-                            ModuleSpec reexport_module_spec;
-                            reexport_module_spec.GetPlatformFileSpec() = sym_ctx.symbol->GetReExportedSymbolSharedLibrary();
-                            if (reexport_module_spec.GetPlatformFileSpec())
+                            reexport_module_sp = target.GetImages().FindFirstModule(reexport_module_spec);
+                            if (!reexport_module_sp)
                             {
+                                reexport_module_spec.GetPlatformFileSpec().GetDirectory().Clear();
                                 reexport_module_sp = target.GetImages().FindFirstModule(reexport_module_spec);
-                                if (!reexport_module_sp)
-                                {
-                                    reexport_module_spec.GetPlatformFileSpec().GetDirectory().Clear();
-                                    reexport_module_sp = target.GetImages().FindFirstModule(reexport_module_spec);
-                                }
                             }
-                            symbol_load_addr = GetSymbolAddress(target, process, sym_ctx.symbol->GetReExportedSymbolName(), symbol_type, reexport_module_sp.get());
                         }
+                        symbol_load_addr = GetSymbolAddress(target, process, sym_ctx.symbol->GetReExportedSymbolName(), symbol_type, reexport_module_sp.get());
                     }
-                    break;
+                }
+                break;
 
-                case eSymbolTypeData:
-                case eSymbolTypeRuntime:
-                case eSymbolTypeVariable:
-                case eSymbolTypeLocal:
-                case eSymbolTypeParam:
-                case eSymbolTypeInvalid:
-                case eSymbolTypeAbsolute:
-                case eSymbolTypeException:
-                case eSymbolTypeSourceFile:
-                case eSymbolTypeHeaderFile:
-                case eSymbolTypeObjectFile:
-                case eSymbolTypeCommonBlock:
-                case eSymbolTypeBlock:
-                case eSymbolTypeVariableType:
-                case eSymbolTypeLineEntry:
-                case eSymbolTypeLineHeader:
-                case eSymbolTypeScopeBegin:
-                case eSymbolTypeScopeEnd:
-                case eSymbolTypeAdditional:
-                case eSymbolTypeCompiler:
-                case eSymbolTypeInstrumentation:
-                case eSymbolTypeUndefined:
-                case eSymbolTypeObjCClass:
-                case eSymbolTypeObjCMetaClass:
-                case eSymbolTypeObjCIVar:
-                    symbol_load_addr = sym_address->GetLoadAddress (&target);
-                    break;
-            }
+            case eSymbolTypeData:
+            case eSymbolTypeRuntime:
+            case eSymbolTypeVariable:
+            case eSymbolTypeLocal:
+            case eSymbolTypeParam:
+            case eSymbolTypeInvalid:
+            case eSymbolTypeAbsolute:
+            case eSymbolTypeException:
+            case eSymbolTypeSourceFile:
+            case eSymbolTypeHeaderFile:
+            case eSymbolTypeObjectFile:
+            case eSymbolTypeCommonBlock:
+            case eSymbolTypeBlock:
+            case eSymbolTypeVariableType:
+            case eSymbolTypeLineEntry:
+            case eSymbolTypeLineHeader:
+            case eSymbolTypeScopeBegin:
+            case eSymbolTypeScopeEnd:
+            case eSymbolTypeAdditional:
+            case eSymbolTypeCompiler:
+            case eSymbolTypeInstrumentation:
+            case eSymbolTypeUndefined:
+            case eSymbolTypeObjCClass:
+            case eSymbolTypeObjCMetaClass:
+            case eSymbolTypeObjCIVar:
+                symbol_load_addr = sym_address.GetLoadAddress (&target);
+                break;
         }
     }
 
@@ -803,9 +777,9 @@ ClangExpressionDeclMap::FindGlobalDataSymbol (Target &target,
         if (sym_ctx.symbol)
         {
             const Symbol *symbol = sym_ctx.symbol;
-            const Address *sym_address = &symbol->GetAddress();
+            const Address sym_address = symbol->GetAddress();
 
-            if (sym_address && sym_address->IsValid())
+            if (sym_address.IsValid())
             {
                 switch (symbol->GetType())
                 {
@@ -842,6 +816,11 @@ ClangExpressionDeclMap::FindGlobalDataSymbol (Target &target,
                                         reexport_module_sp = target.GetImages().FindFirstModule(reexport_module_spec);
                                     }
                                 }
+                                // Don't allow us to try and resolve a re-exported symbol if it is the same
+                                // as the current symbol
+                                if (name == symbol->GetReExportedSymbolName() && module == reexport_module_sp.get())
+                                    return NULL;
+
                                 return FindGlobalDataSymbol(target, symbol->GetReExportedSymbolName(), reexport_module_sp.get());
                             }
                         }
@@ -884,7 +863,7 @@ ClangExpressionDeclMap::FindGlobalVariable
     Target &target,
     ModuleSP &module,
     const ConstString &name,
-    ClangNamespaceDecl *namespace_decl,
+    CompilerDeclContext *namespace_decl,
     TypeFromUser *type
 )
 {
@@ -903,7 +882,7 @@ ClangExpressionDeclMap::FindGlobalVariable
             {
                 VariableSP var_sp = vars.GetVariableAtIndex(i);
 
-                if (ClangASTContext::AreTypesSame(*type, var_sp->GetType()->GetClangFullType()))
+                if (ClangASTContext::AreTypesSame(*type, var_sp->GetType()->GetFullCompilerType ()))
                     return var_sp;
             }
         }
@@ -968,7 +947,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context)
             if (log)
                 log->Printf("  CEDM::FEVD[%u] Searching namespace %s in module %s",
                             current_id,
-                            i->second.GetNamespaceDecl()->getNameAsString().c_str(),
+                            i->second.GetName().AsCString(),
                             i->first->GetFileSpec().GetFilename().GetCString());
 
             FindExternalVisibleDecls(context,
@@ -979,7 +958,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context)
     }
     else if (isa<TranslationUnitDecl>(context.m_decl_context))
     {
-        ClangNamespaceDecl namespace_decl;
+        CompilerDeclContext namespace_decl;
 
         if (log)
             log->Printf("  CEDM::FEVD[%u] Searching the root namespace", current_id);
@@ -997,7 +976,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context)
 void
 ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
                                                   lldb::ModuleSP module_sp,
-                                                  ClangNamespaceDecl &namespace_decl,
+                                                  CompilerDeclContext &namespace_decl,
                                                   unsigned int current_id)
 {
     assert (m_ast_context);
@@ -1034,23 +1013,20 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
             if (frame == NULL)
                 return;
 
-            SymbolContext sym_ctx = frame->GetSymbolContext(lldb::eSymbolContextFunction);
+            SymbolContext sym_ctx = frame->GetSymbolContext(lldb::eSymbolContextFunction|lldb::eSymbolContextBlock);
 
-            if (!sym_ctx.function)
-                return;
-
-            // Get the block that defines the function
+            // Find the block that defines the function represented by "sym_ctx"
             Block *function_block = sym_ctx.GetFunctionBlock();
 
             if (!function_block)
                 return;
 
-            clang::DeclContext *decl_context = function_block->GetClangDeclContext();
+            CompilerDeclContext function_decl_ctx = function_block->GetDeclContext();
 
-            if (!decl_context)
+            if (!function_decl_ctx)
                 return;
 
-            clang::CXXMethodDecl *method_decl = llvm::dyn_cast<clang::CXXMethodDecl>(decl_context);
+            clang::CXXMethodDecl *method_decl = ClangASTContext::DeclContextGetAsCXXMethodDecl(function_decl_ctx);
 
             if (method_decl)
             {
@@ -1106,7 +1082,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
             {
                 // This branch will get hit if we are executing code in the context of a function that
                 // claims to have an object pointer (through DW_AT_object_pointer?) but is not formally a
-                // method of the class.  In that case, just look up the "this" variable in the the current
+                // method of the class.  In that case, just look up the "this" variable in the current
                 // scope and use its type.
                 // FIXME: This code is formally correct, but clang doesn't currently emit DW_AT_object_pointer
                 // for C++ so it hasn't actually been tested.
@@ -1124,13 +1100,13 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
                     if (!this_type)
                         return;
 
-                    ClangASTType pointee_type = this_type->GetClangForwardType().GetPointeeType();
+                    CompilerType pointee_type = this_type->GetForwardCompilerType ().GetPointeeType();
 
                     if (pointee_type.IsValid())
                     {
                         if (log)
                         {
-                            ASTDumper ast_dumper(this_type->GetClangFullType());
+                            ASTDumper ast_dumper(this_type->GetFullCompilerType ());
                             log->Printf("  FEVD[%u] Adding type for $__lldb_objc_class: %s", current_id, ast_dumper.GetCString());
                         }
 
@@ -1138,7 +1114,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
                         AddOneType(context, class_user_type, current_id);
 
 
-                        TypeFromUser this_user_type(this_type->GetClangFullType());
+                        TypeFromUser this_user_type(this_type->GetFullCompilerType ());
                         m_struct_vars->m_object_pointer_type = this_user_type;
                         return;
                     }
@@ -1156,23 +1132,20 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
             if (!frame)
                 return;
 
-            SymbolContext sym_ctx = frame->GetSymbolContext(lldb::eSymbolContextFunction);
+            SymbolContext sym_ctx = frame->GetSymbolContext(lldb::eSymbolContextFunction|lldb::eSymbolContextBlock);
 
-            if (!sym_ctx.function)
-                return;
-
-            // Get the block that defines the function
+            // Find the block that defines the function represented by "sym_ctx"
             Block *function_block = sym_ctx.GetFunctionBlock();
 
             if (!function_block)
                 return;
 
-            clang::DeclContext *decl_context = function_block->GetClangDeclContext();
+            CompilerDeclContext function_decl_ctx = function_block->GetDeclContext();
 
-            if (!decl_context)
+            if (!function_decl_ctx)
                 return;
 
-            clang::ObjCMethodDecl *method_decl = llvm::dyn_cast<clang::ObjCMethodDecl>(decl_context);
+            clang::ObjCMethodDecl *method_decl = ClangASTContext::DeclContextGetAsObjCMethodDecl(function_decl_ctx);
 
             if (method_decl)
             {
@@ -1225,7 +1198,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
             {
                 // This branch will get hit if we are executing code in the context of a function that
                 // claims to have an object pointer (through DW_AT_object_pointer?) but is not formally a
-                // method of the class.  In that case, just look up the "self" variable in the the current
+                // method of the class.  In that case, just look up the "self" variable in the current
                 // scope and use its type.
 
                 VariableList *vars = frame->GetVariableList(false);
@@ -1241,7 +1214,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
                     if (!self_type)
                         return;
 
-                    ClangASTType self_clang_type = self_type->GetClangFullType();
+                    CompilerType self_clang_type = self_type->GetFullCompilerType ();
 
                     if (ClangASTContext::IsObjCClassType(self_clang_type))
                     {
@@ -1256,7 +1229,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
 
                         if (log)
                         {
-                            ASTDumper ast_dumper(self_type->GetClangFullType());
+                            ASTDumper ast_dumper(self_type->GetFullCompilerType ());
                             log->Printf("  FEVD[%u] Adding type for $__lldb_objc_class: %s", current_id, ast_dumper.GetCString());
                         }
 
@@ -1264,7 +1237,7 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
 
                         AddOneType(context, class_user_type, current_id);
 
-                        TypeFromUser self_user_type(self_type->GetClangFullType());
+                        TypeFromUser self_user_type(self_type->GetFullCompilerType ());
 
                         m_struct_vars->m_object_pointer_type = self_user_type;
                         return;
@@ -1437,15 +1410,13 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
 
                     if (sym_ctx.function)
                     {
-                        clang::DeclContext *decl_ctx = sym_ctx.function->GetClangDeclContext();
+                        CompilerDeclContext decl_ctx = sym_ctx.function->GetDeclContext();
 
                         if (!decl_ctx)
                             continue;
 
                         // Filter out class/instance methods.
-                        if (dyn_cast<clang::ObjCMethodDecl>(decl_ctx))
-                            continue;
-                        if (dyn_cast<clang::CXXMethodDecl>(decl_ctx))
+                        if (decl_ctx.IsClassMethod(nullptr, nullptr, nullptr))
                             continue;
 
                         AddOneFunction(context, sym_ctx.function, NULL, current_id);
@@ -1548,6 +1519,31 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
                             context.m_found.function_with_type_info = true;
                             context.m_found.function = true;
                         }
+                        else if (llvm::isa<clang::VarDecl>(decl_from_modules))
+                        {
+                            if (log)
+                            {
+                                log->Printf("  CAS::FEVD[%u] Matching variable found for \"%s\" in the modules",
+                                            current_id,
+                                            name.GetCString());
+                            }
+                            
+                            clang::Decl *copied_decl = m_ast_importer->CopyDecl(m_ast_context, &decl_from_modules->getASTContext(), decl_from_modules);
+                            clang::VarDecl *copied_var_decl = copied_decl ? dyn_cast_or_null<clang::VarDecl>(copied_decl) : nullptr;
+                            
+                            if (!copied_var_decl)
+                            {
+                                if (log)
+                                    log->Printf("  CAS::FEVD[%u] - Couldn't export a variable declaration from the modules",
+                                                current_id);
+                                
+                                break;
+                            }
+                            
+                            context.AddNamedDecl(copied_var_decl);
+                            
+                            context.m_found.variable = true;
+                        }
                     }
                 } while (0);
             }
@@ -1628,7 +1624,7 @@ ClangExpressionDeclMap::GetVariableValue (VariableSP &var,
         return false;
     }
 
-    ClangASTType var_clang_type = var_type->GetClangFullType();
+    CompilerType var_clang_type = var_type->GetFullCompilerType ();
 
     if (!var_clang_type)
     {
@@ -1669,7 +1665,7 @@ ClangExpressionDeclMap::GetVariableValue (VariableSP &var,
         }
     }
 
-    ClangASTType type_to_use = GuardedCopyType(var_clang_type);
+    CompilerType type_to_use = GuardedCopyType(var_clang_type);
 
     if (!type_to_use)
     {
@@ -1683,7 +1679,7 @@ ClangExpressionDeclMap::GetVariableValue (VariableSP &var,
         *parser_type = TypeFromParser(type_to_use);
 
     if (var_location.GetContextType() == Value::eContextTypeInvalid)
-        var_location.SetClangType(type_to_use);
+        var_location.SetCompilerType(type_to_use);
 
     if (var_location.GetValueType() == Value::eValueTypeFileAddress)
     {
@@ -1836,11 +1832,11 @@ ClangExpressionDeclMap::AddOneGenericVariable(NameSearchContext &context,
     entity->EnableParserVars(GetParserID());
     ClangExpressionVariable::ParserVars *parser_vars = entity->GetParserVars(GetParserID());
 
-    const Address &symbol_address = symbol.GetAddress();
+    const Address symbol_address = symbol.GetAddress();
     lldb::addr_t symbol_load_addr = symbol_address.GetLoadAddress(target);
 
     //parser_vars->m_lldb_value.SetContext(Value::eContextTypeClangType, user_type.GetOpaqueQualType());
-    parser_vars->m_lldb_value.SetClangType(user_type);
+    parser_vars->m_lldb_value.SetCompilerType(user_type);
     parser_vars->m_lldb_value.GetScalar() = symbol_load_addr;
     parser_vars->m_lldb_value.SetValueType(Value::eValueTypeLoadAddress);
 
@@ -1907,10 +1903,10 @@ ClangExpressionDeclMap::ResolveUnknownTypes()
             TypeFromUser user_type(copied_type, scratch_ast_context);
 
 //            parser_vars->m_lldb_value.SetContext(Value::eContextTypeClangType, user_type.GetOpaqueQualType());
-            parser_vars->m_lldb_value.SetClangType(user_type);
+            parser_vars->m_lldb_value.SetCompilerType(user_type);
             parser_vars->m_parser_type = parser_type;
 
-            entity->SetClangType(user_type);
+            entity->SetCompilerType(user_type);
 
             entity->m_flags &= ~(ClangExpressionVariable::EVUnknownType);
         }
@@ -1926,7 +1922,7 @@ ClangExpressionDeclMap::AddOneRegister (NameSearchContext &context,
 {
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_EXPRESSIONS));
 
-    ClangASTType clang_type = ClangASTContext::GetBuiltinTypeForEncodingAndBitSize (m_ast_context,
+    CompilerType clang_type = ClangASTContext::GetBuiltinTypeForEncodingAndBitSize (m_ast_context,
                                                                                     reg_info->encoding,
                                                                                     reg_info->byte_size * 8);
 
@@ -1975,8 +1971,8 @@ ClangExpressionDeclMap::AddOneFunction (NameSearchContext &context,
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_EXPRESSIONS));
 
     NamedDecl *function_decl = NULL;
-    const Address *fun_address = NULL;
-    ClangASTType function_clang_type;
+    Address fun_address;
+    CompilerType function_clang_type;
 
     bool is_indirect_function = false;
 
@@ -1991,7 +1987,7 @@ ClangExpressionDeclMap::AddOneFunction (NameSearchContext &context,
             return;
         }
 
-        function_clang_type = function_type->GetClangFullType();
+        function_clang_type = function_type->GetFullCompilerType ();
 
         if (!function_clang_type)
         {
@@ -2000,9 +1996,9 @@ ClangExpressionDeclMap::AddOneFunction (NameSearchContext &context,
             return;
         }
 
-        fun_address = &function->GetAddressRange().GetBaseAddress();
+        fun_address = function->GetAddressRange().GetBaseAddress();
 
-        ClangASTType copied_function_type = GuardedCopyType(function_clang_type);
+        CompilerType copied_function_type = GuardedCopyType(function_clang_type);
         if (copied_function_type)
         {
             function_decl = context.AddFunDecl(copied_function_type);
@@ -2034,7 +2030,7 @@ ClangExpressionDeclMap::AddOneFunction (NameSearchContext &context,
     }
     else if (symbol)
     {
-        fun_address = &symbol->GetAddress();
+        fun_address = symbol->GetAddress();
         function_decl = context.AddGenericFunDecl();
         is_indirect_function = symbol->IsIndirect();
     }
@@ -2047,7 +2043,7 @@ ClangExpressionDeclMap::AddOneFunction (NameSearchContext &context,
 
     Target *target = m_parser_vars->m_exe_ctx.GetTargetPtr();
 
-    lldb::addr_t load_addr = fun_address->GetCallableLoadAddress(target, is_indirect_function);
+    lldb::addr_t load_addr = fun_address.GetCallableLoadAddress(target, is_indirect_function);
 
     ClangExpressionVariableSP entity(m_found_entities.CreateVariable (m_parser_vars->m_exe_ctx.GetBestExecutionContextScope (),
                                                                       m_parser_vars->m_target_info.byte_order,
@@ -2056,7 +2052,7 @@ ClangExpressionDeclMap::AddOneFunction (NameSearchContext &context,
 
     std::string decl_name(context.m_decl_name.getAsString());
     entity->SetName(ConstString(decl_name.c_str()));
-    entity->SetClangType (function_clang_type);
+    entity->SetCompilerType (function_clang_type);
     entity->EnableParserVars(GetParserID());
 
     ClangExpressionVariable::ParserVars *parser_vars = entity->GetParserVars(GetParserID());
@@ -2070,7 +2066,7 @@ ClangExpressionDeclMap::AddOneFunction (NameSearchContext &context,
     {
         // We have to try finding a file address.
 
-        lldb::addr_t file_addr = fun_address->GetFileAddress();
+        lldb::addr_t file_addr = fun_address.GetFileAddress();
 
         parser_vars->m_lldb_value.SetValueType(Value::eValueTypeFileAddress);
         parser_vars->m_lldb_value.GetScalar() = file_addr;
@@ -2086,7 +2082,7 @@ ClangExpressionDeclMap::AddOneFunction (NameSearchContext &context,
 
         StreamString ss;
 
-        fun_address->Dump(&ss, m_parser_vars->m_exe_ctx.GetBestExecutionContextScope(), Address::DumpStyleResolvedDescription);
+        fun_address.Dump(&ss, m_parser_vars->m_exe_ctx.GetBestExecutionContextScope(), Address::DumpStyleResolvedDescription);
 
         log->Printf("  CEDM::FEVD[%u] Found %s function %s (description %s), returned %s",
                     current_id,
@@ -2101,7 +2097,7 @@ TypeFromParser
 ClangExpressionDeclMap::CopyClassType(TypeFromUser &ut,
                                       unsigned int current_id)
 {
-    ClangASTType copied_clang_type = GuardedCopyType(ut);
+    CompilerType copied_clang_type = GuardedCopyType(ut);
 
     if (!copied_clang_type)
     {
@@ -2115,10 +2111,10 @@ ClangExpressionDeclMap::CopyClassType(TypeFromUser &ut,
 
     if (copied_clang_type.IsAggregateType() && copied_clang_type.GetCompleteType ())
     {
-        ClangASTType void_clang_type = ClangASTContext::GetBasicType(m_ast_context, eBasicTypeVoid);
-        ClangASTType void_ptr_clang_type = void_clang_type.GetPointerType();
+        CompilerType void_clang_type = ClangASTContext::GetBasicType(m_ast_context, eBasicTypeVoid);
+        CompilerType void_ptr_clang_type = void_clang_type.GetPointerType();
 
-        ClangASTType method_type = ClangASTContext::CreateFunctionType (m_ast_context,
+        CompilerType method_type = ClangASTContext::CreateFunctionType (m_ast_context,
                                                                         void_clang_type,
                                                                         &void_ptr_clang_type,
                                                                         1,
@@ -2153,7 +2149,7 @@ ClangExpressionDeclMap::AddOneType(NameSearchContext &context,
                                    TypeFromUser &ut,
                                    unsigned int current_id)
 {
-    ClangASTType copied_clang_type = GuardedCopyType(ut);
+    CompilerType copied_clang_type = GuardedCopyType(ut);
 
     if (!copied_clang_type)
     {

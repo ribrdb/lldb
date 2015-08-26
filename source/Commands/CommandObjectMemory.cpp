@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "CommandObjectMemory.h"
 
 // C Includes
@@ -316,7 +314,7 @@ public:
                              "memory read",
                              "Read from the memory of the process being debugged.",
                              NULL,
-                             eFlagRequiresTarget | eFlagProcessMustBePaused),
+                             eCommandRequiresTarget | eCommandProcessMustBePaused),
         m_option_group (interpreter),
         m_format_options (eFormatBytesWithASCII, 1, 8),
         m_memory_options (),
@@ -389,7 +387,7 @@ protected:
     virtual bool
     DoExecute (Args& command, CommandReturnObject &result)
     {
-        // No need to check "target" for validity as eFlagRequiresTarget ensures it is valid
+        // No need to check "target" for validity as eCommandRequiresTarget ensures it is valid
         Target *target = m_exe_ctx.GetTargetPtr();
 
         const size_t argc = command.GetArgumentCount();
@@ -402,7 +400,7 @@ protected:
             return false;
         }
 
-        ClangASTType clang_ast_type;        
+        CompilerType clang_ast_type;        
         Error error;
 
         const char *view_as_type_cstr = m_memory_options.m_view_as_type.GetCurrentValue();
@@ -535,7 +533,7 @@ protected:
                 clang::TypeDecl *tdecl = target->GetPersistentVariables().GetPersistentType(ConstString(lookup_type_name));
                 if (tdecl)
                 {
-                    clang_ast_type.SetClangType(ClangASTContext::GetASTContext(&tdecl->getASTContext()),(lldb::clang_type_t)tdecl->getTypeForDecl());
+                    clang_ast_type.SetCompilerType(ClangASTContext::GetASTContext(&tdecl->getASTContext()),(const lldb::clang_type_t)tdecl->getTypeForDecl());
                 }
             }
             
@@ -552,13 +550,13 @@ protected:
                 else
                 {
                     TypeSP type_sp (type_list.GetTypeAtIndex(0));
-                    clang_ast_type = type_sp->GetClangFullType();
+                    clang_ast_type = type_sp->GetFullCompilerType ();
                 }
             }
             
             while (pointer_count > 0)
             {
-                ClangASTType pointer_type = clang_ast_type.GetPointerType();
+                CompilerType pointer_type = clang_ast_type.GetPointerType();
                 if (pointer_type.IsValid())
                     clang_ast_type = pointer_type;
                 else
@@ -935,7 +933,7 @@ protected:
     OptionGroupReadMemory m_prev_memory_options;
     OptionGroupOutputFile m_prev_outfile_options;
     OptionGroupValueObjectDisplay m_prev_varobj_options;
-    ClangASTType m_prev_clang_ast_type;
+    CompilerType m_prev_clang_ast_type;
 };
 
 OptionDefinition
@@ -1035,7 +1033,7 @@ public:
                        "memory find",
                        "Find a value in the memory of the process being debugged.",
                        NULL,
-                       eFlagRequiresProcess | eFlagProcessMustBeLaunched),
+                       eCommandRequiresProcess | eCommandProcessMustBeLaunched),
   m_option_group (interpreter),
   m_memory_options ()
   {
@@ -1045,15 +1043,15 @@ public:
     CommandArgumentData value_arg;
     
     // Define the first (and only) variant of this arg.
-    addr_arg.arg_type = eArgTypeAddress;
+    addr_arg.arg_type = eArgTypeAddressOrExpression;
     addr_arg.arg_repetition = eArgRepeatPlain;
     
     // There is only one variant this argument could be; put it into the argument entry.
     arg1.push_back (addr_arg);
     
     // Define the first (and only) variant of this arg.
-    value_arg.arg_type = eArgTypeValue;
-    value_arg.arg_repetition = eArgRepeatPlus;
+    value_arg.arg_type = eArgTypeAddressOrExpression;
+    value_arg.arg_repetition = eArgRepeatPlain;
     
     // There is only one variant this argument could be; put it into the argument entry.
     arg2.push_back (value_arg);
@@ -1081,7 +1079,7 @@ protected:
   virtual bool
   DoExecute (Args& command, CommandReturnObject &result)
   {
-      // No need to check "process" for validity as eFlagRequiresProcess ensures it is valid
+      // No need to check "process" for validity as eCommandRequiresProcess ensures it is valid
       Process *process = m_exe_ctx.GetProcessPtr();
 
       const size_t argc = command.GetArgumentCount();
@@ -1122,10 +1120,11 @@ protected:
       {
           StackFrame* frame = m_exe_ctx.GetFramePtr();
           ValueObjectSP result_sp;
-          if (process->GetTarget().EvaluateExpression(m_memory_options.m_expr.GetStringValue(), frame, result_sp) && result_sp.get())
+          if ((eExpressionCompleted == process->GetTarget().EvaluateExpression(m_memory_options.m_expr.GetStringValue(), frame, result_sp)) &&
+              result_sp.get())
           {
               uint64_t value = result_sp->GetValueAsUnsigned(0);
-              switch (result_sp->GetClangType().GetByteSize(nullptr))
+              switch (result_sp->GetCompilerType().GetByteSize(nullptr))
               {
                   case 1: {
                       uint8_t byte = (uint8_t)value;
@@ -1153,13 +1152,13 @@ protected:
                       result.AppendError("unknown type. pass a string instead");
                       return false;
                   default:
-                      result.AppendError("do not know how to deal with larger than 8 byte result types. pass a string instead");
+                      result.AppendError("result size larger than 8 bytes. pass a string instead");
                       return false;
               }
           }
           else
           {
-              result.AppendError("expression evaluation failed. pass a string instead?");
+              result.AppendError("expression evaluation failed. pass a string instead");
               return false;
           }
       }
@@ -1179,14 +1178,14 @@ protected:
           {
               if (!ever_found)
               {
-                  result.AppendMessage("Your data was not found within the range.\n");
+                  result.AppendMessage("data not found within the range.\n");
                   result.SetStatus(lldb::eReturnStatusSuccessFinishNoResult);
               }
               else
-                  result.AppendMessage("No more matches found within the range.\n");
+                  result.AppendMessage("no more matches within the range.\n");
               break;
           }
-          result.AppendMessageWithFormat("Your data was found at location: 0x%" PRIx64 "\n", found_location);
+          result.AppendMessageWithFormat("data found at location: 0x%" PRIx64 "\n", found_location);
 
           DataBufferHeap dumpbuffer(32,0);
           process->ReadMemory(found_location+m_memory_options.m_offset.GetCurrentValue(), dumpbuffer.GetBytes(), dumpbuffer.GetByteSize(), error);
@@ -1214,27 +1213,16 @@ protected:
     {
         Process *process = m_exe_ctx.GetProcessPtr();
         DataBufferHeap heap(buffer_size, 0);
-        lldb::addr_t fictional_ptr = low;
         for (auto ptr = low;
-             low < high;
-             fictional_ptr++)
+             ptr < high;
+             ptr++)
         {
             Error error;
-            if (ptr == low || buffer_size == 1)
-                process->ReadMemory(ptr, heap.GetBytes(), buffer_size, error);
-            else
-            {
-                memmove(heap.GetBytes(), heap.GetBytes()+1, buffer_size-1);
-                process->ReadMemory(ptr, heap.GetBytes()+buffer_size-1, 1, error);
-            }
+            process->ReadMemory(ptr, heap.GetBytes(), buffer_size, error);
             if (error.Fail())
                 return LLDB_INVALID_ADDRESS;
             if (memcmp(heap.GetBytes(), buffer, buffer_size) == 0)
-                return fictional_ptr;
-            if (ptr == low)
-                ptr += buffer_size;
-            else
-                ptr += 1;
+                return ptr;
         }
         return LLDB_INVALID_ADDRESS;
     }
@@ -1336,7 +1324,7 @@ public:
                              "memory write",
                              "Write to the memory of the process being debugged.",
                              NULL,
-                             eFlagRequiresProcess | eFlagProcessMustBeLaunched),
+                             eCommandRequiresProcess | eCommandProcessMustBeLaunched),
         m_option_group (interpreter),
         m_format_options (eFormatBytes, 1, UINT64_MAX),
         m_memory_options ()
@@ -1413,7 +1401,7 @@ protected:
     virtual bool
     DoExecute (Args& command, CommandReturnObject &result)
     {
-        // No need to check "process" for validity as eFlagRequiresProcess ensures it is valid
+        // No need to check "process" for validity as eCommandRequiresProcess ensures it is valid
         Process *process = m_exe_ctx.GetProcessPtr();
 
         const size_t argc = command.GetArgumentCount();
@@ -1703,7 +1691,7 @@ public:
                          "memory history",
                          "Prints out the recorded stack traces for allocation/deallocation of a memory address.",
                          NULL,
-                         eFlagRequiresTarget | eFlagRequiresProcess | eFlagProcessMustBePaused | eFlagProcessMustBeLaunched)
+                         eCommandRequiresTarget | eCommandRequiresProcess | eCommandProcessMustBePaused | eCommandProcessMustBeLaunched)
     {
         CommandArgumentEntry arg1;
         CommandArgumentData addr_arg;

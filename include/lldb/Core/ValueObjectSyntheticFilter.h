@@ -141,17 +141,32 @@ public:
     }
     
     virtual bool
+    GetIsConstant () const
+    {
+        return false;
+    }
+
+    virtual bool
     SetValueFromCString (const char *value_str, Error& error);
     
     virtual void
     SetFormat (lldb::Format format);
     
+    virtual bool
+    GetDeclaration (Declaration &decl);
+
 protected:
     virtual bool
     UpdateValue ();
     
-    virtual ClangASTType
-    GetClangTypeImpl ();
+    virtual LazyBool
+    CanUpdateWithInvalidExecutionContext ()
+    {
+        return eLazyBoolYes;
+    }
+    
+    virtual CompilerType
+    GetCompilerTypeImpl ();
     
     virtual void
     CreateSynthFilter ();

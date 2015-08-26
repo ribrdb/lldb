@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "CommandObjectBreakpoint.h"
 #include "CommandObjectBreakpointCommand.h"
 
@@ -113,9 +111,11 @@ public:
             m_throw_bp (true),
             m_hardware (false),
             m_exception_language (eLanguageTypeUnknown),
+            m_language (lldb::eLanguageTypeUnknown),
             m_skip_prologue (eLazyBoolCalculate),
             m_one_shot (false),
-            m_all_files (false)
+            m_all_files (false),
+            m_move_to_nearest_code (eLazyBoolCalculate)
         {
         }
 
@@ -249,6 +249,28 @@ public:
                         error.SetErrorStringWithFormat ("invalid line number: %s.", option_arg);
                     break;
                 }
+
+                case 'L':
+                    m_language = LanguageRuntime::GetLanguageTypeFromString (option_arg);
+                    if (m_language == eLanguageTypeUnknown)
+                        error.SetErrorStringWithFormat ("Unknown language type: '%s' for breakpoint", option_arg);
+                    break;
+
+                case 'm':
+                {
+                    bool success;
+                    bool value;
+                    value = Args::StringToBoolean (option_arg, true, &success);
+                    if (value)
+                        m_move_to_nearest_code = eLazyBoolYes;
+                    else
+                        m_move_to_nearest_code = eLazyBoolNo;
+                        
+                    if (!success)
+                        error.SetErrorStringWithFormat ("Invalid boolean value for move-to-nearest-code option: '%s'", option_arg);
+                    break;
+                }
+
                 case 'M':
                     m_func_names.push_back (option_arg);
                     m_func_name_type_mask |= eFunctionNameTypeMethod;
@@ -355,12 +377,14 @@ public:
             m_throw_bp = true;
             m_hardware = false;
             m_exception_language = eLanguageTypeUnknown;
+            m_language = lldb::eLanguageTypeUnknown;
             m_skip_prologue = eLazyBoolCalculate;
             m_one_shot = false;
             m_use_dummy = false;
             m_breakpoint_names.clear();
             m_all_files = false;
             m_exception_extra_args.Clear();
+            m_move_to_nearest_code = eLazyBoolCalculate;
         }
     
         const OptionDefinition*
@@ -395,11 +419,13 @@ public:
         bool m_throw_bp;
         bool m_hardware; // Request to use hardware breakpoints
         lldb::LanguageType m_exception_language;
+        lldb::LanguageType m_language;
         LazyBool m_skip_prologue;
         bool m_one_shot;
         bool m_use_dummy;
         bool m_all_files;
         Args m_exception_extra_args;
+        LazyBool m_move_to_nearest_code;
 
     };
 
@@ -477,7 +503,8 @@ protected:
                                                    check_inlines,
                                                    m_options.m_skip_prologue,
                                                    internal,
-                                                   m_options.m_hardware).get();
+                                                   m_options.m_hardware,
+                                                   m_options.m_move_to_nearest_code).get();
                 }
                 break;
 
@@ -498,6 +525,7 @@ protected:
                                                    &(m_options.m_filenames),
                                                    m_options.m_func_names,
                                                    name_type_mask,
+                                                   m_options.m_language,
                                                    m_options.m_skip_prologue,
                                                    internal,
                                                    m_options.m_hardware).get();
@@ -558,7 +586,8 @@ protected:
                                                               &(m_options.m_filenames),
                                                               regexp,
                                                               internal,
-                                                              m_options.m_hardware).get();
+                                                              m_options.m_hardware,
+                                                              m_options.m_move_to_nearest_code).get();
                 }
                 break;
             case eSetTypeException:
@@ -689,6 +718,8 @@ private:
 #define LLDB_OPT_FILE ( LLDB_OPT_SET_FROM_TO(1, 9) & ~LLDB_OPT_SET_2 )
 #define LLDB_OPT_NOT_10 ( LLDB_OPT_SET_FROM_TO(1, 10) & ~LLDB_OPT_SET_10 )
 #define LLDB_OPT_SKIP_PROLOGUE ( LLDB_OPT_SET_1 | LLDB_OPT_SET_FROM_TO(3,8) )
+#define LLDB_OPT_MOVE_TO_NEAREST_CODE ( LLDB_OPT_SET_1 | LLDB_OPT_SET_9 )
+#define LLDB_OPT_EXPR_LANGUAGE ( LLDB_OPT_SET_FROM_TO(3, 8) & ~LLDB_OPT_SET_7 )
 
 OptionDefinition
 CommandObjectBreakpointSet::CommandOptions::g_option_table[] =
@@ -780,6 +811,9 @@ CommandObjectBreakpointSet::CommandOptions::g_option_table[] =
 //    { LLDB_OPT_SET_10, false, "exception-typename", 'O', OptionParser::eRequiredArgument, NULL, NULL, 0, eArgTypeTypeName,
 //        "The breakpoint will only stop if an exception Object of this type is thrown.  Can be repeated multiple times to stop for multiple object types" },
 
+    { LLDB_OPT_EXPR_LANGUAGE, false, "language", 'L', OptionParser::eRequiredArgument, NULL, NULL, 0, eArgTypeLanguage,
+        "Specifies the Language to use when interpreting the breakpoint's expression (note: currently only implemented for setting breakpoints on identifiers).  If not set the target.language setting is used." },
+
     { LLDB_OPT_SKIP_PROLOGUE, false, "skip-prologue", 'K', OptionParser::eRequiredArgument, NULL, NULL, 0, eArgTypeBoolean,
         "sKip the prologue if the breakpoint is at the beginning of a function.  If not set the target.skip-prologue setting is used." },
 
@@ -788,6 +822,9 @@ CommandObjectBreakpointSet::CommandOptions::g_option_table[] =
 
     { LLDB_OPT_SET_ALL, false, "breakpoint-name", 'N', OptionParser::eRequiredArgument, NULL, NULL, 0, eArgTypeBreakpointName,
         "Adds this to the list of names for this breakopint."},
+
+    { LLDB_OPT_MOVE_TO_NEAREST_CODE, false, "move-to-nearest-code", 'm', OptionParser::eRequiredArgument, NULL, NULL, 0, eArgTypeBoolean,
+        "Move breakpoints to nearest code. If not set the target.move-to-nearest-code setting is used." },
 
     { 0, false, NULL, 0, 0, NULL, NULL, 0, eArgTypeNone, NULL }
 };
@@ -1226,27 +1263,27 @@ public:
     CommandObjectBreakpointDisable (CommandInterpreter &interpreter) :
         CommandObjectParsed (interpreter,
                              "breakpoint disable",
-                             "Disable the specified breakpoint(s) without removing it/them.  If no breakpoints are specified, disable them all.",
+                             "Disable the specified breakpoint(s) without removing them.  If none are specified, disable all breakpoints.",
                              NULL)
     {
         SetHelpLong(
-"Disable the specified breakpoint(s) without removing it/them.  \n\
-If no breakpoints are specified, disable them all.\n\
-\n\
-Note: disabling a breakpoint will cause none of its locations to be hit\n\
-regardless of whether they are enabled or disabled.  So the sequence: \n\
-\n\
-    (lldb) break disable 1\n\
-    (lldb) break enable 1.1\n\
-\n\
-will NOT cause location 1.1 to get hit.  To achieve that, do:\n\
-\n\
-    (lldb) break disable 1.*\n\
-    (lldb) break enable 1.1\n\
-\n\
-The first command disables all the locations of breakpoint 1, \n\
+"Disable the specified breakpoint(s) without removing them.  \
+If none are specified, disable all breakpoints." R"(
+
+)" "Note: disabling a breakpoint will cause none of its locations to be hit \
+regardless of whether they are enabled or disabled.  After the sequence:" R"(
+
+    (lldb) break disable 1
+    (lldb) break enable 1.1
+
+execution will NOT stop at location 1.1.  To achieve that, type:
+
+    (lldb) break disable 1.*
+    (lldb) break enable 1.1
+
+)" "The first command disables all the locations of breakpoint 1, \
 the second re-enables the first location."
-                    );
+        );
         
         CommandArgumentEntry arg;
         CommandObject::AddIDsArgumentData(arg, eArgTypeBreakpointID, eArgTypeBreakpointIDRange);

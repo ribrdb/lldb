@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "CommandObjectProcess.h"
 
 // C Includes
@@ -125,7 +123,7 @@ public:
                                             "process launch",
                                             "Launch the executable in the debugger.",
                                             NULL,
-                                            eFlagRequiresTarget,
+                                            eCommandRequiresTarget,
                                             "restart"),
         m_options (interpreter)
     {
@@ -270,7 +268,7 @@ protected:
                 // There is a race condition where this thread will return up the call stack to the main command
                 // handler and show an (lldb) prompt before HandlePrivateEvent (from PrivateStateThread) has
                 // a chance to call PushProcessIOHandler().
-                process_sp->SyncIOHandler(2000);
+                process_sp->SyncIOHandler (0, 2000);
 
                 const char *data = stream.GetData();
                 if (data && strlen(data) > 0)
@@ -639,10 +637,10 @@ public:
                              "process continue",
                              "Continue execution of all threads in the current process.",
                              "process continue",
-                             eFlagRequiresProcess       |
-                             eFlagTryTargetAPILock      |
-                             eFlagProcessMustBeLaunched |
-                             eFlagProcessMustBePaused   ),
+                             eCommandRequiresProcess       |
+                             eCommandTryTargetAPILock      |
+                             eCommandProcessMustBeLaunched |
+                             eCommandProcessMustBePaused   ),
         m_options(interpreter)
     {
     }
@@ -762,6 +760,8 @@ protected:
                 }
             }
 
+            const uint32_t iohandler_id = process->GetIOHandlerID();
+
             StreamString stream;
             Error error;
             if (synchronous_execution)
@@ -772,9 +772,9 @@ protected:
             if (error.Success())
             {
                 // There is a race condition where this thread will return up the call stack to the main command
-                // handler and show an (lldb) prompt before HandlePrivateEvent (from PrivateStateThread) has
-                // a chance to call PushProcessIOHandler().
-                process->SyncIOHandler(2000);
+                 // handler and show an (lldb) prompt before HandlePrivateEvent (from PrivateStateThread) has
+                 // a chance to call PushProcessIOHandler().
+                process->SyncIOHandler(iohandler_id, 2000);
 
                 result.AppendMessageWithFormat ("Process %" PRIu64 " resuming\n", process->GetID());
                 if (synchronous_execution)
@@ -900,9 +900,9 @@ public:
                              "process detach",
                              "Detach from the current process being debugged.",
                              "process detach",
-                             eFlagRequiresProcess      |
-                             eFlagTryTargetAPILock     |
-                             eFlagProcessMustBeLaunched),
+                             eCommandRequiresProcess      |
+                             eCommandTryTargetAPILock     |
+                             eCommandProcessMustBeLaunched),
         m_options(interpreter)
     {
     }
@@ -1181,10 +1181,10 @@ public:
                              "process load",
                              "Load a shared library into the current process.",
                              "process load <filename> [<filename> ...]",
-                             eFlagRequiresProcess       |
-                             eFlagTryTargetAPILock      |
-                             eFlagProcessMustBeLaunched |
-                             eFlagProcessMustBePaused   )
+                             eCommandRequiresProcess       |
+                             eCommandTryTargetAPILock      |
+                             eCommandProcessMustBeLaunched |
+                             eCommandProcessMustBePaused   )
     {
     }
 
@@ -1238,10 +1238,10 @@ public:
                              "process unload",
                              "Unload a shared library from the current process using the index returned by a previous call to \"process load\".",
                              "process unload <index>",
-                             eFlagRequiresProcess       |
-                             eFlagTryTargetAPILock      |
-                             eFlagProcessMustBeLaunched |
-                             eFlagProcessMustBePaused   )
+                             eCommandRequiresProcess       |
+                             eCommandTryTargetAPILock      |
+                             eCommandProcessMustBeLaunched |
+                             eCommandProcessMustBePaused   )
     {
     }
 
@@ -1302,7 +1302,7 @@ public:
                              "process signal",
                              "Send a UNIX signal to the current process being debugged.",
                              NULL,
-                             eFlagRequiresProcess | eFlagTryTargetAPILock)
+                             eCommandRequiresProcess | eCommandTryTargetAPILock)
     {
         CommandArgumentEntry arg;
         CommandArgumentData signal_arg;
@@ -1337,7 +1337,7 @@ protected:
             if (::isxdigit (signal_name[0]))
                 signo = StringConvert::ToSInt32(signal_name, LLDB_INVALID_SIGNAL_NUMBER, 0);
             else
-                signo = process->GetUnixSignals().GetSignalNumberFromName (signal_name);
+                signo = process->GetUnixSignals()->GetSignalNumberFromName(signal_name);
             
             if (signo == LLDB_INVALID_SIGNAL_NUMBER)
             {
@@ -1384,9 +1384,9 @@ public:
                              "process interrupt",
                              "Interrupt the current process being debugged.",
                              "process interrupt",
-                             eFlagRequiresProcess      |
-                             eFlagTryTargetAPILock     |
-                             eFlagProcessMustBeLaunched)
+                             eCommandRequiresProcess      |
+                             eCommandTryTargetAPILock     |
+                             eCommandProcessMustBeLaunched)
     {
     }
 
@@ -1446,9 +1446,9 @@ public:
                              "process kill",
                              "Terminate the current process being debugged.",
                              "process kill",
-                             eFlagRequiresProcess      |
-                             eFlagTryTargetAPILock     |
-                             eFlagProcessMustBeLaunched)
+                             eCommandRequiresProcess      |
+                             eCommandTryTargetAPILock     |
+                             eCommandProcessMustBeLaunched)
     {
     }
 
@@ -1507,9 +1507,9 @@ public:
                          "process save-core",
                          "Save the current process as a core file using an appropriate file type.",
                          "process save-core FILE",
-                         eFlagRequiresProcess      |
-                         eFlagTryTargetAPILock     |
-                         eFlagProcessMustBeLaunched)
+                         eCommandRequiresProcess      |
+                         eCommandTryTargetAPILock     |
+                         eCommandProcessMustBeLaunched)
     {
     }
     
@@ -1571,7 +1571,7 @@ public:
                              "process status",
                              "Show the current status and location of executing process.",
                              "process status",
-                             eFlagRequiresProcess | eFlagTryTargetAPILock)
+                             eCommandRequiresProcess | eCommandTryTargetAPILock)
     {
     }
 
@@ -1585,7 +1585,7 @@ public:
     {
         Stream &strm = result.GetOutputStream();
         result.SetStatus (eReturnStatusSuccessFinishNoResult);
-        // No need to check "process" for validity as eFlagRequiresProcess ensures it is valid        
+        // No need to check "process" for validity as eCommandRequiresProcess ensures it is valid        
         Process *process = m_exe_ctx.GetProcessPtr();
         const bool only_threads_with_stop_reason = true;
         const uint32_t start_frame = 0;
@@ -1681,7 +1681,8 @@ public:
                              NULL),
         m_options (interpreter)
     {
-        SetHelpLong ("If no signals are specified, update them all.  If no update option is specified, list the current values.\n");
+        SetHelpLong ("\nIf no signals are specified, update them all.  If no update "
+                     "option is specified, list the current values.");
         CommandArgumentEntry arg;
         CommandArgumentData signal_arg;
 
@@ -1729,19 +1730,19 @@ public:
     void
     PrintSignalHeader (Stream &str)
     {
-        str.Printf ("NAME        PASS   STOP   NOTIFY\n");
-        str.Printf ("==========  =====  =====  ======\n");
+        str.Printf ("NAME         PASS   STOP   NOTIFY\n");
+        str.Printf ("===========  =====  =====  ======\n");
     }  
 
     void
-    PrintSignal (Stream &str, int32_t signo, const char *sig_name, UnixSignals &signals)
+    PrintSignal(Stream &str, int32_t signo, const char *sig_name, const UnixSignalsSP &signals_sp)
     {
         bool stop;
         bool suppress;
         bool notify;
 
-        str.Printf ("%-10s  ", sig_name);
-        if (signals.GetSignalInfo (signo, suppress, stop, notify))
+        str.Printf ("%-11s  ", sig_name);
+        if (signals_sp->GetSignalInfo(signo, suppress, stop, notify))
         {
             bool pass = !suppress;
             str.Printf ("%s  %s  %s", 
@@ -1753,7 +1754,7 @@ public:
     }
 
     void
-    PrintSignalInformation (Stream &str, Args &signal_args, int num_valid_signals, UnixSignals &signals)
+    PrintSignalInformation(Stream &str, Args &signal_args, int num_valid_signals, const UnixSignalsSP &signals_sp)
     {
         PrintSignalHeader (str);
 
@@ -1762,18 +1763,18 @@ public:
             size_t num_args = signal_args.GetArgumentCount();
             for (size_t i = 0; i < num_args; ++i)
             {
-                int32_t signo = signals.GetSignalNumberFromName (signal_args.GetArgumentAtIndex (i));
+                int32_t signo = signals_sp->GetSignalNumberFromName(signal_args.GetArgumentAtIndex(i));
                 if (signo != LLDB_INVALID_SIGNAL_NUMBER)
-                    PrintSignal (str, signo, signal_args.GetArgumentAtIndex (i), signals);
+                    PrintSignal (str, signo, signal_args.GetArgumentAtIndex (i), signals_sp);
             }
         }
         else // Print info for ALL signals
         {
-            int32_t signo = signals.GetFirstSignalNumber(); 
+            int32_t signo = signals_sp->GetFirstSignalNumber();
             while (signo != LLDB_INVALID_SIGNAL_NUMBER)
             {
-                PrintSignal (str, signo, signals.GetSignalAsCString (signo), signals);
-                signo = signals.GetNextSignalNumber (signo);
+                PrintSignal(str, signo, signals_sp->GetSignalAsCString(signo), signals_sp);
+                signo = signals_sp->GetNextSignalNumber(signo);
             }
         }
     }
@@ -1830,27 +1831,27 @@ protected:
         }
 
         size_t num_args = signal_args.GetArgumentCount();
-        UnixSignals &signals = process_sp->GetUnixSignals();
+        UnixSignalsSP signals_sp = process_sp->GetUnixSignals();
         int num_signals_set = 0;
 
         if (num_args > 0)
         {
             for (size_t i = 0; i < num_args; ++i)
             {
-                int32_t signo = signals.GetSignalNumberFromName (signal_args.GetArgumentAtIndex (i));
+                int32_t signo = signals_sp->GetSignalNumberFromName(signal_args.GetArgumentAtIndex(i));
                 if (signo != LLDB_INVALID_SIGNAL_NUMBER)
                 {
                     // Casting the actions as bools here should be okay, because VerifyCommandOptionValue guarantees
                     // the value is either 0 or 1.
                     if (stop_action != -1)
-                        signals.SetShouldStop (signo, (bool) stop_action);
+                        signals_sp->SetShouldStop(signo, stop_action);
                     if (pass_action != -1)
                     {
-                        bool suppress = ! ((bool) pass_action);
-                        signals.SetShouldSuppress (signo, suppress);
+                        bool suppress = !pass_action;
+                        signals_sp->SetShouldSuppress(signo, suppress);
                     }
                     if (notify_action != -1)
-                        signals.SetShouldNotify (signo, (bool) notify_action);
+                        signals_sp->SetShouldNotify(signo, notify_action);
                     ++num_signals_set;
                 }
                 else
@@ -1866,25 +1867,25 @@ protected:
             {
                 if (m_interpreter.Confirm ("Do you really want to update all the signals?", false))
                 {
-                    int32_t signo = signals.GetFirstSignalNumber();
+                    int32_t signo = signals_sp->GetFirstSignalNumber();
                     while (signo != LLDB_INVALID_SIGNAL_NUMBER)
                     {
                         if (notify_action != -1)
-                            signals.SetShouldNotify (signo, (bool) notify_action);
+                            signals_sp->SetShouldNotify(signo, notify_action);
                         if (stop_action != -1)
-                            signals.SetShouldStop (signo, (bool) stop_action);
+                            signals_sp->SetShouldStop(signo, stop_action);
                         if (pass_action != -1)
                         {
-                            bool suppress = ! ((bool) pass_action);
-                            signals.SetShouldSuppress (signo, suppress);
+                            bool suppress = !pass_action;
+                            signals_sp->SetShouldSuppress(signo, suppress);
                         }
-                        signo = signals.GetNextSignalNumber (signo);
+                        signo = signals_sp->GetNextSignalNumber(signo);
                     }
                 }
             }
         }
 
-        PrintSignalInformation (result.GetOutputStream(), signal_args, num_signals_set, signals);
+        PrintSignalInformation (result.GetOutputStream(), signal_args, num_signals_set, signals_sp);
 
         if (num_signals_set > 0)
             result.SetStatus (eReturnStatusSuccessFinishNoResult);

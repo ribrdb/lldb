@@ -30,7 +30,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnLLDBDebugger::CMICmnLLDBDebugger(void)
+CMICmnLLDBDebugger::CMICmnLLDBDebugger()
     : m_constStrThisThreadId("MI debugger event")
 {
 }
@@ -42,7 +42,7 @@ CMICmnLLDBDebugger::CMICmnLLDBDebugger(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnLLDBDebugger::~CMICmnLLDBDebugger(void)
+CMICmnLLDBDebugger::~CMICmnLLDBDebugger()
 {
     Shutdown();
 }
@@ -56,7 +56,7 @@ CMICmnLLDBDebugger::~CMICmnLLDBDebugger(void)
 // Throws:  None.
 //--
 bool
-CMICmnLLDBDebugger::Initialize(void)
+CMICmnLLDBDebugger::Initialize()
 {
     m_clientUsageRefCnt++;
 
@@ -119,7 +119,7 @@ CMICmnLLDBDebugger::Initialize(void)
 // Throws:  None.
 //--
 bool
-CMICmnLLDBDebugger::Shutdown(void)
+CMICmnLLDBDebugger::Shutdown()
 {
     if (--m_clientUsageRefCnt > 0)
         return MIstatus::success;
@@ -173,7 +173,7 @@ CMICmnLLDBDebugger::Shutdown(void)
 // Throws:  None.
 //--
 lldb::SBDebugger &
-CMICmnLLDBDebugger::GetTheDebugger(void)
+CMICmnLLDBDebugger::GetTheDebugger()
 {
     return m_lldbDebugger;
 }
@@ -186,7 +186,7 @@ CMICmnLLDBDebugger::GetTheDebugger(void)
 // Throws:  None.
 //--
 lldb::SBListener &
-CMICmnLLDBDebugger::GetTheListener(void)
+CMICmnLLDBDebugger::GetTheListener()
 {
     return m_lldbListener;
 }
@@ -216,7 +216,7 @@ CMICmnLLDBDebugger::SetDriver(const CMIDriverBase &vClientDriver)
 // Throws:  None.
 //--
 CMIDriverBase &
-CMICmnLLDBDebugger::GetDriver(void) const
+CMICmnLLDBDebugger::GetDriver() const
 {
     return *m_pClientDriver;
 }
@@ -234,13 +234,58 @@ CMICmnLLDBDebugger::GetDriver(void) const
 // Throws:  None.
 //--
 void
-CMICmnLLDBDebugger::WaitForHandleEvent(void)
+CMICmnLLDBDebugger::WaitForHandleEvent()
 {
     std::unique_lock<std::mutex> lock(m_mutexEventQueue);
 
     lldb::SBEvent event;
     if (ThreadIsActive() && m_lldbListener.PeekAtNextEvent(event))
         m_conditionEventQueueEmpty.wait(lock);
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: Check if need to rebroadcast stop event. This function will return true if
+//          debugger is in synchronouse mode. In such case the
+//          CMICmnLLDBDebugger::RebroadcastStopEvent should be called to rebroadcast
+//          a new stop event (if any).
+// Type:    Method.
+// Args:    None.
+// Return:  bool    - True = Need to rebroadcast stop event, false = otherwise.
+// Throws:  None.
+//--
+bool
+CMICmnLLDBDebugger::CheckIfNeedToRebroadcastStopEvent()
+{
+    CMICmnLLDBDebugSessionInfo &rSessionInfo(CMICmnLLDBDebugSessionInfo::Instance());
+    if (!rSessionInfo.GetDebugger().GetAsync())
+    {
+        const bool include_expression_stops = false;
+        m_nLastStopId = CMICmnLLDBDebugSessionInfo::Instance().GetProcess().GetStopID(include_expression_stops);
+        return true;
+    }
+
+    return false;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: Rebroadcast stop event if needed. This function should be called only if the
+//          CMICmnLLDBDebugger::CheckIfNeedToRebroadcastStopEvent() returned true.
+// Type:    Method.
+// Args:    None.
+// Return:  None.
+// Throws:  None.
+//--
+void
+CMICmnLLDBDebugger::RebroadcastStopEvent()
+{
+    lldb::SBProcess process = CMICmnLLDBDebugSessionInfo::Instance().GetProcess();
+    const bool include_expression_stops = false;
+    const uint32_t nStopId = process.GetStopID(include_expression_stops);
+    if (m_nLastStopId != nStopId)
+    {
+        lldb::SBEvent event = process.GetStopEventForStopID(nStopId);
+        process.GetBroadcaster().BroadcastEvent(event);
+    }
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -252,7 +297,7 @@ CMICmnLLDBDebugger::WaitForHandleEvent(void)
 // Throws:  None.
 //--
 bool
-CMICmnLLDBDebugger::InitSBDebugger(void)
+CMICmnLLDBDebugger::InitSBDebugger()
 {
     m_lldbDebugger = lldb::SBDebugger::Create(false);
     if (!m_lldbDebugger.IsValid())
@@ -276,7 +321,7 @@ CMICmnLLDBDebugger::InitSBDebugger(void)
 // Throws:  None.
 //--
 bool
-CMICmnLLDBDebugger::InitStdStreams(void)
+CMICmnLLDBDebugger::InitStdStreams()
 {
     // This is not required when operating the MI driver's code as it has its own
     // streams. Setting the Stdin for the lldbDebugger especially on LINUX will cause
@@ -289,7 +334,7 @@ CMICmnLLDBDebugger::InitStdStreams(void)
 }
 
 //++ ------------------------------------------------------------------------------------
-// Details: Set up the events from the SBDebugger's we would to listent to.
+// Details: Set up the events from the SBDebugger's we would like to listen to.
 // Type:    Method.
 // Args:    None.
 // Return:  MIstatus::success - Functionality succeeded.
@@ -297,7 +342,7 @@ CMICmnLLDBDebugger::InitStdStreams(void)
 // Throws:  None.
 //--
 bool
-CMICmnLLDBDebugger::InitSBListener(void)
+CMICmnLLDBDebugger::InitSBListener()
 {
     m_lldbListener = m_lldbDebugger.GetListener();
     if (!m_lldbListener.IsValid())
@@ -348,7 +393,7 @@ CMICmnLLDBDebugger::RegisterForEvent(const CMIUtilString &vClientName, const CMI
     if (!ClientSaveMask(vClientName, vBroadcasterClass, vEventMask))
         return MIstatus::failure;
 
-    const MIchar *pBroadCasterName = vBroadcasterClass.c_str();
+    const char *pBroadCasterName = vBroadcasterClass.c_str();
     MIuint eventMask = vEventMask;
     eventMask += existingMask;
     const MIuint result = m_lldbListener.StartListeningForEventClass(m_lldbDebugger, pBroadCasterName, eventMask);
@@ -375,16 +420,16 @@ CMICmnLLDBDebugger::RegisterForEvent(const CMIUtilString &vClientName, const CMI
 bool
 CMICmnLLDBDebugger::RegisterForEvent(const CMIUtilString &vClientName, const lldb::SBBroadcaster &vBroadcaster, const MIuint vEventMask)
 {
-    const MIchar *pBroadcasterName = vBroadcaster.GetName();
+    const char *pBroadcasterName = vBroadcaster.GetName();
     if (pBroadcasterName == nullptr)
     {
-        SetErrorDescription(CMIUtilString::Format(MIRSRC(IDS_LLDBDEBUGGER_ERR_BROARDCASTER_NAME), MIRSRC(IDS_WORD_INVALIDNULLPTR)));
+        SetErrorDescription(CMIUtilString::Format(MIRSRC(IDS_LLDBDEBUGGER_ERR_BROADCASTER_NAME), MIRSRC(IDS_WORD_INVALIDNULLPTR)));
         return MIstatus::failure;
     }
     CMIUtilString broadcasterName(pBroadcasterName);
     if (broadcasterName.length() == 0)
     {
-        SetErrorDescription(CMIUtilString::Format(MIRSRC(IDS_LLDBDEBUGGER_ERR_BROARDCASTER_NAME), MIRSRC(IDS_WORD_INVALIDEMPTY)));
+        SetErrorDescription(CMIUtilString::Format(MIRSRC(IDS_LLDBDEBUGGER_ERR_BROADCASTER_NAME), MIRSRC(IDS_WORD_INVALIDEMPTY)));
         return MIstatus::failure;
     }
 
@@ -440,7 +485,7 @@ CMICmnLLDBDebugger::UnregisterForEvent(const CMIUtilString &vClientName, const C
         }
     }
 
-    const MIchar *pBroadCasterName = vBroadcasterClass.c_str();
+    const char *pBroadCasterName = vBroadcasterClass.c_str();
     if (!m_lldbListener.StopListeningForEventClass(m_lldbDebugger, pBroadCasterName, newEventMask))
     {
         SetErrorDescription(CMIUtilString::Format(MIRSRC(IDS_LLDBDEBUGGER_ERR_STOPLISTENER), vClientName.c_str(), pBroadCasterName));
@@ -642,7 +687,7 @@ CMICmnLLDBDebugger::ClientGetTheirMask(const CMIUtilString &vClientName, const C
         vwEventMask = (*it).second;
     }
 
-    SetErrorDescription(CMIUtilString::Format(MIRSRC(IDS_LLDBDEBUGGER_ERR_CLIENTNOTREGISTERD), vClientName.c_str()));
+    SetErrorDescription(CMIUtilString::Format(MIRSRC(IDS_LLDBDEBUGGER_ERR_CLIENTNOTREGISTERED), vClientName.c_str()));
 
     return MIstatus::failure;
 }
@@ -651,7 +696,7 @@ CMICmnLLDBDebugger::ClientGetTheirMask(const CMIUtilString &vClientName, const C
 // Details: Momentarily wait for an events being broadcast and inspect those that do
 //          come this way. Check if the target should exit event if so start shutting
 //          down this thread and the application. Any other events pass on to the
-//          Out-of-band handler to futher determine what kind of event arrived.
+//          Out-of-band handler to further determine what kind of event arrived.
 //          This function runs in the thread "MI debugger event".
 // Type:    Method.
 // Args:    vrbIsAlive  - (W) False = yes exit event monitoring thread, true = continue.
@@ -731,7 +776,7 @@ CMICmnLLDBDebugger::ThreadRun(bool &vrbIsAlive)
 // Throws:  None.
 //--
 bool
-CMICmnLLDBDebugger::ThreadFinish(void)
+CMICmnLLDBDebugger::ThreadFinish()
 {
     return MIstatus::success;
 }
@@ -744,7 +789,7 @@ CMICmnLLDBDebugger::ThreadFinish(void)
 // Throws:  None.
 //--
 const CMIUtilString &
-CMICmnLLDBDebugger::ThreadGetName(void) const
+CMICmnLLDBDebugger::ThreadGetName() const
 {
     return m_constStrThisThreadId;
 }

@@ -188,11 +188,11 @@ namespace lldb {
     //----------------------------------------------------------------------
     enum RegisterKind
     {
-        eRegisterKindGCC = 0,    // the register numbers seen in eh_frame
-        eRegisterKindDWARF,      // the register numbers seen DWARF
-        eRegisterKindGeneric,    // insn ptr reg, stack ptr reg, etc not specific to any particular target
-        eRegisterKindGDB,        // the register numbers gdb uses (matches stabs numbers)
-        eRegisterKindLLDB,       // lldb's internal register numbers
+        eRegisterKindEHFrame = 0, // the register numbers seen in eh_frame
+        eRegisterKindDWARF,       // the register numbers seen DWARF
+        eRegisterKindGeneric,     // insn ptr reg, stack ptr reg, etc not specific to any particular target
+        eRegisterKindStabs,       // the register numbers used in stabs debug format (referred to as "gcc" or "gdb" numbering)
+        eRegisterKindLLDB,        // lldb's internal register numbers
         kNumRegisterKinds
     };
 
@@ -421,7 +421,12 @@ namespace lldb {
         eLanguageTypeFortran03       = 0x0022,   ///< ISO Fortran 2003.
         eLanguageTypeFortran08       = 0x0023,   ///< ISO Fortran 2008.
         // Vendor Extensions
-        eLanguageTypeExtRenderScript = 0x8e57,   ///< RenderScript
+        // Note: LanguageRuntime::GetNameForLanguageType
+        // assumes these can be used as indexes into array language_names, and
+        // Language::SetLanguageFromCString and Language::AsCString
+        // assume these can be used as indexes into array g_languages.
+        eLanguageTypeMipsAssembler   = 0x0024,   ///< Mips_Assembler.
+        eLanguageTypeExtRenderScript = 0x0025,   ///< RenderScript.
         eNumLanguageTypes
     };
     
@@ -590,6 +595,7 @@ namespace lldb {
         eSectionTypeDataObjCMessageRefs,    // Pointer to function pointer + selector
         eSectionTypeDataObjCCFStrings,      // Objective C const CFString/NSString objects
         eSectionTypeDWARFDebugAbbrev,
+        eSectionTypeDWARFDebugAddr,
         eSectionTypeDWARFDebugAranges,
         eSectionTypeDWARFDebugFrame,
         eSectionTypeDWARFDebugInfo,
@@ -600,6 +606,7 @@ namespace lldb {
         eSectionTypeDWARFDebugPubTypes,
         eSectionTypeDWARFDebugRanges,
         eSectionTypeDWARFDebugStr,
+        eSectionTypeDWARFDebugStrOffsets,
         eSectionTypeDWARFAppleNames,
         eSectionTypeDWARFAppleTypes,
         eSectionTypeDWARFAppleNamespaces,
@@ -724,14 +731,16 @@ namespace lldb {
     //----------------------------------------------------------------------
     FLAGS_ENUM(TypeOptions)
     {
-        eTypeOptionNone            = (0u),
-        eTypeOptionCascade         = (1u << 0),
-        eTypeOptionSkipPointers    = (1u << 1),
-        eTypeOptionSkipReferences  = (1u << 2),
-        eTypeOptionHideChildren    = (1u << 3),
-        eTypeOptionHideValue       = (1u << 4),
-        eTypeOptionShowOneLiner    = (1u << 5),
-        eTypeOptionHideNames       = (1u << 6)
+        eTypeOptionNone                = (0u),
+        eTypeOptionCascade             = (1u << 0),
+        eTypeOptionSkipPointers        = (1u << 1),
+        eTypeOptionSkipReferences      = (1u << 2),
+        eTypeOptionHideChildren        = (1u << 3),
+        eTypeOptionHideValue           = (1u << 4),
+        eTypeOptionShowOneLiner        = (1u << 5),
+        eTypeOptionHideNames           = (1u << 6),
+        eTypeOptionNonCacheable        = (1u << 7),
+        eTypeOptionHideEmptyAggregates = (1u << 8)
     };
 
    //----------------------------------------------------------------------
@@ -948,6 +957,89 @@ namespace lldb {
         eTypeIsFloat            = (1u << 19),
         eTypeIsComplex          = (1u << 20),
         eTypeIsSigned           = (1u << 21)
+    };
+    
+    FLAGS_ENUM(CommandFlags)
+    {
+        //----------------------------------------------------------------------
+        // eCommandRequiresTarget
+        //
+        // Ensures a valid target is contained in m_exe_ctx prior to executing
+        // the command. If a target doesn't exist or is invalid, the command
+        // will fail and CommandObject::GetInvalidTargetDescription() will be
+        // returned as the error. CommandObject subclasses can override the
+        // virtual function for GetInvalidTargetDescription() to provide custom
+        // strings when needed.
+        //----------------------------------------------------------------------
+        eCommandRequiresTarget         = (1u << 0),
+        //----------------------------------------------------------------------
+        // eCommandRequiresProcess
+        //
+        // Ensures a valid process is contained in m_exe_ctx prior to executing
+        // the command. If a process doesn't exist or is invalid, the command
+        // will fail and CommandObject::GetInvalidProcessDescription() will be
+        // returned as the error. CommandObject subclasses can override the
+        // virtual function for GetInvalidProcessDescription() to provide custom
+        // strings when needed.
+        //----------------------------------------------------------------------
+        eCommandRequiresProcess        = (1u << 1),
+        //----------------------------------------------------------------------
+        // eCommandRequiresThread
+        //
+        // Ensures a valid thread is contained in m_exe_ctx prior to executing
+        // the command. If a thread doesn't exist or is invalid, the command
+        // will fail and CommandObject::GetInvalidThreadDescription() will be
+        // returned as the error. CommandObject subclasses can override the
+        // virtual function for GetInvalidThreadDescription() to provide custom
+        // strings when needed.
+        //----------------------------------------------------------------------
+        eCommandRequiresThread         = (1u << 2),
+        //----------------------------------------------------------------------
+        // eCommandRequiresFrame
+        //
+        // Ensures a valid frame is contained in m_exe_ctx prior to executing
+        // the command. If a frame doesn't exist or is invalid, the command
+        // will fail and CommandObject::GetInvalidFrameDescription() will be
+        // returned as the error. CommandObject subclasses can override the
+        // virtual function for GetInvalidFrameDescription() to provide custom
+        // strings when needed.
+        //----------------------------------------------------------------------
+        eCommandRequiresFrame          = (1u << 3),
+        //----------------------------------------------------------------------
+        // eCommandRequiresRegContext
+        //
+        // Ensures a valid register context (from the selected frame if there
+        // is a frame in m_exe_ctx, or from the selected thread from m_exe_ctx)
+        // is available from m_exe_ctx prior to executing the command. If a
+        // target doesn't exist or is invalid, the command will fail and
+        // CommandObject::GetInvalidRegContextDescription() will be returned as
+        // the error. CommandObject subclasses can override the virtual function
+        // for GetInvalidRegContextDescription() to provide custom strings when
+        // needed.
+        //----------------------------------------------------------------------
+        eCommandRequiresRegContext     = (1u << 4),
+        //----------------------------------------------------------------------
+        // eCommandTryTargetAPILock
+        //
+        // Attempts to acquire the target lock if a target is selected in the
+        // command interpreter. If the command object fails to acquire the API
+        // lock, the command will fail with an appropriate error message.
+        //----------------------------------------------------------------------
+        eCommandTryTargetAPILock       = (1u << 5),
+        //----------------------------------------------------------------------
+        // eCommandProcessMustBeLaunched
+        //
+        // Verifies that there is a launched process in m_exe_ctx, if there
+        // isn't, the command will fail with an appropriate error message.
+        //----------------------------------------------------------------------
+        eCommandProcessMustBeLaunched  = (1u << 6),
+        //----------------------------------------------------------------------
+        // eCommandProcessMustBePaused
+        //
+        // Verifies that there is a paused process in m_exe_ctx, if there
+        // isn't, the command will fail with an appropriate error message.
+        //----------------------------------------------------------------------
+        eCommandProcessMustBePaused    = (1u << 7)
     };
     
     //----------------------------------------------------------------------

@@ -52,7 +52,7 @@ typedef unsigned short mode_t;
 
 #ifdef LLDB_DISABLE_PYTHON
 typedef uint32_t pid_t;
-#endif
+#endif // LLDB_DISABLE_PYTHON
 
 int usleep(uint32_t useconds);
 
@@ -64,6 +64,22 @@ char *dirname(char *path);
 int strcasecmp(const char* s1, const char* s2);
 int strncasecmp(const char* s1, const char* s2, size_t n);
 
+#if _MSC_VER < 1900
+namespace lldb_private {
+int vsnprintf(char *buffer, size_t count, const char *format, va_list argptr);
+}
+
+// inline to avoid linkage conflicts
+int inline snprintf(char *buffer, size_t count, const char *format, ...)
+{
+    va_list argptr;
+    va_start(argptr, format);
+    int r = lldb_private::vsnprintf(buffer, count, format, argptr);
+    va_end(argptr);
+    return r;
+}
+#endif
+
 #define STDIN_FILENO  0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
@@ -73,15 +89,19 @@ int strncasecmp(const char* s1, const char* s2, size_t n);
 #define S_IFDIR  _S_IFDIR
 #define S_ISDIR(mode)  (((mode) & S_IFMT) == S_IFDIR)
 
-#define snprintf _snprintf
-#endif
+#endif // _MSC_VER
 
 // timespec
+// MSVC 2015 and higher have timespec.  Otherwise we need to define it ourselves.
+#if defined(_MSC_VER) && _MSC_VER >= 1900
+#include <time.h>
+#else
 struct timespec
 {
     time_t tv_sec;
     long   tv_nsec;
 };
+#endif
 
 
 #endif  // LLDB_lldb_win32_h_

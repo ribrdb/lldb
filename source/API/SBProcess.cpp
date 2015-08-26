@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/API/SBProcess.h"
 
 // C Includes
@@ -169,11 +167,11 @@ SBProcess::RemoteLaunch (char const **argv,
         {
             if (stop_at_entry)
                 launch_flags |= eLaunchFlagStopAtEntry;
-            ProcessLaunchInfo launch_info (stdin_path,
-                                           stdout_path,
-                                           stderr_path,
-                                           working_directory,
-                                           launch_flags);
+            ProcessLaunchInfo launch_info(FileSpec{stdin_path, false},
+                                          FileSpec{stdout_path, false},
+                                          FileSpec{stderr_path, false},
+                                          FileSpec{working_directory, false},
+                                          launch_flags);
             Module *exe_module = process_sp->GetTarget().GetExecutableModulePointer();
             if (exe_module)
                 launch_info.SetExecutableFile(exe_module->GetPlatformFileSpec(), true);
@@ -603,6 +601,30 @@ SBProcess::GetStopID(bool include_expression_stops)
     return 0;
 }
 
+SBEvent
+SBProcess::GetStopEventForStopID(uint32_t stop_id)
+{
+    Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
+
+    SBEvent sb_event;
+    EventSP event_sp;
+    ProcessSP process_sp(GetSP());
+    if (process_sp)
+    {
+        Mutex::Locker api_locker (process_sp->GetTarget().GetAPIMutex());
+        event_sp = process_sp->GetStopEventForStopID(stop_id);
+        sb_event.reset(event_sp);
+    }
+
+    if (log)
+        log->Printf ("SBProcess(%p)::GetStopEventForStopID (stop_id=%" PRIu32 ") => SBEvent(%p)",
+                     static_cast<void*>(process_sp.get()),
+                     stop_id,
+                     static_cast<void*>(event_sp.get()));
+
+    return sb_event;
+}
+
 StateType
 SBProcess::GetState ()
 {
@@ -890,14 +912,10 @@ SBProcess::Signal (int signo)
 SBUnixSignals
 SBProcess::GetUnixSignals()
 {
-    SBUnixSignals sb_unix_signals;
-    ProcessSP process_sp(GetSP());
-    if (process_sp)
-    {
-        sb_unix_signals.SetSP(process_sp);
-    }
+    if (auto process_sp = GetSP())
+        return SBUnixSignals{process_sp};
 
-    return sb_unix_signals;
+    return {};
 }
 
 void
@@ -996,6 +1014,12 @@ SBProcess::GetProcessFromEvent (const SBEvent &event)
 {
     SBProcess process(Process::ProcessEventData::GetProcessFromEvent (event.get()));
     return process;
+}
+
+bool
+SBProcess::GetInterruptedFromEvent (const SBEvent &event)
+{
+    return Process::ProcessEventData::GetInterruptedFromEvent(event.get());
 }
 
 bool

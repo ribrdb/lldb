@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/Target/ThreadPlan.h"
 
 // C Includes
@@ -242,7 +240,7 @@ ThreadPlanAssemblyTracer::Log ()
             Value value;
             value.SetValueType (Value::eValueTypeScalar);
 //            value.SetContext (Value::eContextTypeClangType, intptr_type.GetOpaqueQualType());
-            value.SetClangType (intptr_type);
+            value.SetCompilerType (intptr_type);
             value_list.PushValue (value);
         }
         

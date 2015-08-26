@@ -23,7 +23,7 @@ class ThreadSpecificBreakTestCase(TestBase):
     @expectedFailureFreeBSD('llvm.org/pr18522') # hits break in another thread in testrun
     @python_api_test
     @dwarf_test
-    @expectedFailureLinux # this test fails 6/100 dosep runs
+    @expectedFlakeyLinux # this test fails 6/100 dosep runs
     def test_with_dwarf_python(self):
         """Test that we obey thread conditioned breakpoints."""
         self.buildDwarf()
@@ -37,7 +37,7 @@ class ThreadSpecificBreakTestCase(TestBase):
         target = self.dbg.CreateTarget(exe)
         self.assertTrue(target, VALID_TARGET)
 
-        main_source_spec = lldb.SBFileSpec ("main.c")
+        main_source_spec = lldb.SBFileSpec ("main.cpp")
 
         # Set a breakpoint in the thread body, and make it active for only the first thread.
         break_thread_body = target.BreakpointCreateBySourceRegex ("Break here in thread body.", main_source_spec)

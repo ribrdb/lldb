@@ -11,7 +11,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_executable_option_file(self):
         """Test that 'lldb-mi --interpreter %s' loads executable file."""
@@ -38,7 +38,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\*stopped,reason=\"exited-normally\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_executable_option_unknown_file(self):
         """Test that 'lldb-mi --interpreter %s' fails on unknown executable file."""
@@ -56,7 +56,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect(self.child_prompt, exactly = True)
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_executable_option_absolute_path(self):
         """Test that 'lldb-mi --interpreter %s' loads executable which is specified via absolute path."""
@@ -80,7 +80,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\*stopped,reason=\"exited-normally\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_executable_option_relative_path(self):
         """Test that 'lldb-mi --interpreter %s' loads executable which is specified via relative path."""
@@ -103,7 +103,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\*stopped,reason=\"exited-normally\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_executable_option_unknown_path(self):
         """Test that 'lldb-mi --interpreter %s' fails on executable file which is specified via unknown path."""
@@ -121,7 +121,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect(self.child_prompt, exactly = True)
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_source_option_start_script(self):
@@ -143,6 +143,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         # After '-exec-run'
         self.expect("-exec-run")
         self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
         # After '-break-insert main.cpp:BP_return'
         line = line_number('main.cpp', '//BP_return')
@@ -152,6 +153,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         # After '-exec-continue'
         self.expect("-exec-continue")
         self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
         # Test that lldb-mi is ready after execution of --source start_script
         self.expect(self.child_prompt, exactly = True)
@@ -162,7 +164,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect(self.child_prompt, exactly = True)
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_source_option_start_script_exit(self):
@@ -184,6 +186,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         # After '-exec-run'
         self.expect("-exec-run")
         self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
         # After '-break-insert main.cpp:BP_return'
         line = line_number('main.cpp', '//BP_return')
@@ -193,6 +196,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         # After '-exec-continue'
         self.expect("-exec-continue")
         self.expect("\^running")
+        self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
         # After '-data-evaluate-expression a'
         self.expect("-data-evaluate-expression a")
@@ -201,9 +205,10 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         # After '-gdb-exit'
         self.expect("-gdb-exit")
         self.expect("\^exit")
+        self.expect("\*stopped,reason=\"exited-normally\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_source_option_start_script_error(self):
         """Test that 'lldb-mi --interpreter' stops execution of initial commands in case of error."""
@@ -225,7 +230,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect(self.child_prompt, exactly = True)
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_log_option(self):
         """Test that 'lldb-mi --log' creates a log file in the current directory."""
@@ -257,7 +262,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
             os.remove(f)
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_log_directory_option(self):
         """Test that 'lldb-mi --log --log-dir' creates a log file in the directory specified by --log-dir."""

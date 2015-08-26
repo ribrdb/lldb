@@ -18,6 +18,7 @@
 // Project includes
 #include "lldb/Target/Platform.h"
 #include "../../Process/gdb-remote/GDBRemoteCommunicationClient.h"
+#include "Plugins/Process/Utility/GDBRemoteSignals.h"
 
 namespace lldb_private {
 namespace platform_gdb_server {
@@ -128,11 +129,11 @@ public:
     ArchSpec
     GetRemoteSystemArchitecture () override;
 
-    ConstString
+    FileSpec
     GetRemoteWorkingDirectory() override;
     
     bool
-    SetRemoteWorkingDirectory(const ConstString &path) override;
+    SetRemoteWorkingDirectory(const FileSpec &working_dir) override;
 
     // Remote subclasses should override this and return a valid instance
     // name if connected.
@@ -155,14 +156,14 @@ public:
     DisconnectRemote () override;
     
     Error
-    MakeDirectory (const char *path, uint32_t file_permissions) override;
-    
+    MakeDirectory(const FileSpec &file_spec, uint32_t file_permissions) override;
+
     Error
-    GetFilePermissions (const char *path, uint32_t &file_permissions) override;
-    
+    GetFilePermissions(const FileSpec &file_spec, uint32_t &file_permissions) override;
+
     Error
-    SetFilePermissions (const char *path, uint32_t file_permissions) override;
-    
+    SetFilePermissions(const FileSpec &file_spec, uint32_t file_permissions) override;
+
 
     lldb::user_id_t
     OpenFile (const FileSpec& file_spec, uint32_t flags, uint32_t mode, Error &error) override;
@@ -194,30 +195,35 @@ public:
              uint32_t gid = UINT32_MAX) override;
     
     Error
-    CreateSymlink (const char *src, const char *dst) override;
+    CreateSymlink(const FileSpec &src, const FileSpec &dst) override;
 
     bool
     GetFileExists (const FileSpec& file_spec) override;
 
     Error
-    Unlink (const char *path) override;
+    Unlink(const FileSpec &path) override;
 
     Error
-    RunShellCommand (const char *command,            // Shouldn't be NULL
-                     const char *working_dir,        // Pass NULL to use the current working directory
-                     int *status_ptr,                // Pass NULL if you don't want the process exit status
-                     int *signo_ptr,                 // Pass NULL if you don't want the signal that caused the process to exit
-                     std::string *command_output,    // Pass NULL if you don't want the command output
-                     uint32_t timeout_sec) override; // Timeout in seconds to wait for shell program to finish
+    RunShellCommand(const char *command,            // Shouldn't be NULL
+                    const FileSpec &working_dir,    // Pass empty FileSpec to use the current working directory
+                    int *status_ptr,                // Pass NULL if you don't want the process exit status
+                    int *signo_ptr,                 // Pass NULL if you don't want the signal that caused the process to exit
+                    std::string *command_output,    // Pass NULL if you don't want the command output
+                    uint32_t timeout_sec) override; // Timeout in seconds to wait for shell program to finish
 
     void
     CalculateTrapHandlerSymbolNames () override;
+
+    const lldb::UnixSignalsSP &
+    GetRemoteUnixSignals() override;
 
 protected:
     process_gdb_remote::GDBRemoteCommunicationClient m_gdb_client;
     std::string m_platform_description; // After we connect we can get a more complete description of what we are connected to
     std::string m_platform_scheme;
     std::string m_platform_hostname;
+
+    lldb::UnixSignalsSP m_remote_signals_sp;
 
     // Launch the lldb-gdbserver on the remote host and return the port it is listening on or 0 on
     // failure. Subclasses should override this method if they want to do extra actions before or
@@ -228,7 +234,17 @@ protected:
     virtual bool
     KillSpawnedProcess (lldb::pid_t pid);
 
+    virtual std::string
+    MakeServerUrl(const char* scheme,
+                  const char* hostname,
+                  uint16_t port);
+
 private:
+    std::string
+    MakeGdbServerUrl(const std::string &platform_scheme,
+                     const std::string &platform_hostname,
+                     uint16_t port);
+
     DISALLOW_COPY_AND_ASSIGN (PlatformRemoteGDBServer);
 
 };

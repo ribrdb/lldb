@@ -63,6 +63,15 @@ public:
     uint32_t
     GetFrameID () const;
 
+    %feature("docstring", "
+    Get the Canonical Frame Address for this stack frame.
+    This is the DWARF standard's definition of a CFA, a stack address
+    that remains constant throughout the lifetime of the function.
+    Returns an lldb::addr_t stack address, or LLDB_INVALID_ADDRESS if
+    the CFA cannot be determined.") GetCFA;
+    lldb::addr_t
+    GetCFA () const;
+
     lldb::addr_t
     GetPC () const;
 
@@ -118,6 +127,12 @@ public:
     ") GetFunctionName;
     const char *
     GetFunctionName();
+             
+     const char *
+     GetDisplayFunctionName ();
+
+    const char *
+    GetFunctionName() const;
 
     %feature("docstring", "
     /// Return true if this frame represents an inlined function.
@@ -126,7 +141,10 @@ public:
     ") IsInlined;
     bool
     IsInlined();
-    
+
+    bool
+    IsInlined() const;
+
     %feature("docstring", "
     /// The version that doesn't supply a 'use_dynamic' value will use the
     /// target's default.
@@ -264,6 +282,13 @@ public:
     %pythoncode %{
         def get_all_variables(self):
             return self.GetVariables(True,True,True,True)
+        
+        def get_parent_frame(self):
+            parent_idx = self.idx + 1
+            if parent_idx >= 0 and parent_idx < len(self.thread.frame):
+                return self.thread.frame[parent_idx]
+            else:
+                return SBFrame()
 
         def get_arguments(self):
             return self.GetVariables(True,False,False,False)
@@ -372,6 +397,9 @@ public:
 
         __swig_getmethods__["reg"] = get_registers_access
         if _newclass: reg = property(get_registers_access, None, doc='''A read only property that returns an helper object providing a flattened indexable view of the CPU registers for this stack frame''')
+
+        __swig_getmethods__["parent"] = get_parent_frame
+        if _newclass: parent = property(get_parent_frame, None, doc='''A read only property that returns the parent (caller) frame of the current frame.''')
 
     %}
 };

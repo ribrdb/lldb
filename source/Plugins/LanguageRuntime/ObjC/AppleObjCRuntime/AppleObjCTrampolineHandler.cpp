@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "AppleObjCTrampolineHandler.h"
 
 // C Includes
@@ -473,10 +471,7 @@ AppleObjCTrampolineHandler::AppleObjCVTables::InitializeVTableSymbols ()
                                                                                             eSymbolTypeData);
         if (trampoline_symbol != NULL)
         {
-            if (!trampoline_symbol->GetAddress().IsValid())
-                return false;
-                
-            m_trampoline_header = trampoline_symbol->GetAddress().GetLoadAddress(&target);
+            m_trampoline_header = trampoline_symbol->GetLoadAddress(&target);
             if (m_trampoline_header == LLDB_INVALID_ADDRESS)
                 return false;
             
@@ -486,10 +481,11 @@ AppleObjCTrampolineHandler::AppleObjCVTables::InitializeVTableSymbols ()
                                                                                              eSymbolTypeCode);
             if (changed_symbol != NULL)
             {
-                if (!changed_symbol->GetAddress().IsValid())
+                const Address changed_symbol_addr = changed_symbol->GetAddress();
+                if (!changed_symbol_addr.IsValid())
                     return false;
                     
-                lldb::addr_t changed_addr = changed_symbol->GetAddress().GetOpcodeLoadAddress (&target);
+                lldb::addr_t changed_addr = changed_symbol_addr.GetOpcodeLoadAddress (&target);
                 if (changed_addr != LLDB_INVALID_ADDRESS)
                 {
                     BreakpointSP trampolines_changed_bp_sp = target.CreateBreakpoint (changed_addr, true, false);
@@ -526,11 +522,11 @@ AppleObjCTrampolineHandler::AppleObjCVTables::RefreshTrampolines (void *baton,
         ClangASTContext *clang_ast_context = process->GetTarget().GetScratchClangASTContext();
         ValueList argument_values;
         Value input_value;
-        ClangASTType clang_void_ptr_type = clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+        CompilerType clang_void_ptr_type = clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
 
         input_value.SetValueType (Value::eValueTypeScalar);
         //input_value.SetContext (Value::eContextTypeClangType, clang_void_ptr_type);
-        input_value.SetClangType (clang_void_ptr_type);
+        input_value.SetCompilerType (clang_void_ptr_type);
         argument_values.PushValue(input_value);
         
         bool success = abi->GetArgumentValues (exe_ctx.GetThreadRef(), argument_values);
@@ -705,13 +701,13 @@ AppleObjCTrampolineHandler::AppleObjCTrampolineHandler (const ProcessSP &process
     {
         ConstString name_const_str(g_dispatch_functions[i].name);
         const Symbol *msgSend_symbol = m_objc_module_sp->FindFirstSymbolWithNameAndType (name_const_str, eSymbolTypeCode);
-        if (msgSend_symbol)
+        if (msgSend_symbol && msgSend_symbol->ValueIsAddress())
         {
             // FixMe: Make g_dispatch_functions static table of DispatchFunctions, and have the map be address->index.
             // Problem is we also need to lookup the dispatch function.  For now we could have a side table of stret & non-stret
             // dispatch functions.  If that's as complex as it gets, we're fine.
             
-            lldb::addr_t sym_addr = msgSend_symbol->GetAddress().GetOpcodeLoadAddress(target);
+            lldb::addr_t sym_addr = msgSend_symbol->GetAddressRef().GetOpcodeLoadAddress(target);
             
             m_msgSend_map.insert(std::pair<lldb::addr_t, int>(sym_addr, i));
         }
@@ -799,7 +795,7 @@ AppleObjCTrampolineHandler::SetupDispatchFunction (Thread &thread, ValueList &di
         if (!m_impl_function.get())
         {
             ClangASTContext *clang_ast_context = thread.GetProcess()->GetTarget().GetScratchClangASTContext();
-            ClangASTType clang_void_ptr_type = clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+            CompilerType clang_void_ptr_type = clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
             m_impl_function.reset(new ClangFunction (thread,
                                                      clang_void_ptr_type,
                                                      impl_code_address,
@@ -902,10 +898,10 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan (Thread &thread, bool sto
         ClangASTContext *clang_ast_context = target_sp->GetScratchClangASTContext();
         ValueList argument_values;
         Value void_ptr_value;
-        ClangASTType clang_void_ptr_type = clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
+        CompilerType clang_void_ptr_type = clang_ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
         void_ptr_value.SetValueType (Value::eValueTypeScalar);
         //void_ptr_value.SetContext (Value::eContextTypeClangType, clang_void_ptr_type);
-        void_ptr_value.SetClangType (clang_void_ptr_type);
+        void_ptr_value.SetCompilerType (clang_void_ptr_type);
         
         int obj_index;
         int sel_index;
@@ -1084,10 +1080,10 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan (Thread &thread, bool sto
             dispatch_values.PushValue (*(argument_values.GetValueAtIndex(sel_index)));
             
             Value flag_value;
-            ClangASTType clang_int_type = clang_ast_context->GetBuiltinTypeForEncodingAndBitSize(lldb::eEncodingSint, 32);
+            CompilerType clang_int_type = clang_ast_context->GetBuiltinTypeForEncodingAndBitSize(lldb::eEncodingSint, 32);
             flag_value.SetValueType (Value::eValueTypeScalar);
             //flag_value.SetContext (Value::eContextTypeClangType, clang_int_type);
-            flag_value.SetClangType (clang_int_type);
+            flag_value.SetCompilerType (clang_int_type);
             
             if (this_dispatch.stret_return)
                 flag_value.GetScalar() = 1;

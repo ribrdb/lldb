@@ -24,7 +24,7 @@
    </BuildAction>
    <TestAction
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.GDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       buildConfiguration = "Debug">
       <Testables>
@@ -87,7 +87,7 @@
       launchStyle = "0"
       useCustomWorkingDirectory = "NO"
       customWorkingDirectory = "/Volumes/work/gclayton/Documents/devb/attach"
-      buildConfiguration = "Debug"
+      buildConfiguration = "DebugClang"
       ignoresPersistentStateOnLaunch = "YES"
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"

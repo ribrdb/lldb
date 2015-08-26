@@ -13,11 +13,12 @@
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Core/Log.h"
 #include "lldb/Core/Timer.h"
-#include "lldb/Interpreter/ScriptInterpreterPython.h"
 
 #include "Plugins/DynamicLoader/MacOSX-DYLD/DynamicLoaderMacOSXDYLD.h"
 #include "Plugins/DynamicLoader/POSIX-DYLD/DynamicLoaderPOSIXDYLD.h"
+#include "Plugins/DynamicLoader/Windows-DYLD/DynamicLoaderWindowsDYLD.h"
 #include "Plugins/Instruction/ARM/EmulateInstructionARM.h"
+#include "Plugins/Instruction/MIPS/EmulateInstructionMIPS.h"
 #include "Plugins/Instruction/MIPS64/EmulateInstructionMIPS64.h"
 #include "Plugins/ObjectContainer/BSD-Archive/ObjectContainerBSDArchive.h"
 #include "Plugins/ObjectContainer/Universal-Mach-O/ObjectContainerUniversalMachO.h"
@@ -25,6 +26,7 @@
 #include "Plugins/ObjectFile/PECOFF/ObjectFilePECOFF.h"
 #include "Plugins/OperatingSystem/Go/OperatingSystemGo.h"
 #include "Plugins/OperatingSystem/Python/OperatingSystemPython.h"
+#include "Plugins/OperatingSystem/Go/OperatingSystemGo.h"
 #include "Plugins/Platform/Android/PlatformAndroid.h"
 #include "Plugins/Platform/FreeBSD/PlatformFreeBSD.h"
 #include "Plugins/Platform/Kalimba/PlatformKalimba.h"
@@ -42,13 +44,12 @@
 #endif
 
 #if defined(__linux__)
-#include "Plugins/Process/Linux/ProcessLinux.h"
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
 #endif
 
 #if defined(_MSC_VER)
 #include "lldb/Host/windows/windows.h"
-#include "Plugins/Process/Windows/ProcessWindowsLog.h"
+#include "Plugins/Process/Windows/Live/ProcessWindowsLog.h"
 #endif
 
 #include "llvm/Support/TargetSelect.h"
@@ -107,13 +108,15 @@ SystemInitializerCommon::Initialize()
     ObjectFileELF::Initialize();
     ObjectFilePECOFF::Initialize();
     DynamicLoaderPOSIXDYLD::Initialize();
-    PlatformFreeBSD::Initialize();
+    DynamicLoaderWindowsDYLD::Initialize();
+    platform_freebsd::PlatformFreeBSD::Initialize();
     platform_linux::PlatformLinux::Initialize();
     PlatformWindows::Initialize();
     PlatformKalimba::Initialize();
     platform_android::PlatformAndroid::Initialize();
 
     EmulateInstructionARM::Initialize();
+    EmulateInstructionMIPS::Initialize();
     EmulateInstructionMIPS64::Initialize();
 
     //----------------------------------------------------------------------
@@ -139,7 +142,6 @@ SystemInitializerCommon::Initialize()
     ProcessWindowsLog::Initialize();
 #endif
 #ifndef LLDB_DISABLE_PYTHON
-    ScriptInterpreterPython::InitializePrivate();
     OperatingSystemPython::Initialize();
 #endif
     OperatingSystemGo::Initialize();
@@ -153,7 +155,8 @@ SystemInitializerCommon::Terminate()
     ObjectFileELF::Terminate();
     ObjectFilePECOFF::Terminate();
     DynamicLoaderPOSIXDYLD::Terminate();
-    PlatformFreeBSD::Terminate();
+    DynamicLoaderWindowsDYLD::Terminate();
+    platform_freebsd::PlatformFreeBSD::Terminate();
     platform_linux::PlatformLinux::Terminate();
     PlatformWindows::Terminate();
     PlatformKalimba::Terminate();
@@ -165,6 +168,7 @@ SystemInitializerCommon::Terminate()
     PlatformiOSSimulator::Terminate();
 
     EmulateInstructionARM::Terminate();
+    EmulateInstructionMIPS::Terminate();
     EmulateInstructionMIPS64::Terminate();
 
 #if defined(__APPLE__)

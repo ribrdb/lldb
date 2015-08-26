@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 // C Includes
 
 // C++ Includes
@@ -23,8 +21,8 @@
 #include "lldb/Core/StreamString.h"
 #include "lldb/DataFormatters/TypeSynthetic.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
-#include "lldb/Interpreter/ScriptInterpreterPython.h"
-#include "lldb/Symbol/ClangASTType.h"
+#include "lldb/Interpreter/ScriptInterpreter.h"
+#include "lldb/Symbol/CompilerType.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
 
@@ -138,7 +136,7 @@ lldb::ValueObjectSP
 SyntheticChildrenFrontEnd::CreateValueObjectFromAddress (const char* name,
                                                          uint64_t address,
                                                          const ExecutionContext& exe_ctx,
-                                                         ClangASTType type)
+                                                         CompilerType type)
 {
     ValueObjectSP valobj_sp(ValueObject::CreateValueObjectFromAddress(name, address, exe_ctx, type));
     if (valobj_sp)
@@ -150,7 +148,7 @@ lldb::ValueObjectSP
 SyntheticChildrenFrontEnd::CreateValueObjectFromData (const char* name,
                                                       const DataExtractor& data,
                                                       const ExecutionContext& exe_ctx,
-                                                      ClangASTType type)
+                                                      CompilerType type)
 {
     ValueObjectSP valobj_sp(ValueObject::CreateValueObjectFromData(name, data, exe_ctx, type));
     if (valobj_sp)

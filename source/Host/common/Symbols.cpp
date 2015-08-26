@@ -11,6 +11,7 @@
 #include "lldb/Core/ArchSpec.h"
 #include "lldb/Core/DataBuffer.h"
 #include "lldb/Core/DataExtractor.h"
+#include "lldb/Core/Log.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/StreamString.h"
@@ -57,8 +58,29 @@ LocateMacOSXFilesUsingDebugSymbols
 #endif
 
 static bool
+FileAtPathContainsArchAndUUID (const FileSpec &file_fspec, const ArchSpec *arch, const lldb_private::UUID *uuid)
+{
+    ModuleSpecList module_specs;
+    if (ObjectFile::GetModuleSpecifications(file_fspec, 0, 0, module_specs))
+    {
+        ModuleSpec spec;
+        for (size_t i = 0; i < module_specs.GetSize(); ++i)
+        {
+            assert(module_specs.GetModuleSpecAtIndex(i, spec));
+            if ((uuid == NULL || (spec.GetUUIDPtr() && spec.GetUUID() == *uuid)) &&
+                (arch == NULL || (spec.GetArchitecturePtr() && spec.GetArchitecture().IsCompatibleMatch(*arch))))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static bool
 LocateDSYMInVincinityOfExecutable (const ModuleSpec &module_spec, FileSpec &dsym_fspec)
 {
+    Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
     const FileSpec *exec_fspec = module_spec.GetFileSpecPtr();
     if (exec_fspec)
     {
@@ -68,6 +90,17 @@ LocateDSYMInVincinityOfExecutable (const ModuleSpec &module_spec, FileSpec &dsym
             // Make sure the module isn't already just a dSYM file...
             if (strcasestr(path, ".dSYM/Contents/Resources/DWARF") == NULL)
             {
+                if (log)
+                {
+                    if (module_spec.GetUUIDPtr() && module_spec.GetUUIDPtr()->IsValid())
+                    {
+                        log->Printf ("Searching for dSYM bundle next to executable %s, UUID %s", path, module_spec.GetUUIDPtr()->GetAsString().c_str());
+                    }
+                    else
+                    {
+                        log->Printf ("Searching for dSYM bundle next to executable %s", path);
+                    }
+                }
                 size_t obj_file_path_length = strlen(path);
                 ::strncat(path, ".dSYM/Contents/Resources/DWARF/", sizeof(path) - strlen(path) - 1);
                 ::strncat(path, exec_fspec->GetFilename().AsCString(), sizeof(path) - strlen(path) - 1);
@@ -77,9 +110,12 @@ LocateDSYMInVincinityOfExecutable (const ModuleSpec &module_spec, FileSpec &dsym
                 ModuleSpecList module_specs;
                 ModuleSpec matched_module_spec;
                 if (dsym_fspec.Exists() &&
-                    ObjectFile::GetModuleSpecifications(dsym_fspec, 0, 0, module_specs) &&
-                    module_specs.FindMatchingModuleSpec(module_spec, matched_module_spec))
+                    FileAtPathContainsArchAndUUID(dsym_fspec, module_spec.GetArchitecturePtr(), module_spec.GetUUIDPtr()))
                 {
+                    if (log)
+                    {
+                        log->Printf ("dSYM with matching UUID & arch found at %s", path);
+                    }
                     return true;
                 }
                 else
@@ -97,9 +133,12 @@ LocateDSYMInVincinityOfExecutable (const ModuleSpec &module_spec, FileSpec &dsym
                             ::strncat(path, exec_fspec->GetFilename().AsCString(), sizeof(path) - strlen(path) - 1);
                             dsym_fspec.SetFile(path, false);
                             if (dsym_fspec.Exists() &&
-                                ObjectFile::GetModuleSpecifications(dsym_fspec, 0, 0, module_specs) &&
-                                module_specs.FindMatchingModuleSpec(module_spec, matched_module_spec))
+                                FileAtPathContainsArchAndUUID(dsym_fspec, module_spec.GetArchitecturePtr(), module_spec.GetUUIDPtr()))
                             {
+                                if (log)
+                                {
+                                    log->Printf ("dSYM with matching UUID & arch found at %s", path);
+                                }
                                 return true;
                             }
                             else
@@ -136,7 +175,7 @@ LocateExecutableSymbolFileDsym (const ModuleSpec &module_spec)
                         "LocateExecutableSymbolFileDsym (file = %s, arch = %s, uuid = %p)",
                         exec_fspec ? exec_fspec->GetFilename().AsCString ("<NULL>") : "<NULL>",
                         arch ? arch->GetArchitectureName() : "<NULL>",
-                        uuid);
+                        (const void*)uuid);
 
     FileSpec symbol_fspec;
     // First try and find the dSYM in the same directory as the executable or in
@@ -159,7 +198,7 @@ Symbols::LocateExecutableObjectFile (const ModuleSpec &module_spec)
                         "LocateExecutableObjectFile (file = %s, arch = %s, uuid = %p)",
                         exec_fspec ? exec_fspec->GetFilename().AsCString ("<NULL>") : "<NULL>",
                         arch ? arch->GetArchitectureName() : "<NULL>",
-                        uuid);
+                        (const void*)uuid);
 
     FileSpec objfile_fspec;
     ModuleSpecList module_specs;
@@ -180,7 +219,11 @@ Symbols::LocateExecutableObjectFile (const ModuleSpec &module_spec)
 FileSpec
 Symbols::LocateExecutableSymbolFile (const ModuleSpec &module_spec)
 {
-    const char *symbol_filename = module_spec.GetSymbolFileSpec().GetFilename().AsCString();
+    FileSpec symbol_file_spec = module_spec.GetSymbolFileSpec();
+    if (symbol_file_spec.IsAbsolute() && symbol_file_spec.Exists())
+        return symbol_file_spec;
+
+    const char *symbol_filename = symbol_file_spec.GetFilename().AsCString();
     if (symbol_filename && symbol_filename[0])
     {
         FileSpecList debug_file_search_paths (Target::GetDefaultDebugFileSearchPaths());

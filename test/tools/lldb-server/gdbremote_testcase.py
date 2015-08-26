@@ -23,8 +23,6 @@ import logging
 
 class GdbRemoteTestCaseBase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     _TIMEOUT_SECONDS = 5
 
     _GDBREMOTE_KILL_PACKET = "$k#6b"
@@ -144,30 +142,43 @@ class GdbRemoteTestCaseBase(TestBase):
 
     def init_llgs_test(self, use_named_pipe=True):
         if lldb.remote_platform:
+            def run_shell_cmd(cmd):
+                platform = self.dbg.GetSelectedPlatform()
+                shell_cmd = lldb.SBPlatformShellCommand(cmd)
+                err = platform.Run(shell_cmd)
+                if err.Fail() or shell_cmd.GetStatus():
+                    m = "remote_platform.RunShellCommand('%s') failed:\n" % cmd
+                    m += ">>> return code: %d\n" % shell_cmd.GetStatus()
+                    if err.Fail():
+                        m += ">>> %s\n" % str(err).strip()
+                    m += ">>> %s\n" % (shell_cmd.GetOutput() or
+                                       "Command generated no output.")
+                    raise Exception(m)
+                return shell_cmd.GetOutput().strip()
             # Remote platforms don't support named pipe based port negotiation
             use_named_pipe = False
 
-            platform = self.dbg.GetSelectedPlatform()
+            # Grab the ppid from /proc/[shell pid]/stat
+            shell_stat = run_shell_cmd("cat /proc/$$/stat")
+            # [pid] ([executable]) [state] [*ppid*]
+            pid = re.match(r"^\d+ \(.+\) . (\d+)", shell_stat).group(1)
+            ls_output = run_shell_cmd("ls -l /proc/%s/exe" % pid)
+            exe = ls_output.split()[-1]
 
-            shell_command = lldb.SBPlatformShellCommand("echo $PPID")
-            err = platform.Run(shell_command)
-            if err.Fail():
-                raise Exception("remote_platform.RunShellCommand('echo $PPID') failed: %s" % err)
-            pid = shell_command.GetOutput().strip()
-
-            shell_command = lldb.SBPlatformShellCommand("readlink /proc/%s/exe" % pid)
-            err = platform.Run(shell_command)
-            if err.Fail():
-                raise Exception("remote_platform.RunShellCommand('readlink /proc/%d/exe') failed: %s" % (pid, err))
             # If the binary has been deleted, the link name has " (deleted)" appended.
             # Remove if it's there.
-            self.debug_monitor_exe = re.sub(r' \(deleted\)$', '', shell_command.GetOutput().strip())
+            self.debug_monitor_exe = re.sub(r' \(deleted\)$', '', exe)
         else:
             self.debug_monitor_exe = get_lldb_server_exe()
             if not self.debug_monitor_exe:
                 self.skipTest("lldb-server exe not found")
 
         self.debug_monitor_extra_args = ["gdbserver"]
+
+        if len(lldbtest_config.channels) > 0:
+            self.debug_monitor_extra_args.append("--log-file={}-server.log".format(self.log_basename))
+            self.debug_monitor_extra_args.append("--log-channels={}".format(":".join(lldbtest_config.channels)))
+
         if use_named_pipe:
             (self.named_pipe_path, self.named_pipe, self.named_pipe_fd) = self.create_named_pipe()
 
@@ -175,7 +186,7 @@ class GdbRemoteTestCaseBase(TestBase):
         self.debug_monitor_exe = get_debugserver_exe()
         if not self.debug_monitor_exe:
             self.skipTest("debugserver exe not found")
-        self.debug_monitor_extra_args = ["--log-file=/tmp/packets-{}.log".format(self._testMethodName), "--log-flags=0x800000"]
+        self.debug_monitor_extra_args = ["--log-file={}-server.log".format(self.log_basename), "--log-flags=0x800000"]
         if use_named_pipe:
             (self.named_pipe_path, self.named_pipe, self.named_pipe_fd) = self.create_named_pipe()
         # The debugserver stub has a race on handling the 'k' command, so it sends an X09 right away, then sends the real X notification
@@ -387,7 +398,7 @@ class GdbRemoteTestCaseBase(TestBase):
                 inferior_exe_path = os.path.abspath("a.out")
 
             if lldb.remote_platform:
-                remote_path = lldbutil.append_to_remote_wd(os.path.basename(inferior_exe_path))
+                remote_path = lldbutil.append_to_process_working_directory(os.path.basename(inferior_exe_path))
                 remote_file_spec = lldb.SBFileSpec(remote_path, False)
                 err = lldb.remote_platform.Install(lldb.SBFileSpec(inferior_exe_path, True), remote_file_spec)
                 if err.Fail():
@@ -713,6 +724,8 @@ class GdbRemoteTestCaseBase(TestBase):
         "qXfer:auxv:read",
         "qXfer:libraries:read",
         "qXfer:libraries-svr4:read",
+        "qXfer:features:read",
+        "qEcho"
     ]
 
     def parse_qSupported_response(self, context):
@@ -1055,6 +1068,9 @@ class GdbRemoteTestCaseBase(TestBase):
             # This is a 2-letter register name that ends in "s", like a segment register.
             # Don't try to bit flip these.
             return False
+        if re.match("^(c|)psr$", reg_info["name"]):
+            # This is an ARM program status register; don't flip it.
+            return False
         # Okay, this looks fine-enough.
         return True
 
@@ -1137,7 +1153,8 @@ class GdbRemoteTestCaseBase(TestBase):
             context = self.expect_gdbremote_sequence()
             self.assertIsNotNone(context)
             self.assertIsNotNone(context.get("stop_signo"))
-            self.assertEquals(int(context.get("stop_signo"), 16), signal.SIGTRAP)
+            self.assertEquals(int(context.get("stop_signo"), 16),
+                    lldbutil.get_signal_number('SIGTRAP'))
 
             single_step_count += 1
 
@@ -1214,8 +1231,11 @@ class GdbRemoteTestCaseBase(TestBase):
         g_c2_address = int(context.get("g_c2_address"), 16)
 
         # Set a breakpoint at the given address.
-        # Note this might need to be switched per platform (ARM, mips, etc.).
-        BREAKPOINT_KIND = 1
+        if self.getArchitecture() == "arm":
+            # TODO: Handle case when setting breakpoint in thumb code
+            BREAKPOINT_KIND = 4
+        else:
+            BREAKPOINT_KIND = 1
         self.reset_test_sequence()
         self.add_set_breakpoint_packets(function_address, do_continue=True, breakpoint_kind=BREAKPOINT_KIND)
         context = self.expect_gdbremote_sequence()

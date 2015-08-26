@@ -246,7 +246,7 @@ ThreadPlanStepOverRange::ShouldStop (Event *event_ptr)
                          && sc.comp_unit == m_addr_context.comp_unit
                          && sc.function == m_addr_context.function)
                     {
-                        // Okay, find the next occurance of this file in the line table:
+                        // Okay, find the next occurrence of this file in the line table:
                         LineTable *line_table = m_addr_context.comp_unit->GetLineTable();
                         if (line_table)
                         {
@@ -259,7 +259,7 @@ ThreadPlanStepOverRange::ShouldStop (Event *event_ptr)
                                 bool step_past_remaining_inline = false;
                                 if (entry_idx > 0)
                                 {
-                                    // We require the the previous line entry and the current line entry come
+                                    // We require the previous line entry and the current line entry come
                                     // from the same file.
                                     // The other requirement is that the previous line table entry be part of an
                                     // inlined block, we don't want to step past cases where people have inlined
@@ -303,10 +303,14 @@ ThreadPlanStepOverRange::ShouldStop (Event *event_ptr)
                                         if (next_line_entry.file == m_addr_context.line_entry.file)
                                         {
                                             const bool abort_other_plans = false;
-                                            const bool stop_other_threads = false;
-                                            new_plan_sp = m_thread.QueueThreadPlanForRunToAddress(abort_other_plans,
-                                                                                               next_line_address,
-                                                                                               stop_other_threads);
+                                            const RunMode stop_other_threads = RunMode::eAllThreads;
+                                            lldb::addr_t cur_pc = m_thread.GetStackFrameAtIndex(0)->GetRegisterContext()->GetPC();
+                                            AddressRange step_range(cur_pc, next_line_address.GetLoadAddress(&GetTarget()) - cur_pc);
+                                            
+                                            new_plan_sp = m_thread.QueueThreadPlanForStepOverRange (abort_other_plans,
+                                                                                                    step_range,
+                                                                                                    sc,
+                                                                                                    stop_other_threads);
                                             break;
                                         }
                                         look_ahead_step++;
@@ -368,27 +372,22 @@ ThreadPlanStepOverRange::DoPlanExplainsStop (Event *event_ptr)
     {
         StopReason reason = stop_info_sp->GetStopReason();
 
-        switch (reason)
+        if (reason == eStopReasonTrace)
         {
-        case eStopReasonTrace:
             return_value = true;
-            break;
-        case eStopReasonBreakpoint:
+        }
+        else if (reason == eStopReasonBreakpoint)
+        {
             if (NextRangeBreakpointExplainsStop(stop_info_sp))
                 return_value = true;
             else
                 return_value = false;
-            break;
-        case eStopReasonWatchpoint:
-        case eStopReasonSignal:
-        case eStopReasonException:
-        case eStopReasonExec:
-        case eStopReasonThreadExiting:
-        default:
+        }
+        else
+        {
             if (log)
                 log->PutCString ("ThreadPlanStepInRange got asked if it explains the stop for some reason other than step.");
             return_value = false;
-            break;
         }
     }
     else
@@ -430,7 +429,7 @@ ThreadPlanStepOverRange::DoWillResume (lldb::StateType resume_state, bool curren
                             const InlineFunctionInfo *inline_info = frame_block->GetInlinedFunctionInfo();
                             const char *name;
                             if (inline_info)
-                                name = inline_info->GetName().AsCString();
+                                name = inline_info->GetName(frame_block->CalculateSymbolContextFunction()->GetLanguage()).AsCString();
                             else
                                 name = "<unknown-notinlined>";
                             

@@ -46,7 +46,7 @@ ThreadList::operator = (const ThreadList& rhs)
     if (this != &rhs)
     {
         // Lock both mutexes to make sure neither side changes anyone on us
-        // while the assignement occurs
+        // while the assignment occurs
         Mutex::Locker locker(GetMutex());
         m_process = rhs.m_process;
         m_stop_id = rhs.m_stop_id;
@@ -247,8 +247,8 @@ ThreadList::ShouldStop (Event *event_ptr)
     // figuring out whether the thread plan conditions are met.  So we don't want
     // to keep the ThreadList locked the whole time we are doing this.
     // FIXME: It is possible that running code could cause new threads
-    // to be created.  If that happens we will miss asking them whether
-    // then should stop.  This is not a big deal, since we haven't had
+    // to be created.  If that happens, we will miss asking them whether
+    // they should stop.  This is not a big deal since we haven't had
     // a chance to hang any interesting operations on those threads yet.
     
     collection threads_copy;
@@ -582,6 +582,7 @@ ThreadList::WillResume ()
 
             if (thread_sp == GetSelectedThread())
             {
+                // If the currently selected thread wants to run on its own, always let it.
                 run_only_current_thread = true;
                 run_me_only_list.Clear();
                 run_me_only_list.AddThread (thread_sp);
@@ -749,7 +750,7 @@ ThreadList::Update (ThreadList &rhs)
     if (this != &rhs)
     {
         // Lock all the mutexes to make sure neither side changes anyone on us
-        // while the assignement occurs
+        // while the assignment occurs
         Mutex::Locker self_locker(m_mutex);
         Mutex::Locker rhs_locker(rhs.ThreadCollection::GetMutex());
         Mutex::Locker proc_locker(GetMutex());

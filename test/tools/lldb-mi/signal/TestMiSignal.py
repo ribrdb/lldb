@@ -11,7 +11,7 @@ class MiSignalTestCase(lldbmi_testcase.MiTestCaseBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Fails on FreeBSD apparently due to thread race conditions
     def test_lldbmi_stopped_when_interrupt(self):
         """Test that 'lldb-mi --interpreter' interrupt and resume a looping app."""
@@ -48,7 +48,7 @@ class MiSignalTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\*stopped,reason=\"signal-received\",signal-name=\"SIGINT\",signal-meaning=\"Interrupt\",.*thread-id=\"1\",stopped-threads=\"all\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Fails on FreeBSD apparently due to thread race conditions
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_stopped_when_stopatentry_local(self):
@@ -66,9 +66,9 @@ class MiSignalTestCase(lldbmi_testcase.MiTestCaseBase):
 
         # Test that *stopped is printed
         # Note that message is different in Darwin and Linux:
-        # Darwin: "*stopped,reason=\"signal-received\",signal-name=\"SIGINT\",signal-meaning=\"Interrupt\",frame={level=\"0\",addr=\"0x[0-9a-f]+\",func=\"_dyld_start\",file=\"??\",fullname=\"??\",line=\"-1\"},thread-id=\"1\",stopped-threads=\"all\"
+        # Darwin: "*stopped,reason=\"signal-received\",signal-name=\"SIGSTOP\",signal-meaning=\"Stop\",frame={level=\"0\",addr=\"0x[0-9a-f]+\",func=\"_dyld_start\",file=\"??\",fullname=\"??\",line=\"-1\"},thread-id=\"1\",stopped-threads=\"all\"
         # Linux:  "*stopped,reason=\"end-stepping-range\",frame={addr=\"0x[0-9a-f]+\",func=\"??\",args=[],file=\"??\",fullname=\"??\",line=\"-1\"},thread-id=\"1\",stopped-threads=\"all\"
-        self.expect([ "\*stopped,reason=\"signal-received\",signal-name=\"SIGINT\",signal-meaning=\"Interrupt\",frame=\{level=\"0\",addr=\"0x[0-9a-f]+\",func=\"_dyld_start\",file=\"\?\?\",fullname=\"\?\?\",line=\"-1\"\},thread-id=\"1\",stopped-threads=\"all\"",
+        self.expect([ "\*stopped,reason=\"signal-received\",signal-name=\"SIGSTOP\",signal-meaning=\"Stop\",frame=\{level=\"0\",addr=\"0x[0-9a-f]+\",func=\"_dyld_start\",file=\"\?\?\",fullname=\"\?\?\",line=\"-1\"\},thread-id=\"1\",stopped-threads=\"all\"",
                       "\*stopped,reason=\"end-stepping-range\",frame={addr=\"0x[0-9a-f]+\",func=\"\?\?\",args=\[\],file=\"\?\?\",fullname=\"\?\?\",line=\"-1\"},thread-id=\"1\",stopped-threads=\"all\"" ])
 
         # Run to main to make sure we have not exited the application
@@ -79,7 +79,7 @@ class MiSignalTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipUnlessDarwin
     def test_lldbmi_stopped_when_stopatentry_remote(self):
         """Test that 'lldb-mi --interpreter' notifies after it was stopped on entry (remote)."""
@@ -111,14 +111,14 @@ class MiSignalTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\^done")
 
         # Test that *stopped is printed
-        self.expect("\*stopped,reason=\"signal-received\",signal-name=\"SIGINT\",signal-meaning=\"Interrupt\",.+?thread-id=\"1\",stopped-threads=\"all\"")
+        self.expect("\*stopped,reason=\"signal-received\",signal-name=\"SIGSTOP\",signal-meaning=\"Stop\",.+?thread-id=\"1\",stopped-threads=\"all\"")
 
         # Exit
         self.runCmd("-gdb-exit")
         self.expect("\^exit")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_stopped_when_segfault_local(self):
@@ -151,7 +151,6 @@ class MiSignalTestCase(lldbmi_testcase.MiTestCaseBase):
                       "\*stopped,reason=\"exception-received\",exception=\"invalid address \(fault address: 0x0\)\",thread-id=\"1\",stopped-threads=\"all\"" ])
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
     @skipUnlessDarwin
     def test_lldbmi_stopped_when_segfault_remote(self):
         """Test that 'lldb-mi --interpreter' notifies after it was stopped when segfault occurred (remote)."""

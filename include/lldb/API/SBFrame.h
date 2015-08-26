@@ -37,6 +37,9 @@ public:
     GetFrameID () const;
 
     lldb::addr_t
+    GetCFA () const;
+
+    lldb::addr_t
     GetPC () const;
 
     bool
@@ -87,13 +90,23 @@ public:
     /// See also IsInlined().
     const char *
     GetFunctionName();
+    
+    // Get an appropriate function name for this frame that is suitable for display to a user
+    const char *
+    GetDisplayFunctionName ();
+
+    const char *
+    GetFunctionName() const;
 
     /// Return true if this frame represents an inlined function.
     ///
     /// See also GetFunctionName().
     bool
     IsInlined();
-    
+
+    bool
+    IsInlined() const;
+
     /// The version that doesn't supply a 'use_dynamic' value will use the
     /// target's default.
     lldb::SBValue
@@ -213,9 +226,6 @@ protected:
     friend class SBInstruction;
     friend class SBThread;
     friend class SBValue;
-#ifndef LLDB_DISABLE_PYTHON
-    friend class lldb_private::ScriptInterpreterPython;
-#endif
 
     lldb::StackFrameSP
     GetFrameSP() const;

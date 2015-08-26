@@ -11,7 +11,7 @@ class MiCliSupportTestCase(lldbmi_testcase.MiTestCaseBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     def test_lldbmi_target_create(self):
         """Test that 'lldb-mi --interpreter' can create target by 'target create' command."""
@@ -30,7 +30,7 @@ class MiCliSupportTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_breakpoint_set(self):
@@ -45,14 +45,16 @@ class MiCliSupportTestCase(lldbmi_testcase.MiTestCaseBase):
         # Test that "breakpoint set" sets a breakpoint
         self.runCmd("breakpoint set --name main")
         self.expect("\^done")
+        self.expect("=breakpoint-created,bkpt={number=\"1\"")
 
         # Test that breakpoint was set properly
         self.runCmd("-exec-run")
         self.expect("\^running")
+        self.expect("=breakpoint-modified,bkpt={number=\"1\"")
         self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_settings_set_target_run_args_before(self):
@@ -77,7 +79,7 @@ class MiCliSupportTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("@\"argc=5\\\\r\\\\n\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_settings_set_target_run_args_after(self):
@@ -102,7 +104,7 @@ class MiCliSupportTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("@\"argc=5\\\\r\\\\n\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_process_launch(self):
@@ -126,7 +128,7 @@ class MiCliSupportTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\*stopped,reason=\"breakpoint-hit\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_thread_step_in(self):
@@ -157,7 +159,7 @@ class MiCliSupportTestCase(lldbmi_testcase.MiTestCaseBase):
             self.expect("\*stopped,reason=\"end-stepping-range\".+?func=\"main\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_thread_step_over(self):
@@ -183,7 +185,7 @@ class MiCliSupportTestCase(lldbmi_testcase.MiTestCaseBase):
         self.expect("\*stopped,reason=\"end-stepping-range\"")
 
     @lldbmi_test
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @skipIfWindows #llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
     def test_lldbmi_thread_continue(self):

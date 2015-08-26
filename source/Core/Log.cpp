@@ -119,7 +119,7 @@ Log::VAPrintf(const char *format, va_list args)
         if (m_options.Test (LLDB_LOG_OPTION_PREPEND_TIMESTAMP))
         {
             TimeValue now = TimeValue::Now();
-            header.Printf ("%9d.%6.6d ", now.seconds(), now.nanoseconds());
+            header.Printf ("%9d.%09.9d ", now.seconds(), now.nanoseconds());
         }
 
         // Add the process and thread if requested
@@ -365,6 +365,40 @@ Log::GetLogChannelCallbacks (const ConstString &channel, Log::Callbacks &log_cal
     return false;
 }
 
+bool
+Log::EnableLogChannel(lldb::StreamSP &log_stream_sp,
+                      uint32_t log_options,
+                      const char *channel,
+                      const char **categories,
+                      Stream &error_stream)
+{
+    Log::Callbacks log_callbacks;
+    if (Log::GetLogChannelCallbacks (ConstString(channel), log_callbacks))
+    {
+        log_callbacks.enable (log_stream_sp, log_options, categories, &error_stream);
+        return true;
+    }
+    
+    LogChannelSP log_channel_sp (LogChannel::FindPlugin (channel));
+    if (log_channel_sp)
+    {
+        if (log_channel_sp->Enable (log_stream_sp, log_options, &error_stream, categories))
+        {
+            return true;
+        }
+        else
+        {
+            error_stream.Printf ("Invalid log channel '%s'.\n", channel);
+            return false;
+        }
+    }
+    else
+    {
+        error_stream.Printf ("Invalid log channel '%s'.\n", channel);
+        return false;
+    }
+}
+
 void
 Log::EnableAllLogChannels
 (
@@ -415,7 +449,7 @@ Log::DisableAllLogChannels (Stream *feedback_strm)
 {
     CallbackMap &callback_map = GetCallbackMap ();
     CallbackMapIter pos, end = callback_map.end();
-    const char *categories[1] = {NULL};
+    const char *categories[] = {"all", nullptr};
 
     for (pos = callback_map.begin(); pos != end; ++pos)
         pos->second.disable (categories, feedback_strm);

@@ -13,10 +13,11 @@
 // C Includes
 // C++ Includes
 
+#include <functional>
 #include <map>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
 
 #include "llvm/ADT/StringRef.h"
 
@@ -140,12 +141,30 @@ public:
             return NULL;
         }
 
+        uint64_t
+        GetIntegerValue (uint64_t fail_value = 0)
+        {
+            Integer *integer = GetAsInteger ();
+            if (integer)
+                return integer->GetValue();
+            return fail_value;
+        }
+
         Float *
         GetAsFloat ()
         {
             if (m_type == Type::eTypeFloat)
                 return (Float *)this;
             return NULL;
+        }
+
+        double
+        GetFloatValue (double fail_value = 0.0)
+        {
+            Float *f = GetAsFloat ();
+            if (f)
+                return f->GetValue();
+            return fail_value;
         }
 
         Boolean *
@@ -156,12 +175,34 @@ public:
             return NULL;
         }
 
+        bool
+        GetBooleanValue (bool fail_value = false)
+        {
+            Boolean *b = GetAsBoolean ();
+            if (b)
+                return b->GetValue();
+            return fail_value;
+        }
+
         String *
         GetAsString ()
         {
             if (m_type == Type::eTypeString)
                 return (String *)this;
             return NULL;
+        }
+
+        std::string
+        GetStringValue(const char *fail_value = NULL)
+        {
+            String *s = GetAsString ();
+            if (s)
+                return s->GetValue();
+
+            if (fail_value && fail_value[0])
+                return std::string(fail_value);
+
+            return std::string();
         }
 
         Generic *
@@ -192,9 +233,19 @@ public:
         {
         }
 
-        virtual
-        ~Array()
+        ~Array() override
         {
+        }
+
+        bool
+        ForEach (std::function <bool(Object* object)> const &foreach_callback) const
+        {
+            for (const auto &object_sp : m_items)
+            {
+                if (foreach_callback(object_sp.get()) == false)
+                    return false;
+            }
+            return true;
         }
 
         size_t
@@ -322,17 +373,16 @@ public:
         collection m_items;
     };
 
-
-    class Integer  : public Object
+    class Integer : public Object
     {
     public:
-        Integer () :
+        Integer (uint64_t i = 0) :
             Object (Type::eTypeInteger),
-            m_value ()
+            m_value (i)
         {
         }
 
-        virtual ~Integer()
+        ~Integer() override
         {
         }
 
@@ -354,16 +404,16 @@ public:
         uint64_t m_value;
     };
 
-    class Float  : public Object
+    class Float : public Object
     {
     public:
-        Float () :
+        Float (double d = 0.0) :
             Object (Type::eTypeFloat),
-            m_value ()
+            m_value (d)
         {
         }
 
-        virtual ~Float()
+        ~Float() override
         {
         }
 
@@ -385,16 +435,16 @@ public:
         double m_value;
     };
 
-    class Boolean  : public Object
+    class Boolean : public Object
     {
     public:
-        Boolean () :
+        Boolean (bool b = false) :
             Object (Type::eTypeBoolean),
-            m_value ()
+            m_value (b)
         {
         }
 
-        virtual ~Boolean()
+        ~Boolean() override
         {
         }
 
@@ -416,14 +466,26 @@ public:
         bool m_value;
     };
 
-
-
-    class String  : public Object
+    class String : public Object
     {
     public:
-        String () :
+        String (const char *cstr = NULL) :
             Object (Type::eTypeString),
             m_value ()
+        {
+            if (cstr)
+                m_value = cstr;
+        }
+
+        String (const std::string &s) :
+            Object (Type::eTypeString),
+            m_value (s)
+        {
+        }
+
+        String (const std::string &&s) :
+            Object (Type::eTypeString),
+            m_value (s)
         {
         }
 
@@ -433,7 +495,7 @@ public:
             m_value = string;
         }
 
-        std::string
+        const std::string &
         GetValue ()
         {
             return m_value;
@@ -448,13 +510,14 @@ public:
     class Dictionary : public Object
     {
     public:
+
         Dictionary () :
             Object (Type::eTypeDictionary),
             m_dict ()
         {
         }
 
-        virtual ~Dictionary()
+        ~Dictionary() override
         {
         }
 
@@ -462,6 +525,16 @@ public:
         GetSize() const
         {
             return m_dict.size();
+        }
+
+        void
+        ForEach (std::function <bool(ConstString key, Object* object)> const &callback) const
+        {
+            for (const auto &pair : m_dict)
+            {
+                if (callback (pair.first, pair.second.get()) == false)
+                    break;
+            }
         }
 
         ObjectSP
@@ -614,33 +687,25 @@ public:
         void
         AddIntegerItem (llvm::StringRef key, uint64_t value)
         {
-            ObjectSP val_obj (new Integer());
-            val_obj->GetAsInteger()->SetValue (value);
-            AddItem (key, val_obj);
+            AddItem (key, ObjectSP (new Integer(value)));
         }
 
         void
         AddFloatItem (llvm::StringRef key, double value)
         {
-            ObjectSP val_obj (new Float());
-            val_obj->GetAsFloat()->SetValue (value);
-            AddItem (key, val_obj);
+            AddItem (key, ObjectSP (new Float(value)));
         }
 
         void
         AddStringItem (llvm::StringRef key, std::string value)
         {
-            ObjectSP val_obj (new String());
-            val_obj->GetAsString()->SetValue (value);
-            AddItem (key, val_obj);
+            AddItem (key, ObjectSP (new String(std::move(value))));
         }
 
         void
         AddBooleanItem (llvm::StringRef key, bool value)
         {
-            ObjectSP val_obj (new Boolean());
-            val_obj->GetAsBoolean()->SetValue (value);
-            AddItem (key, val_obj);
+            AddItem (key, ObjectSP (new Boolean(value)));
         }
 
         void Dump(Stream &s) const override;
@@ -658,7 +723,7 @@ public:
         {
         }
 
-        virtual ~Null()
+        ~Null() override
         {
         }
 
@@ -676,9 +741,9 @@ public:
     class Generic : public Object
     {
       public:
-        explicit Generic(void *object = nullptr)
-            : Object(Type::eTypeGeneric)
-            , m_object(object)
+        explicit Generic(void *object = nullptr) :
+            Object (Type::eTypeGeneric),
+            m_object (object)
         {
         }
 
@@ -708,10 +773,8 @@ public:
 
     static ObjectSP
     ParseJSON (std::string json_text);
-
 };  // class StructuredData
-
 
 } // namespace lldb_private
 
-#endif  // liblldb_StructuredData_h_
+#endif // liblldb_StructuredData_h_

@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if defined (__mips__)
+
 #ifndef liblldb_RegisterContextLinux_mips64_H_
 #define liblldb_RegisterContextLinux_mips64_H_
 
@@ -28,9 +30,15 @@ public:
     uint32_t
     GetRegisterCount () const override;
 
+    uint32_t
+    GetUserRegisterCount () const override;
+
 private:
     const lldb_private::RegisterInfo *m_register_info_p;
     uint32_t m_register_info_count;
+    uint32_t m_user_register_count;
 };
+
+#endif
 
 #endif

@@ -373,7 +373,7 @@ IRExecutionUnit::GetRunnableInfo(Error &error,
                 ss.PutCString("\n");
             emitNewLine = true;
             ss.PutCString("  ");
-            ss.PutCString(Mangled(failed_lookup).GetDemangledName().AsCString());
+            ss.PutCString(Mangled(failed_lookup).GetDemangledName(lldb::eLanguageTypeObjC_plus_plus).AsCString());
         }
         
         m_failed_lookups.clear();
@@ -488,6 +488,8 @@ IRExecutionUnit::GetSectionTypeFromSectionName (const llvm::StringRef &name, IRE
                         sect_type = lldb::eSectionTypeDWARFDebugAbbrev;
                     else if (dwarf_name.equals("aranges"))
                         sect_type = lldb::eSectionTypeDWARFDebugAranges;
+                    else if (dwarf_name.equals("addr"))
+                        sect_type = lldb::eSectionTypeDWARFDebugAddr;
                     break;
 
                 case 'f':
@@ -522,6 +524,8 @@ IRExecutionUnit::GetSectionTypeFromSectionName (const llvm::StringRef &name, IRE
                 case 's':
                     if (dwarf_name.equals("str"))
                         sect_type = lldb::eSectionTypeDWARFDebugStr;
+                    else if (dwarf_name.equals("str_offsets"))
+                        sect_type = lldb::eSectionTypeDWARFDebugStrOffsets;
                     break;
 
                 case 'r':
@@ -605,8 +609,11 @@ IRExecutionUnit::MemoryManager::allocateDataSection(uintptr_t Size,
 
     uint8_t *return_value = m_default_mm_ap->allocateDataSection(Size, Alignment, SectionID, SectionName, IsReadOnly);
 
+    uint32_t permissions = lldb::ePermissionsReadable;
+    if (!IsReadOnly)
+        permissions |= lldb::ePermissionsWritable;
     m_parent.m_records.push_back(AllocationRecord((uintptr_t)return_value,
-                                                  lldb::ePermissionsReadable | (IsReadOnly ? 0 : lldb::ePermissionsWritable),
+                                                  permissions,
                                                   GetSectionTypeFromSectionName (SectionName, AllocationKind::Data),
                                                   Size,
                                                   Alignment,
@@ -673,20 +680,10 @@ IRExecutionUnit::MemoryManager::getSymbolAddress(const std::string &Name)
         SymbolContext sym_ctx;
         sc_list.GetContextAtIndex(i, sym_ctx);
         
-        if (sym_ctx.symbol->GetType() == lldb::eSymbolTypeUndefined)
-            continue;
-        
-        const Address *sym_address = &sym_ctx.symbol->GetAddress();
-        
-        if (!sym_address || !sym_address->IsValid())
-            continue;
-
         symbol_load_addr = sym_ctx.symbol->ResolveCallableAddress(*target_sp);
-        
+
         if (symbol_load_addr == LLDB_INVALID_ADDRESS)
-        {
             symbol_load_addr = sym_ctx.symbol->GetAddress().GetLoadAddress(target_sp.get());
-        }
     }
     
     if (symbol_load_addr == LLDB_INVALID_ADDRESS && process_sp && name_cs)
@@ -796,6 +793,7 @@ IRExecutionUnit::CommitAllocations (lldb::ProcessSP &process_sp)
         {
         case lldb::eSectionTypeInvalid:
         case lldb::eSectionTypeDWARFDebugAbbrev:
+        case lldb::eSectionTypeDWARFDebugAddr:
         case lldb::eSectionTypeDWARFDebugAranges:
         case lldb::eSectionTypeDWARFDebugFrame:
         case lldb::eSectionTypeDWARFDebugInfo:
@@ -806,6 +804,7 @@ IRExecutionUnit::CommitAllocations (lldb::ProcessSP &process_sp)
         case lldb::eSectionTypeDWARFDebugPubTypes:
         case lldb::eSectionTypeDWARFDebugRanges:
         case lldb::eSectionTypeDWARFDebugStr:
+        case lldb::eSectionTypeDWARFDebugStrOffsets:
         case lldb::eSectionTypeDWARFAppleNames:
         case lldb::eSectionTypeDWARFAppleTypes:
         case lldb::eSectionTypeDWARFAppleNamespaces:

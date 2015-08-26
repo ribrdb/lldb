@@ -29,8 +29,16 @@
 #include "lldb/lldb-enumerations.h"
 #include "lldb/Core/ClangForward.h"
 #include "lldb/Core/ConstString.h"
-#include "lldb/Symbol/ClangASTType.h"
+#include "lldb/Core/dwarf.h"
+#include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/TypeSystem.h"
+
+
+// Forward definitions for DWARF plug-in for type parsing
+class DWARFCompileUnit;
+class DWARFDebugInfoEntry;
+class DWARFDIECollection;
+class SymbolFileDWARF;
 
 namespace lldb_private {
 
@@ -54,6 +62,8 @@ public:
 
     clang::ASTContext *
     getASTContext();
+    
+    void setASTContext(clang::ASTContext* ast_ctx);
     
     clang::Builtin::Context *
     getBuiltinContext();
@@ -142,40 +152,40 @@ public:
     //------------------------------------------------------------------
     // Basic Types
     //------------------------------------------------------------------
-    ClangASTType
+    CompilerType
     GetBuiltinTypeForEncodingAndBitSize (lldb::Encoding encoding,
                                           uint32_t bit_size);
 
-    static ClangASTType
+    static CompilerType
     GetBuiltinTypeForEncodingAndBitSize (clang::ASTContext *ast,
                                          lldb::Encoding encoding,
                                          uint32_t bit_size);
 
-    ClangASTType
+    CompilerType
     GetBasicType (lldb::BasicType type);
 
-    static ClangASTType
+    static CompilerType
     GetBasicType (clang::ASTContext *ast, lldb::BasicType type);
     
-    static ClangASTType
+    static CompilerType
     GetBasicType (clang::ASTContext *ast, const ConstString &name);
     
     static lldb::BasicType
     GetBasicTypeEnumeration (const ConstString &name);
 
-    ClangASTType
+    CompilerType
     GetBuiltinTypeForDWARFEncodingAndBitSize (
         const char *type_name,
         uint32_t dw_ate,
         uint32_t bit_size);
 
-    ClangASTType
+    CompilerType
     GetCStringType(bool is_const);
     
-    static ClangASTType
+    static CompilerType
     GetUnknownAnyType(clang::ASTContext *ast);
     
-    ClangASTType
+    CompilerType
     GetUnknownAnyType()
     {
         return ClangASTContext::GetUnknownAnyType(getASTContext());
@@ -186,13 +196,10 @@ public:
     GetDeclContextForType (clang::QualType type);
 
     static clang::DeclContext *
-    GetDeclContextForType (const ClangASTType& type)
-    {
-        return GetDeclContextForType(GetQualType(type));
-    }
+    GetDeclContextForType (const CompilerType& type);
     
     uint32_t
-    GetPointerByteSize ();
+    GetPointerByteSize () override;
 
     static clang::DeclContext *
     GetTranslationUnitDecl (clang::ASTContext *ast);
@@ -203,15 +210,9 @@ public:
         return GetTranslationUnitDecl (getASTContext());
     }
     
-    static bool
-    GetClassMethodInfoForDeclContext (clang::DeclContext *decl_ctx,
-                                      lldb::LanguageType &language,
-                                      bool &is_instance_method,
-                                      ConstString &language_object_name);
-    
-    static ClangASTType
+    static CompilerType
     CopyType(clang::ASTContext *dest_context, 
-             ClangASTType source_type);
+             CompilerType source_type);
     
     static clang::Decl *
     CopyDecl (clang::ASTContext *dest_context, 
@@ -219,24 +220,24 @@ public:
               clang::Decl *source_decl);
 
     static bool
-    AreTypesSame(ClangASTType type1,
-                 ClangASTType type2,
+    AreTypesSame(CompilerType type1,
+                 CompilerType type2,
                  bool ignore_qualifiers = false);
     
-    static ClangASTType
+    static CompilerType
     GetTypeForDecl (clang::NamedDecl *decl);
     
-    static ClangASTType
+    static CompilerType
     GetTypeForDecl (clang::TagDecl *decl);
     
-    static ClangASTType
+    static CompilerType
     GetTypeForDecl (clang::ObjCInterfaceDecl *objc_decl);
     
     template <typename RecordDeclType>
-    ClangASTType
+    CompilerType
     GetTypeForIdentifier (const ConstString &type_name)
     {
-        ClangASTType clang_type;
+        CompilerType clang_type;
         
         if (type_name.GetLength())
         {
@@ -252,7 +253,7 @@ public:
                 {
                     clang::NamedDecl *named_decl = result[0];
                     if (const RecordDeclType *record_decl = llvm::dyn_cast<RecordDeclType>(named_decl))
-                        clang_type.SetClangType(ast, clang::QualType(record_decl->getTypeForDecl(), 0));
+                        clang_type.SetCompilerType(ast, clang::QualType(record_decl->getTypeForDecl(), 0));
                 }
             }
         }
@@ -260,9 +261,9 @@ public:
         return clang_type;
     }
     
-    ClangASTType
+    CompilerType
     GetOrCreateStructForIdentifier (const ConstString &type_name,
-                                    const std::initializer_list< std::pair < const char *, ClangASTType > >& type_fields,
+                                    const std::initializer_list< std::pair < const char *, CompilerType > >& type_fields,
                                     bool packed = false);
 
     //------------------------------------------------------------------
@@ -279,7 +280,7 @@ public:
     GetNumBaseClasses (const clang::CXXRecordDecl *cxx_record_decl,
                        bool omit_empty_base_classes);
 
-    ClangASTType
+    CompilerType
     CreateRecordType (clang::DeclContext *decl_ctx,
                       lldb::AccessType access_type,
                       const char *name,
@@ -334,7 +335,7 @@ public:
                                            int kind,
                                            const TemplateParameterInfos &infos);
 
-    ClangASTType
+    CompilerType
     CreateClassTemplateSpecializationType (clang::ClassTemplateSpecializationDecl *class_template_specialization_decl);
 
     static clang::DeclContext *
@@ -361,7 +362,7 @@ public:
     RecordHasFields (const clang::RecordDecl *record_decl);
 
 
-    ClangASTType
+    CompilerType
     CreateObjCClass (const char *name, 
                      clang::DeclContext *decl_ctx, 
                      bool isForwardDecl, 
@@ -397,21 +398,21 @@ public:
     clang::FunctionDecl *
     CreateFunctionDeclaration (clang::DeclContext *decl_ctx,
                                const char *name,
-                               const ClangASTType &function_Type,
+                               const CompilerType &function_Type,
                                int storage,
                                bool is_inline);
     
-    static ClangASTType
+    static CompilerType
     CreateFunctionType (clang::ASTContext *ast,
-                        const ClangASTType &result_type,
-                        const ClangASTType *args,
+                        const CompilerType &result_type,
+                        const CompilerType *args,
                         unsigned num_args,
                         bool is_variadic,
                         unsigned type_quals);
     
-    ClangASTType
-    CreateFunctionType (const ClangASTType &result_type,
-                        const ClangASTType *args,
+    CompilerType
+    CreateFunctionType (const CompilerType &result_type,
+                        const CompilerType *args,
                         unsigned num_args,
                         bool is_variadic,
                         unsigned type_quals)
@@ -426,7 +427,7 @@ public:
     
     clang::ParmVarDecl *
     CreateParameterDeclaration (const char *name,
-                                const ClangASTType &param_type,
+                                const CompilerType &param_type,
                                 int storage);
 
     void
@@ -438,54 +439,54 @@ public:
     // Array Types
     //------------------------------------------------------------------
 
-    ClangASTType
-    CreateArrayType (const ClangASTType &element_type,
+    CompilerType
+    CreateArrayType (const CompilerType &element_type,
                      size_t element_count,
                      bool is_vector);
 
     //------------------------------------------------------------------
     // Enumeration Types
     //------------------------------------------------------------------
-    ClangASTType
+    CompilerType
     CreateEnumerationType (const char *name, 
                            clang::DeclContext *decl_ctx, 
                            const Declaration &decl, 
-                           const ClangASTType &integer_qual_type);
+                           const CompilerType &integer_qual_type);
     
     //------------------------------------------------------------------
     // Integer type functions
     //------------------------------------------------------------------
     
-    ClangASTType
+    CompilerType
     GetIntTypeFromBitSize (size_t bit_size, bool is_signed)
     {
         return GetIntTypeFromBitSize (getASTContext(), bit_size, is_signed);
     }
     
-    static ClangASTType
+    static CompilerType
     GetIntTypeFromBitSize (clang::ASTContext *ast,
                            size_t bit_size, bool is_signed);
     
-    ClangASTType
+    CompilerType
     GetPointerSizedIntType (bool is_signed)
     {
         return GetPointerSizedIntType (getASTContext(), is_signed);
     }
     
-    static ClangASTType
+    static CompilerType
     GetPointerSizedIntType (clang::ASTContext *ast, bool is_signed);
     
     //------------------------------------------------------------------
     // Floating point functions
     //------------------------------------------------------------------
     
-    ClangASTType
+    CompilerType
     GetFloatTypeFromBitSize (size_t bit_size)
     {
         return GetFloatTypeFromBitSize (getASTContext(), bit_size);
     }
 
-    static ClangASTType
+    static CompilerType
     GetFloatTypeFromBitSize (clang::ASTContext *ast,
                              size_t bit_size);
 
@@ -493,125 +494,221 @@ public:
     // TypeSystem methods
     //------------------------------------------------------------------
     
+	GoASTContext*
+    AsGoASTContext() override
+    {
+	    return nullptr;
+    }
+
     ClangASTContext*
-    AsClangASTContext()
+    AsClangASTContext() override
     {
         return this;
     }
-    
-    GoASTContext*
-    AsGoASTContext()
-    {
-        return nullptr;
-    }
-    
+
+    lldb::TypeSP
+    ParseTypeFromDWARF (const SymbolContext& sc,
+                        SymbolFileDWARF *dwarf,
+                        DWARFCompileUnit* dwarf_cu,
+                        const DWARFDebugInfoEntry *die,
+                        Log *log,
+                        bool *type_is_new_ptr) override;
+
+
+    Function *
+    ParseFunctionFromDWARF (const SymbolContext& sc,
+                            SymbolFileDWARF *dwarf,
+                            DWARFCompileUnit* dwarf_cu,
+                            const DWARFDebugInfoEntry *die) override;
+
+    bool
+    CompleteTypeFromDWARF (SymbolFileDWARF *dwarf,
+                           DWARFCompileUnit *dwarf_cu,
+                           const DWARFDebugInfoEntry* die,
+                           lldb_private::Type *type,
+                           CompilerType &clang_type) override;
+
+    CompilerDeclContext
+    GetDeclContextForUIDFromDWARF (SymbolFileDWARF *dwarf,
+                                   DWARFCompileUnit *dwarf_cu,
+                                   const DWARFDebugInfoEntry* die) override;
+
+    CompilerDeclContext
+    GetDeclContextContainingUIDFromDWARF (SymbolFileDWARF *dwarf,
+                                          DWARFCompileUnit *dwarf_cu,
+                                          const DWARFDebugInfoEntry* die) override;
+
+    //------------------------------------------------------------------
+    // ClangASTContext callbacks for external source lookups.
+    //------------------------------------------------------------------
+    static void
+    CompleteTagDecl (void *baton, clang::TagDecl *);
+
+    static void
+    CompleteObjCInterfaceDecl (void *baton, clang::ObjCInterfaceDecl *);
+
+    static bool
+    LayoutRecordType(void *baton,
+                     const clang::RecordDecl *record_decl,
+                     uint64_t &size,
+                     uint64_t &alignment,
+                     llvm::DenseMap<const clang::FieldDecl *, uint64_t> &field_offsets,
+                     llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits> &base_offsets,
+                     llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits> &vbase_offsets);
+
+    clang::NamespaceDecl *
+    ResolveNamespaceDIE (SymbolFileDWARF *dwarf,
+                         DWARFCompileUnit *dwarf_cu,
+                         const DWARFDebugInfoEntry *die);
+
+    //----------------------------------------------------------------------
+    // CompilerDeclContext override functions
+    //----------------------------------------------------------------------
+
+    bool
+    DeclContextIsStructUnionOrClass (void *opaque_decl_ctx) override;
+
+    ConstString
+    DeclContextGetName (void *opaque_decl_ctx) override;
+
+    bool
+    DeclContextIsClassMethod (void *opaque_decl_ctx,
+                              lldb::LanguageType *language_ptr,
+                              bool *is_instance_method_ptr,
+                              ConstString *language_object_name_ptr) override;
+
+    //----------------------------------------------------------------------
+    // Clang specific clang::DeclContext functions
+    //----------------------------------------------------------------------
+
+    static clang::DeclContext *
+    DeclContextGetAsDeclContext (const CompilerDeclContext &dc);
+
+    static clang::ObjCMethodDecl *
+    DeclContextGetAsObjCMethodDecl (const CompilerDeclContext &dc);
+
+    static clang::CXXMethodDecl *
+    DeclContextGetAsCXXMethodDecl (const CompilerDeclContext &dc);
+
+    static clang::FunctionDecl *
+    DeclContextGetAsFunctionDecl (const CompilerDeclContext &dc);
+
+    static clang::NamespaceDecl *
+    DeclContextGetAsNamespaceDecl (const CompilerDeclContext &dc);
+
+    static ClangASTMetadata *
+    DeclContextGetMetaData (const CompilerDeclContext &dc, const void *object);
+
+    static clang::ASTContext *
+    DeclContextGetClangASTContext (const CompilerDeclContext &dc);
+
     //----------------------------------------------------------------------
     // Tests
     //----------------------------------------------------------------------
     
     bool
-    IsArrayType (void* type,
-                 ClangASTType *element_type,
+    IsArrayType (void *type,
+                 CompilerType *element_type,
                  uint64_t *size,
-                 bool *is_incomplete);
+                 bool *is_incomplete) override;
     
     bool
-    IsVectorType (void* type,
-                  ClangASTType *element_type,
-                  uint64_t *size);
+    IsVectorType (void *type,
+                  CompilerType *element_type,
+                  uint64_t *size) override;
     
     bool
-    IsAggregateType (void* type);
+    IsAggregateType (void *type) override;
     
     bool
-    IsBeingDefined (void* type);
+    IsBeingDefined (void *type) override;
     
     bool
-    IsCharType (void* type);
+    IsCharType (void *type) override;
     
     bool
-    IsCompleteType (void* type);
+    IsCompleteType (void *type) override;
     
     bool
-    IsConst(void* type);
+    IsConst(void *type) override;
     
     bool
-    IsCStringType (void* type, uint32_t &length);
+    IsCStringType (void *type, uint32_t &length) override;
     
     static bool
-    IsCXXClassType (const ClangASTType& type);
+    IsCXXClassType (const CompilerType& type);
     
     bool
-    IsDefined(void* type);
+    IsDefined(void *type) override;
     
     bool
-    IsFloatingPointType (void* type, uint32_t &count, bool &is_complex);
+    IsFloatingPointType (void *type, uint32_t &count, bool &is_complex) override;
     
     bool
-    IsFunctionType (void* type, bool *is_variadic_ptr = NULL);
-    
+    IsFunctionType (void *type, bool *is_variadic_ptr) override;
+
     uint32_t
-    IsHomogeneousAggregate (void* type, ClangASTType* base_type_ptr);
+    IsHomogeneousAggregate (void *type, CompilerType* base_type_ptr) override;
     
     size_t
-    GetNumberOfFunctionArguments (void* type);
+    GetNumberOfFunctionArguments (void *type) override;
     
-    ClangASTType
-    GetFunctionArgumentAtIndex (void* type, const size_t index);
-    
-    bool
-    IsFunctionPointerType (void* type);
+    CompilerType
+    GetFunctionArgumentAtIndex (void *type, const size_t index) override;
     
     bool
-    IsIntegerType (void* type, bool &is_signed);
-    
-    static bool
-    IsObjCClassType (const ClangASTType& type);
-    
-    static bool
-    IsObjCClassTypeAndHasIVars (const ClangASTType& type, bool check_superclass);
-    
-    static bool
-    IsObjCObjectOrInterfaceType (const ClangASTType& type);
-    
-    static bool
-    IsObjCObjectPointerType (const ClangASTType& type, ClangASTType *target_type = NULL);
+    IsFunctionPointerType (void *type) override;
     
     bool
-    IsPolymorphicClass (void* type);
+    IsIntegerType (void *type, bool &is_signed) override;
+    
+    static bool
+    IsObjCClassType (const CompilerType& type);
+    
+    static bool
+    IsObjCClassTypeAndHasIVars (const CompilerType& type, bool check_superclass);
+    
+    static bool
+    IsObjCObjectOrInterfaceType (const CompilerType& type);
+    
+    static bool
+    IsObjCObjectPointerType (const CompilerType& type, CompilerType *target_type = NULL);
     
     bool
-    IsPossibleDynamicType (void* type,
-                           ClangASTType *target_type, // Can pass NULL
+    IsPolymorphicClass (void *type) override;
+    
+    bool
+    IsPossibleDynamicType (void *type,
+                           CompilerType *target_type, // Can pass NULL
                            bool check_cplusplus,
-                           bool check_objc);
+                           bool check_objc) override;
     
     bool
-    IsRuntimeGeneratedType (void* type);
+    IsRuntimeGeneratedType (void *type) override;
     
     bool
-    IsPointerType (void* type, ClangASTType *pointee_type = NULL);
+    IsPointerType (void *type, CompilerType *pointee_type) override;
     
     bool
-    IsPointerOrReferenceType (void* type, ClangASTType *pointee_type = NULL);
+    IsPointerOrReferenceType (void *type, CompilerType *pointee_type) override;
     
     bool
-    IsReferenceType (void* type, ClangASTType *pointee_type = nullptr, bool* is_rvalue = nullptr);
+    IsReferenceType (void *type, CompilerType *pointee_type, bool* is_rvalue) override;
     
     bool
-    IsScalarType (void* type);
+    IsScalarType (void *type) override;
     
     bool
-    IsTypedefType (void* type);
+    IsTypedefType (void *type) override;
     
     bool
-    IsVoidType (void* type);
+    IsVoidType (void *type) override;
     
     static bool
-    GetCXXClassName (const ClangASTType& type, std::string &class_name);
+    GetCXXClassName (const CompilerType& type, std::string &class_name);
     
     static bool
-    GetObjCClassName (const ClangASTType& type, std::string &class_name);
+    GetObjCClassName (const CompilerType& type, std::string &class_name);
     
     
     //----------------------------------------------------------------------
@@ -619,100 +716,100 @@ public:
     //----------------------------------------------------------------------
     
     bool
-    GetCompleteType (void* type);
+    GetCompleteType (void *type) override;
     
     //----------------------------------------------------------------------
     // Accessors
     //----------------------------------------------------------------------
     
     ConstString
-    GetTypeName (void* type);
+    GetTypeName (void *type) override;
     
     uint32_t
-    GetTypeInfo (void* type, ClangASTType *pointee_or_element_clang_type = NULL);
+    GetTypeInfo (void *type, CompilerType *pointee_or_element_clang_type) override;
     
     lldb::LanguageType
-    GetMinimumLanguage (void* type);
+    GetMinimumLanguage (void *type) override;
     
     lldb::TypeClass
-    GetTypeClass (void* type);
+    GetTypeClass (void *type) override;
     
     unsigned
-    GetTypeQualifiers(void* type);
+    GetTypeQualifiers(void *type) override;
     
     //----------------------------------------------------------------------
     // Creating related types
     //----------------------------------------------------------------------
     
-    static ClangASTType
-    AddConstModifier (const ClangASTType& type);
+    static CompilerType
+    AddConstModifier (const CompilerType& type);
     
-    static ClangASTType
-    AddRestrictModifier (const ClangASTType& type);
+    static CompilerType
+    AddRestrictModifier (const CompilerType& type);
     
-    static ClangASTType
-    AddVolatileModifier (const ClangASTType& type);
+    static CompilerType
+    AddVolatileModifier (const CompilerType& type);
     
     // Using the current type, create a new typedef to that type using "typedef_name"
     // as the name and "decl_ctx" as the decl context.
-    static ClangASTType
-    CreateTypedefType (const ClangASTType& type,
+    static CompilerType
+    CreateTypedefType (const CompilerType& type,
                        const char *typedef_name,
-                       clang::DeclContext *decl_ctx);
+                       const CompilerDeclContext &compiler_decl_ctx);
     
-    ClangASTType
-    GetArrayElementType (void* type, uint64_t *stride = nullptr);
+    CompilerType
+    GetArrayElementType (void *type, uint64_t *stride) override;
     
-    ClangASTType
-    GetCanonicalType (void* type);
+    CompilerType
+    GetCanonicalType (void *type) override;
     
-    ClangASTType
-    GetFullyUnqualifiedType (void* type);
+    CompilerType
+    GetFullyUnqualifiedType (void *type) override;
     
     // Returns -1 if this isn't a function of if the function doesn't have a prototype
     // Returns a value >= 0 if there is a prototype.
     int
-    GetFunctionArgumentCount (void* type);
+    GetFunctionArgumentCount (void *type) override;
     
-    ClangASTType
-    GetFunctionArgumentTypeAtIndex (void* type, size_t idx);
+    CompilerType
+    GetFunctionArgumentTypeAtIndex (void *type, size_t idx) override;
     
-    ClangASTType
-    GetFunctionReturnType (void* type);
+    CompilerType
+    GetFunctionReturnType (void *type) override;
     
     size_t
-    GetNumMemberFunctions (void* type);
+    GetNumMemberFunctions (void *type) override;
     
     TypeMemberFunctionImpl
-    GetMemberFunctionAtIndex (void* type, size_t idx);
+    GetMemberFunctionAtIndex (void *type, size_t idx) override;
     
-    static ClangASTType
-    GetLValueReferenceType (const ClangASTType& type);
+    static CompilerType
+    GetLValueReferenceType (const CompilerType& type);
     
-    ClangASTType
-    GetNonReferenceType (void* type);
+    CompilerType
+    GetNonReferenceType (void *type) override;
     
-    ClangASTType
-    GetPointeeType (void* type);
+    CompilerType
+    GetPointeeType (void *type) override;
     
-    ClangASTType
-    GetPointerType (void* type);
+    CompilerType
+    GetPointerType (void *type) override;
     
-    static ClangASTType
-    GetRValueReferenceType (const ClangASTType& type);
+    static CompilerType
+    GetRValueReferenceType (const CompilerType& type);
     
     // If the current object represents a typedef type, get the underlying type
-    ClangASTType
-    GetTypedefedType (void* type);
-    
-    static ClangASTType
-    RemoveFastQualifiers (const ClangASTType& type);
+    CompilerType
+    GetTypedefedType (void *type) override;
+
+    static CompilerType
+    RemoveFastQualifiers (const CompilerType& type);
     
     //----------------------------------------------------------------------
     // Create related types using the current type's AST
     //----------------------------------------------------------------------
-    ClangASTType
-    GetBasicTypeFromAST (void* type, lldb::BasicType basic_type);
+    CompilerType
+    GetBasicTypeFromAST (lldb::BasicType basic_type) override;
     
     //----------------------------------------------------------------------
     // Exploring the type
@@ -725,58 +822,61 @@ public:
     }
     
     uint64_t
-    GetBitSize (void* type, ExecutionContextScope *exe_scope);
+    GetBitSize (void *type, ExecutionContextScope *exe_scope) override;
     
     lldb::Encoding
-    GetEncoding (void* type, uint64_t &count);
+    GetEncoding (void *type, uint64_t &count) override;
     
     lldb::Format
-    GetFormat (void* type);
+    GetFormat (void *type) override;
     
     size_t
-    GetTypeBitAlign (void* type);
+    GetTypeBitAlign (void *type) override;
     
     uint32_t
-    GetNumChildren (void* type, bool omit_empty_base_classes);
+    GetNumChildren (void *type, bool omit_empty_base_classes) override;
     
     lldb::BasicType
-    GetBasicTypeEnumeration (void* type);
+    GetBasicTypeEnumeration (void *type) override;
     
     static lldb::BasicType
-    GetBasicTypeEnumeration (void* type, const ConstString &name);
-    
-    static uint32_t
-    GetNumDirectBaseClasses (const ClangASTType& type);
-    
-    static uint32_t
-    GetNumVirtualBaseClasses (const ClangASTType& type);
-    
+    GetBasicTypeEnumeration (void *type, const ConstString &name);
+
+    void
+    ForEachEnumerator (void *type, std::function <bool (const CompilerType &integer_type, const ConstString &name, const llvm::APSInt &value)> const &callback) override;
+
     uint32_t
-    GetNumFields (void* type);
+    GetNumFields (void *type) override;
     
-    static ClangASTType
-    GetDirectBaseClassAtIndex (const ClangASTType& type,
-                               size_t idx,
-                               uint32_t *bit_offset_ptr);
-    
-    static ClangASTType
-    GetVirtualBaseClassAtIndex (const ClangASTType& type,
-                                size_t idx,
-                                uint32_t *bit_offset_ptr);
-    
-    ClangASTType
-    GetFieldAtIndex (void* type,
+    CompilerType
+    GetFieldAtIndex (void *type,
                      size_t idx,
                      std::string& name,
                      uint64_t *bit_offset_ptr,
                      uint32_t *bitfield_bit_size_ptr,
-                     bool *is_bitfield_ptr);
-    
+                     bool *is_bitfield_ptr) override;
+
+    uint32_t
+    GetNumDirectBaseClasses (void *type) override;
+
+    uint32_t
+    GetNumVirtualBaseClasses (void *type) override;
+
+    CompilerType
+    GetDirectBaseClassAtIndex (void *type,
+                               size_t idx,
+                               uint32_t *bit_offset_ptr) override;
+
+    CompilerType
+    GetVirtualBaseClassAtIndex (void *type,
+                                size_t idx,
+                                uint32_t *bit_offset_ptr) override;
+
     static uint32_t
     GetNumPointeeChildren (clang::QualType type);
     
-    ClangASTType
-    GetChildClangTypeAtIndex (void* type,
+    CompilerType
+    GetChildClangTypeAtIndex (void *type,
                               ExecutionContext *exe_ctx,
                               size_t idx,
                               bool transparent_pointers,
@@ -789,14 +889,14 @@ public:
                               uint32_t &child_bitfield_bit_offset,
                               bool &child_is_base_class,
                               bool &child_is_deref_of_parent,
-                              ValueObject *valobj);
+                              ValueObject *valobj) override;
     
     // Lookup a child given a name. This function will match base class names
     // and member member names in "clang_type" only, not descendants.
     uint32_t
-    GetIndexOfChildWithName (void* type,
+    GetIndexOfChildWithName (void *type,
                              const char *name,
-                             bool omit_empty_base_classes);
+                             bool omit_empty_base_classes) override;
     
     // Lookup a child member given a name. This function will match member names
     // only and will descend into "clang_type" children in search for the first
@@ -804,46 +904,46 @@ public:
     // TODO: Return all matches for a given name by returning a vector<vector<uint32_t>>
     // so we catch all names that match a given child name, not just the first.
     size_t
-    GetIndexOfChildMemberWithName (void* type,
+    GetIndexOfChildMemberWithName (void *type,
                                    const char *name,
                                    bool omit_empty_base_classes,
-                                   std::vector<uint32_t>& child_indexes);
+                                   std::vector<uint32_t>& child_indexes) override;
     
-    static size_t
-    GetNumTemplateArguments (const ClangASTType& type);
+    size_t
+    GetNumTemplateArguments (void *type) override;
     
-    static ClangASTType
-    GetTemplateArgument (const ClangASTType& type,
+    CompilerType
+    GetTemplateArgument (void *type,
                          size_t idx,
-                         lldb::TemplateArgumentKind &kind);
+                         lldb::TemplateArgumentKind &kind) override;
     
     
     //----------------------------------------------------------------------
     // Modifying RecordType
     //----------------------------------------------------------------------
     static clang::FieldDecl *
-    AddFieldToRecordType (const ClangASTType& type,
+    AddFieldToRecordType (const CompilerType& type,
                           const char *name,
-                          const ClangASTType &field_type,
+                          const CompilerType &field_type,
                           lldb::AccessType access,
                           uint32_t bitfield_bit_size);
     
     static void
-    BuildIndirectFields (const ClangASTType& type);
+    BuildIndirectFields (const CompilerType& type);
     
     static void
-    SetIsPacked (const ClangASTType& type);
+    SetIsPacked (const CompilerType& type);
     
     static clang::VarDecl *
-    AddVariableToRecordType (const ClangASTType& type,
+    AddVariableToRecordType (const CompilerType& type,
                              const char *name,
-                             const ClangASTType &var_type,
+                             const CompilerType &var_type,
                              lldb::AccessType access);
     
     clang::CXXMethodDecl *
-    AddMethodToCXXRecordType (void* type,
+    AddMethodToCXXRecordType (void *type,
                               const char *name,
-                              const ClangASTType &method_type,
+                              const CompilerType &method_type,
                               lldb::AccessType access,
                               bool is_virtual,
                               bool is_static,
@@ -854,7 +954,7 @@ public:
     
     // C++ Base Classes
     clang::CXXBaseSpecifier *
-    CreateBaseClassSpecifier (void* type,
+    CreateBaseClassSpecifier (void *type,
                               lldb::AccessType access,
                               bool is_virtual,
                               bool base_of_class);
@@ -864,19 +964,19 @@ public:
                                unsigned num_base_classes);
     
     bool
-    SetBaseClassesForClassType (void* type,
+    SetBaseClassesForClassType (void *type,
                                 clang::CXXBaseSpecifier const * const *base_classes,
                                 unsigned num_base_classes);
     
     
     static bool
-    SetObjCSuperClass (const ClangASTType& type,
-                       const ClangASTType &superclass_clang_type);
+    SetObjCSuperClass (const CompilerType& type,
+                       const CompilerType &superclass_clang_type);
     
     static bool
-    AddObjCClassProperty (const ClangASTType& type,
+    AddObjCClassProperty (const CompilerType& type,
                           const char *property_name,
-                          const ClangASTType &property_clang_type,
+                          const CompilerType &property_clang_type,
                           clang::ObjCIvarDecl *ivar_decl,
                           const char *property_setter_name,
                           const char *property_getter_name,
@@ -884,31 +984,31 @@ public:
                           ClangASTMetadata *metadata);
     
     static clang::ObjCMethodDecl *
-    AddMethodToObjCObjectType (const ClangASTType& type,
-                               const char *name,  // the full symbol name as seen in the symbol table (void* type, "-[NString stringWithCString:]")
-                               const ClangASTType &method_clang_type,
+    AddMethodToObjCObjectType (const CompilerType& type,
+                               const char *name,  // the full symbol name as seen in the symbol table (void *type, "-[NString stringWithCString:]")
+                               const CompilerType &method_clang_type,
                                lldb::AccessType access,
                                bool is_artificial);
     
     bool
-    SetHasExternalStorage (void* type, bool has_extern);
+    SetHasExternalStorage (void *type, bool has_extern);
     
     
     //------------------------------------------------------------------
     // Tag Declarations
     //------------------------------------------------------------------
     static bool
-    StartTagDeclarationDefinition (const ClangASTType &type);
+    StartTagDeclarationDefinition (const CompilerType &type);
     
     static bool
-    CompleteTagDeclarationDefinition (const ClangASTType &type);
+    CompleteTagDeclarationDefinition (const CompilerType &type);
     
     //----------------------------------------------------------------------
     // Modifying Enumeration types
     //----------------------------------------------------------------------
     bool
-    AddEnumerationValueToEnumerationType (void* type,
-                                          const ClangASTType &enumerator_qual_type,
+    AddEnumerationValueToEnumerationType (void *type,
+                                          const CompilerType &enumerator_qual_type,
                                           const Declaration &decl,
                                           const char *name,
                                           int64_t enum_value,
@@ -916,8 +1016,8 @@ public:
     
     
     
-    ClangASTType
-    GetEnumerationIntegerType (void* type);
+    CompilerType
+    GetEnumerationIntegerType (void *type);
     
     
     //------------------------------------------------------------------
@@ -926,22 +1026,22 @@ public:
     
     // Call this function using the class type when you want to make a
     // member pointer type to pointee_type.
-    static ClangASTType
-    CreateMemberPointerType (const ClangASTType& type, const ClangASTType &pointee_type);
+    static CompilerType
+    CreateMemberPointerType (const CompilerType& type, const CompilerType &pointee_type);
     
     
     // Converts "s" to a floating point value and place resulting floating
     // point bytes in the "dst" buffer.
     size_t
-    ConvertStringToFloatValue (void* type,
+    ConvertStringToFloatValue (void *type,
                                const char *s,
                                uint8_t *dst,
-                               size_t dst_size);
+                               size_t dst_size) override;
     //----------------------------------------------------------------------
     // Dumping types
     //----------------------------------------------------------------------
     void
-    DumpValue (void* type,
+    DumpValue (void *type,
                ExecutionContext *exe_ctx,
                Stream *s,
                lldb::Format format,
@@ -953,10 +1053,10 @@ public:
                bool show_types,
                bool show_summary,
                bool verbose,
-               uint32_t depth);
+               uint32_t depth) override;
     
     bool
-    DumpTypeValue (void* type,
+    DumpTypeValue (void *type,
                    Stream *s,
                    lldb::Format format,
                    const DataExtractor &data,
@@ -964,44 +1064,44 @@ public:
                    size_t data_byte_size,
                    uint32_t bitfield_bit_size,
                    uint32_t bitfield_bit_offset,
-                   ExecutionContextScope *exe_scope);
+                   ExecutionContextScope *exe_scope) override;
     
     void
-    DumpSummary (void* type,
+    DumpSummary (void *type,
                  ExecutionContext *exe_ctx,
                  Stream *s,
                  const DataExtractor &data,
                  lldb::offset_t data_offset,
-                 size_t data_byte_size);
+                 size_t data_byte_size) override;
     
     virtual void
-    DumpTypeDescription (void* type); // Dump to stdout
+    DumpTypeDescription (void *type) override; // Dump to stdout
     
     void
-    DumpTypeDescription (void* type, Stream *s);
+    DumpTypeDescription (void *type, Stream *s) override;
     
     static clang::EnumDecl *
-    GetAsEnumDecl (const ClangASTType& type);
+    GetAsEnumDecl (const CompilerType& type);
     
     
     static clang::RecordDecl *
-    GetAsRecordDecl (const ClangASTType& type);
+    GetAsRecordDecl (const CompilerType& type);
     
     clang::CXXRecordDecl *
-    GetAsCXXRecordDecl (void* type);
+    GetAsCXXRecordDecl (void *type);
     
     static clang::ObjCInterfaceDecl *
-    GetAsObjCInterfaceDecl (const ClangASTType& type);
+    GetAsObjCInterfaceDecl (const CompilerType& type);
     
     static clang::QualType
-    GetQualType (const ClangASTType& type)
+    GetQualType (const CompilerType& type)
     {
         if (type && type.GetTypeSystem()->AsClangASTContext())
             return clang::QualType::getFromOpaquePtr(type.GetOpaqueQualType());
         return clang::QualType();
     }
     static clang::QualType
-    GetCanonicalQualType (const ClangASTType& type)
+    GetCanonicalQualType (const CompilerType& type)
     {
         if (type && type.GetTypeSystem()->AsClangASTContext())
             return clang::QualType::getFromOpaquePtr(type.GetOpaqueQualType()).getCanonicalType();
@@ -1025,7 +1125,142 @@ protected:
         return clang::QualType();
     }
 
-    
+    struct LayoutInfo
+    {
+        LayoutInfo () :
+        bit_size(0),
+        alignment(0),
+        field_offsets(),
+        base_offsets(),
+        vbase_offsets()
+        {
+        }
+        uint64_t bit_size;
+        uint64_t alignment;
+        llvm::DenseMap<const clang::FieldDecl *, uint64_t> field_offsets;
+        llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits> base_offsets;
+        llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits> vbase_offsets;
+    };
+
+    typedef llvm::DenseMap<const clang::RecordDecl *, LayoutInfo> RecordDeclToLayoutMap;
+
+
+    // DWARF parsing functions
+    bool
+    ParseTemplateDIE (SymbolFileDWARF *dwarf,
+                      DWARFCompileUnit* dwarf_cu,
+                      const DWARFDebugInfoEntry *die,
+                      ClangASTContext::TemplateParameterInfos &template_param_infos);
+    bool
+    ParseTemplateParameterInfos (SymbolFileDWARF *dwarf,
+                                 DWARFCompileUnit* dwarf_cu,
+                                 const DWARFDebugInfoEntry *parent_die,
+                                 ClangASTContext::TemplateParameterInfos &template_param_infos);
+
+    clang::ClassTemplateDecl *
+    ParseClassTemplateDecl (SymbolFileDWARF *dwarf,
+                            clang::DeclContext *decl_ctx,
+                            lldb::AccessType access_type,
+                            const char *parent_name,
+                            int tag_decl_kind,
+                            const ClangASTContext::TemplateParameterInfos &template_param_infos);
+
+    class DelayedAddObjCClassProperty;
+    typedef std::vector <DelayedAddObjCClassProperty> DelayedPropertyList;
+
+    size_t
+    ParseChildMembers (const lldb_private::SymbolContext& sc,
+                       SymbolFileDWARF *dwarf,
+                       DWARFCompileUnit* dwarf_cu,
+                       const DWARFDebugInfoEntry *die,
+                       lldb_private::CompilerType &class_clang_type,
+                       const lldb::LanguageType class_language,
+                       std::vector<clang::CXXBaseSpecifier *>& base_classes,
+                       std::vector<int>& member_accessibilities,
+                       DWARFDIECollection& member_function_dies,
+                       DelayedPropertyList& delayed_properties,
+                       lldb::AccessType &default_accessibility,
+                       bool &is_a_class,
+                       LayoutInfo &layout_info);
+
+    size_t
+    ParseChildParameters (const lldb_private::SymbolContext& sc,
+                          clang::DeclContext *containing_decl_ctx,
+                          SymbolFileDWARF *dwarf,
+                          DWARFCompileUnit* dwarf_cu,
+                          const DWARFDebugInfoEntry *parent_die,
+                          bool skip_artificial,
+                          bool &is_static,
+                          bool &is_variadic,
+                          std::vector<lldb_private::CompilerType>& function_args,
+                          std::vector<clang::ParmVarDecl*>& function_param_decls,
+                          unsigned &type_quals);
+
+
+    void
+    ParseChildArrayInfo (const lldb_private::SymbolContext& sc,
+                         SymbolFileDWARF *dwarf,
+                         DWARFCompileUnit* dwarf_cu,
+                         const DWARFDebugInfoEntry *parent_die,
+                         int64_t& first_index,
+                         std::vector<uint64_t>& element_orders,
+                         uint32_t& byte_stride,
+                         uint32_t& bit_stride);
+
+
+    size_t
+    ParseChildEnumerators (const SymbolContext& sc,
+                           lldb_private::CompilerType &clang_type,
+                           bool is_signed,
+                           uint32_t enumerator_byte_size,
+                           SymbolFileDWARF *dwarf,
+                           DWARFCompileUnit* dwarf_cu,
+                           const DWARFDebugInfoEntry *parent_die);
+
+    clang::DeclContext *
+    GetClangDeclContextForDIE (SymbolFileDWARF *dwarf,
+                               DWARFCompileUnit *cu,
+                               const DWARFDebugInfoEntry *die);
+
+    clang::DeclContext *
+    GetClangDeclContextContainingDIE (SymbolFileDWARF *dwarf,
+                                      DWARFCompileUnit *cu,
+                                      const DWARFDebugInfoEntry *die,
+                                      const DWARFDebugInfoEntry **decl_ctx_die);
+
+    bool
+    CopyUniqueClassMethodTypes (SymbolFileDWARF *dwarf,
+                                SymbolFileDWARF *src_symfile,
+                                Type *class_type,
+                                DWARFCompileUnit* src_cu,
+                                const DWARFDebugInfoEntry *src_class_die,
+                                DWARFCompileUnit* dst_cu,
+                                const DWARFDebugInfoEntry *dst_class_die,
+                                DWARFDIECollection &failures);
+
+    clang::DeclContext *
+    GetCachedClangDeclContextForDIE (const DWARFDebugInfoEntry *die)
+    {
+        DIEToDeclContextMap::iterator pos = m_die_to_decl_ctx.find(die);
+        if (pos != m_die_to_decl_ctx.end())
+            return pos->second;
+        else
+            return NULL;
+    }
+
+    void
+    LinkDeclContextToDIE (clang::DeclContext *decl_ctx,
+                          const DWARFDebugInfoEntry *die)
+    {
+        m_die_to_decl_ctx[die] = decl_ctx;
+        // There can be many DIEs for a single decl context
+        m_decl_ctx_to_die[decl_ctx].insert(die);
+    }
+
+    typedef llvm::SmallPtrSet<const DWARFDebugInfoEntry *, 4> DIEPointerSet;
+    typedef llvm::DenseMap<const DWARFDebugInfoEntry *, clang::DeclContext *> DIEToDeclContextMap;
+    typedef llvm::DenseMap<const clang::DeclContext *, DIEPointerSet> DeclContextToDIEMap;
+
     //------------------------------------------------------------------
     // Classes that inherit from ClangASTContext can see and modify these
     //------------------------------------------------------------------
@@ -1046,6 +1281,15 @@ protected:
     CompleteObjCInterfaceDeclCallback               m_callback_objc_decl;
     void *                                          m_callback_baton;
     uint32_t                                        m_pointer_byte_size;
+    bool                                            m_ast_owned;
+    // DWARF Parsing related ivars
+    RecordDeclToLayoutMap                           m_record_decl_to_layout_map;
+    DIEToDeclContextMap                             m_die_to_decl_ctx;
+    DeclContextToDIEMap                             m_decl_ctx_to_die;
+    clang::TranslationUnitDecl *                    m_clang_tu_decl;
+
+
+
 private:
     //------------------------------------------------------------------
     // For ClangASTContext only

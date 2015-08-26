@@ -26,7 +26,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMIDriverMgr::CMIDriverMgr(void)
+CMIDriverMgr::CMIDriverMgr()
     : m_pDriverCurrent(nullptr)
     , m_bInMi2Mode(false)
 {
@@ -39,7 +39,7 @@ CMIDriverMgr::CMIDriverMgr(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMIDriverMgr::~CMIDriverMgr(void)
+CMIDriverMgr::~CMIDriverMgr()
 {
     Shutdown();
 }
@@ -53,7 +53,7 @@ CMIDriverMgr::~CMIDriverMgr(void)
 // Throws:  None.
 //--
 bool
-CMIDriverMgr::Initialize(void)
+CMIDriverMgr::Initialize()
 {
     m_clientUsageRefCnt++;
 
@@ -91,7 +91,7 @@ CMIDriverMgr::Initialize(void)
 // Throws:  None.
 //--
 bool
-CMIDriverMgr::Shutdown(void)
+CMIDriverMgr::Shutdown()
 {
     // Do not want a ref counter because this function needs to be called how ever this
     // application stops running
@@ -132,7 +132,7 @@ CMIDriverMgr::Shutdown(void)
 // Throws:  None.
 //--
 bool
-CMIDriverMgr::UnregisterDriverAll(void)
+CMIDriverMgr::UnregisterDriverAll()
 {
     MapDriverIdToDriver_t::const_iterator it = m_mapDriverIdToDriver.begin();
     while (it != m_mapDriverIdToDriver.end())
@@ -273,7 +273,7 @@ CMIDriverMgr::SetUseThisDriverToDoWork(const IDriver &vrADriver)
 // Throws:  None.
 //--
 CMIDriverMgr::IDriver *
-CMIDriverMgr::GetUseThisDriverToDoWork(void) const
+CMIDriverMgr::GetUseThisDriverToDoWork() const
 {
     return m_pDriverCurrent;
 }
@@ -287,7 +287,7 @@ CMIDriverMgr::GetUseThisDriverToDoWork(void) const
 // Throws:  None.
 //--
 bool
-CMIDriverMgr::DriverMainLoop(void)
+CMIDriverMgr::DriverMainLoop()
 {
     if (m_pDriverCurrent != nullptr)
     {
@@ -337,7 +337,7 @@ CMIDriverMgr::DriverParseArgs(const int argc, const char *argv[], FILE *vpStdOut
     if (!bOk)
     {
         CMIUtilString errMsg;
-        const MIchar *pErrorCstr = error.GetCString();
+        const char *pErrorCstr = error.GetCString();
         if (pErrorCstr != nullptr)
             errMsg = CMIUtilString::Format(MIRSRC(IDS_DRIVER_ERR_PARSE_ARGS), m_pDriverCurrent->GetName().c_str(), pErrorCstr);
         else
@@ -357,7 +357,7 @@ CMIDriverMgr::DriverParseArgs(const int argc, const char *argv[], FILE *vpStdOut
 // Throws:  None.
 //--
 CMIUtilString
-CMIDriverMgr::DriverGetError(void) const
+CMIDriverMgr::DriverGetError() const
 {
     if (m_pDriverCurrent != nullptr)
         return m_pDriverCurrent->GetError();
@@ -379,7 +379,7 @@ CMIDriverMgr::DriverGetError(void) const
 // Throws:  None.
 //--
 CMIUtilString
-CMIDriverMgr::DriverGetName(void) const
+CMIDriverMgr::DriverGetName() const
 {
     if (m_pDriverCurrent != nullptr)
         return m_pDriverCurrent->GetName();
@@ -401,7 +401,7 @@ CMIDriverMgr::DriverGetName(void) const
 // Throws:  None.
 //--
 lldb::SBDebugger *
-CMIDriverMgr::DriverGetTheDebugger(void)
+CMIDriverMgr::DriverGetTheDebugger()
 {
     lldb::SBDebugger *pDebugger = nullptr;
     if (m_pDriverCurrent != nullptr)
@@ -436,7 +436,7 @@ CMIDriverMgr::DriverGetTheDebugger(void)
 //          executable if called from the command line. Using --executable tells the MI
 //          Driver is being called the command line and that the executable argument is indeed
 //          a specified executable an so actions commands to set up the executable for a
-//          debug session. Using --interpreter on the commnd line does not action additional
+//          debug session. Using --interpreter on the command line does not action additional
 //          commands to initialise a debug session and so be able to launch the process. The directory
 //          where the log file is created is specified using --log-dir.
 // Type:    Method.
@@ -518,7 +518,7 @@ CMIDriverMgr::ParseArgs(const int argc, const char *argv[], bool &vwbExiting)
             }
             if (0 == strArg.compare(0,10,"--log-dir="))
             {
-                strLogDir = strArg.substr(10,CMIUtilString::npos);
+                strLogDir = strArg.substr(10, CMIUtilString::npos);
                 bHaveArgLogDir = true;
             }
             if ((0 == strArg.compare("--help")) || (0 == strArg.compare("-h")))
@@ -538,7 +538,7 @@ CMIDriverMgr::ParseArgs(const int argc, const char *argv[], bool &vwbExiting)
         bOk = bOk && CMICmnLogMediumFile::Instance().SetDirectory(strLogDir);
     }
 
-    // Todo: Remove this output when MI is finished. It is temporary to persuade Ecllipse plugin to work.
+    // Todo: Remove this output when MI is finished. It is temporary to persuade Eclipse plugin to work.
     //       Eclipse reads this literally and will not work unless it gets this exact version text.
     // Handle --version option (ignore the --interpreter option if present)
     if (bHaveArgVersion)
@@ -548,7 +548,7 @@ CMIDriverMgr::ParseArgs(const int argc, const char *argv[], bool &vwbExiting)
         return bOk;
     }
 
-    // Todo: Make this the --version when the the above --version version is removed
+    // Todo: Make this the --version when the above --version version is removed
     // Handle --versionlong option (ignore the --interpreter option if present)
     if (bHaveArgVersionLong)
     {
@@ -557,7 +557,7 @@ CMIDriverMgr::ParseArgs(const int argc, const char *argv[], bool &vwbExiting)
         return bOk;
     }
 
-    // Both '--help' and '--intepreter' means give help for MI only. Without
+    // Both '--help' and '--interpreter' means give help for MI only. Without
     // '--interpreter' help the LLDB driver is working and so help is for that.
     if (bHaveArgHelp && bHaveArgInterpret)
     {
@@ -567,7 +567,7 @@ CMIDriverMgr::ParseArgs(const int argc, const char *argv[], bool &vwbExiting)
     }
 
     // This makes the assumption that there is at least one MI compatible
-    // driver registered and one LLDB driver registerd and the CMIDriver
+    // driver registered and one LLDB driver registered and the CMIDriver
     // is the first one found.
     // ToDo: Implement a better solution that handle any order, any number
     // of drivers. Or this 'feature' may be removed if deemed not required.
@@ -598,7 +598,7 @@ CMIDriverMgr::ParseArgs(const int argc, const char *argv[], bool &vwbExiting)
 // Throws:  None.
 //--
 CMIUtilString
-CMIDriverMgr::GetAppVersion(void) const
+CMIDriverMgr::GetAppVersion() const
 {
     const CMIUtilString strProj(MIRSRC(IDS_PROJNAME));
     const CMIUtilString strVsn(CMIDriver::Instance().GetVersionDescription());
@@ -616,7 +616,7 @@ CMIDriverMgr::GetAppVersion(void) const
 // Throws:  None.
 //--
 CMIUtilString
-CMIDriverMgr::GetHelpOnCmdLineArgOptions(void) const
+CMIDriverMgr::GetHelpOnCmdLineArgOptions() const
 {
     const CMIUtilString pHelp[] = {
         MIRSRC(IDE_MI_APP_DESCRIPTION),
@@ -626,6 +626,7 @@ CMIDriverMgr::GetHelpOnCmdLineArgOptions(void) const
         MIRSRC(IDE_MI_APP_ARG_VERSION),
         MIRSRC(IDE_MI_APP_ARG_VERSION_LONG),
         MIRSRC(IDE_MI_APP_ARG_INTERPRETER),
+        MIRSRC(IDE_MI_APP_ARG_SOURCE),
         MIRSRC(IDE_MI_APP_ARG_EXECUTEABLE),
         CMIUtilString::Format(MIRSRC(IDE_MI_APP_ARG_APP_LOG), CMICmnLogMediumFile::Instance().GetFileName().c_str()),
         MIRSRC(IDE_MI_APP_ARG_APP_LOG_DIR),
@@ -652,7 +653,7 @@ CMIDriverMgr::GetHelpOnCmdLineArgOptions(void) const
 // Throws:  None.
 //--
 CMIDriverMgr::IDriver *
-CMIDriverMgr::GetFirstMIDriver(void) const
+CMIDriverMgr::GetFirstMIDriver() const
 {
     IDriver *pDriver = nullptr;
     MapDriverIdToDriver_t::const_iterator it = m_mapDriverIdToDriver.begin();
@@ -683,7 +684,7 @@ CMIDriverMgr::GetFirstMIDriver(void) const
 // Throws:  None.
 //--
 CMIDriverMgr::IDriver *
-CMIDriverMgr::GetFirstNonMIDriver(void) const
+CMIDriverMgr::GetFirstNonMIDriver() const
 {
     IDriver *pDriver = nullptr;
     MapDriverIdToDriver_t::const_iterator it = m_mapDriverIdToDriver.begin();

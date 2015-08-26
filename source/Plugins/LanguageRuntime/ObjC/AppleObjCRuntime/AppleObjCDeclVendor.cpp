@@ -69,13 +69,6 @@ public:
         return false;
     }
 
-    clang::ExternalLoadResult
-    FindExternalLexicalDecls(const clang::DeclContext *DC, bool (*isKindWeWant)(clang::Decl::Kind),
-                             llvm::SmallVectorImpl<clang::Decl *> &Decls) override
-    {
-        return clang::ELR_Success;
-    }
-
     void
     CompleteType(clang::TagDecl *tag_decl) override
     {
@@ -192,7 +185,8 @@ AppleObjCDeclVendor::GetDeclForISA(ObjCLanguageRuntime::ObjCISA isa)
                                                                                 ast_ctx->getTranslationUnitDecl(),
                                                                                 clang::SourceLocation(),
                                                                                 &identifier_info,
-                                                                                NULL);
+                                                                                nullptr,
+                                                                                nullptr);
     
     ClangASTMetadata meta_data;
     meta_data.SetISAPtr(isa);
@@ -451,8 +445,9 @@ AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl)
             return;
         
         FinishDecl(superclass_decl);
-        
-        interface_decl->setSuperClass(superclass_decl);
+        clang::ASTContext *context = m_ast_ctx.getASTContext();
+        interface_decl->setSuperClass(
+                context->getTrivialTypeSourceInfo(context->getObjCInterfaceType(superclass_decl)));
     };
     
     auto instance_method_func = [log, interface_decl, this](const char *name, const char *types) -> bool
@@ -496,12 +491,12 @@ AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl)
         if (!name || !type)
             return false;
         
-        const bool for_expression = true;
+        const bool for_expression = false;
         
         if (log)
             log->Printf("[  AOTV::FD] Instance variable [%s] [%s], offset at %" PRIx64, name, type, offset_ptr);
         
-        ClangASTType ivar_type = m_runtime.GetEncodingToType()->RealizeType(m_ast_ctx, type, for_expression);
+        CompilerType ivar_type = m_runtime.GetEncodingToType()->RealizeType(m_ast_ctx, type, for_expression);
         
         if (ivar_type.IsValid())
         {

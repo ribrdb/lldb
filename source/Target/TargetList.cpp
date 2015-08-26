@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 // C Includes
 // C++ Includes
 // Other libraries and framework includes
@@ -300,7 +298,7 @@ TargetList::CreateTargetInternal (Debugger &debugger,
         if (!platform_sp->IsCompatibleArchitecture(arch, false, &platform_arch))
         {
             platform_sp = Platform::GetPlatformForArchitecture(arch, &platform_arch);
-            if (platform_sp)
+            if (!is_dummy_target && platform_sp)
                 debugger.GetPlatformList().SetSelectedPlatform(platform_sp);
         }
     }
@@ -312,7 +310,7 @@ TargetList::CreateTargetInternal (Debugger &debugger,
         if (!platform_sp->IsCompatibleArchitecture(platform_arch, false, &fixed_platform_arch))
         {
             platform_sp = Platform::GetPlatformForArchitecture(platform_arch, &fixed_platform_arch);
-            if (platform_sp)
+            if (!is_dummy_target && platform_sp)
                 debugger.GetPlatformList().SetSelectedPlatform(platform_sp);
         }
     }
@@ -414,7 +412,7 @@ TargetList::CreateTargetInternal (Debugger &debugger,
         if (file.GetFileType() == FileSpec::eFileTypeDirectory)
             user_exe_path_is_bundle = true;
 
-        if (file.IsRelativeToCurrentWorkingDirectory() && user_exe_path)
+        if (file.IsRelative() && user_exe_path)
         {
             // Ignore paths that start with "./" and "../"
             if (!((user_exe_path[0] == '.' && user_exe_path[1] == '/') ||

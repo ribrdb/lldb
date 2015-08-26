@@ -143,6 +143,12 @@ NativeRegisterContext::GetPC (lldb::addr_t fail_value)
     return retval;
 }
 
+lldb::addr_t
+NativeRegisterContext::GetPCfromBreakpointLocation (lldb::addr_t fail_value)
+{
+    return GetPC (fail_value);
+}
+
 Error
 NativeRegisterContext::SetPC (lldb::addr_t pc)
 {
@@ -309,7 +315,7 @@ NativeRegisterContext::IsWatchpointHit(uint32_t wp_index, bool &is_hit)
 }
 
 Error
-NativeRegisterContext::GetWatchpointHitIndex(uint32_t &wp_index)
+NativeRegisterContext::GetWatchpointHitIndex(uint32_t &wp_index, lldb::addr_t trap_addr)
 {
     wp_index = LLDB_INVALID_INDEX32;
     return Error ("not implemented");
@@ -324,6 +330,12 @@ NativeRegisterContext::IsWatchpointVacant (uint32_t wp_index, bool &is_vacant)
 
 lldb::addr_t
 NativeRegisterContext::GetWatchpointAddress (uint32_t wp_index)
+{
+    return LLDB_INVALID_ADDRESS;
+}
+
+lldb::addr_t
+NativeRegisterContext::GetWatchpointHitAddress (uint32_t wp_index)
 {
     return LLDB_INVALID_ADDRESS;
 }

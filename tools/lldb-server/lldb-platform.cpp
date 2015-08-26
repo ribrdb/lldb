@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 // C Includes
 #include <errno.h>
 #if defined(__APPLE__)
@@ -22,24 +20,27 @@
 #include <sys/wait.h>
 
 // C++ Includes
+#include <fstream>
 
 // Other libraries and framework includes
 #include "lldb/Core/Error.h"
-#include "lldb/Core/ConnectionMachPort.h"
-#include "lldb/Core/Debugger.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Host/ConnectionFileDescriptor.h"
+#include "lldb/Host/FileSpec.h"
+#include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostGetOpt.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Host/Socket.h"
-#include "lldb/Interpreter/CommandInterpreter.h"
-#include "lldb/Interpreter/CommandReturnObject.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FileUtilities.h"
+#include "LLDBServerUtilities.h"
 #include "Plugins/Process/gdb-remote/GDBRemoteCommunicationServerPlatform.h"
 #include "Plugins/Process/gdb-remote/ProcessGDBRemoteLog.h"
 
 using namespace lldb;
 using namespace lldb_private;
+using namespace lldb_private::lldb_server;
 using namespace lldb_private::process_gdb_remote;
+using namespace llvm;
 
 //----------------------------------------------------------------------
 // option descriptors for getopt_long_only()
@@ -53,12 +54,14 @@ static struct option g_long_options[] =
 {
     { "debug",              no_argument,        &g_debug,           1   },
     { "verbose",            no_argument,        &g_verbose,         1   },
+    { "log-file",           required_argument,  NULL,               'l' },
+    { "log-channels",       required_argument,  NULL,               'c' },
     { "listen",             required_argument,  NULL,               'L' },
     { "port-offset",        required_argument,  NULL,               'p' },
     { "gdbserver-port",     required_argument,  NULL,               'P' },
     { "min-gdbserver-port", required_argument,  NULL,               'm' },
     { "max-gdbserver-port", required_argument,  NULL,               'M' },
-    { "lldb-command",       required_argument,  NULL,               'c' },
+    { "port-file",          required_argument,  NULL,               'f' },
     { "server",             no_argument,        &g_server,          1   },
     { NULL,                 0,                  NULL,               0   }
 };
@@ -70,7 +73,6 @@ static struct option g_long_options[] =
 #define LOW_PORT    (1024u)
 #define HIGH_PORT   (49151u)
 #endif
-
 
 //----------------------------------------------------------------------
 // Watch for signals
@@ -93,8 +95,40 @@ signal_handler(int signo)
 static void
 display_usage (const char *progname, const char *subcommand)
 {
-    fprintf(stderr, "Usage:\n  %s %s [--log-file log-file-path] [--log-flags flags] --listen port\n", progname, subcommand);
+    fprintf(stderr, "Usage:\n  %s %s [--log-file log-file-name] [--log-channels log-channel-list] [--port-file port-file-path] --server --listen port\n", progname, subcommand);
     exit(0);
+}
+
+static Error
+save_port_to_file(const uint16_t port, const FileSpec &port_file_spec)
+{
+    FileSpec temp_file_spec(port_file_spec.GetDirectory().AsCString(), false);
+    auto error = FileSystem::MakeDirectory(temp_file_spec, eFilePermissionsDirectoryDefault);
+    if (error.Fail())
+       return Error("Failed to create directory %s: %s", temp_file_spec.GetCString(), error.AsCString());
+
+    llvm::SmallString<PATH_MAX> temp_file_path;
+    temp_file_spec.AppendPathComponent("port-file.%%%%%%");
+    auto err_code = llvm::sys::fs::createUniqueFile(temp_file_spec.GetCString(), temp_file_path);
+    if (err_code)
+        return Error("Failed to create temp file: %s", err_code.message().c_str());
+
+    llvm::FileRemover tmp_file_remover(temp_file_path.c_str());
+
+    {
+        std::ofstream temp_file(temp_file_path.c_str(), std::ios::out);
+        if (!temp_file.is_open())
+            return Error("Failed to open temp file %s", temp_file_path.c_str());
+        temp_file << port;
+    }
+
+    err_code = llvm::sys::fs::rename(temp_file_path.c_str(), port_file_spec.GetPath().c_str());
+    if (err_code)
+        return Error("Failed to rename file %s to %s: %s",
+                     temp_file_path.c_str(), port_file_spec.GetPath().c_str(), err_code.message().c_str());
+
+    tmp_file_remover.releaseFile();
+    return Error();
 }
 
 //----------------------------------------------------------------------
@@ -114,18 +148,15 @@ main_platform (int argc, char *argv[])
     std::string listen_host_port;
     int ch;
 
-    lldb::DebuggerSP debugger_sp = Debugger::CreateInstance ();
+    std::string log_file;
+    StringRef log_channels; // e.g. "lldb process threads:gdb-remote default:linux all"
 
-    debugger_sp->SetInputFileHandle(stdin, false);
-    debugger_sp->SetOutputFileHandle(stdout, false);
-    debugger_sp->SetErrorFileHandle(stderr, false);
-    
     GDBRemoteCommunicationServerPlatform::PortMap gdbserver_portmap;
     int min_gdbserver_port = 0;
     int max_gdbserver_port = 0;
     uint16_t port_offset = 0;
-    
-    std::vector<std::string> lldb_commands;
+
+    FileSpec port_file;
     bool show_usage = false;
     int option_error = 0;
     int socket_error = -1;
@@ -148,6 +179,21 @@ main_platform (int argc, char *argv[])
 
         case 'L':
             listen_host_port.append (optarg);
+            break;
+
+        case 'l': // Set Log File
+            if (optarg && optarg[0])
+                log_file.assign(optarg);
+            break;
+
+        case 'c': // Log Channels
+            if (optarg && optarg[0])
+                log_channels = StringRef(optarg);
+            break;
+
+        case 'f': // Port file
+            if (optarg && optarg[0])
+                port_file.SetFile(optarg, false);
             break;
 
         case 'p':
@@ -204,10 +250,6 @@ main_platform (int argc, char *argv[])
                 }
             }
             break;
-            
-        case 'c':
-            lldb_commands.push_back(optarg);
-            break;
 
         case 'h':   /* fall-through is intentional */
         case '?':
@@ -215,6 +257,9 @@ main_platform (int argc, char *argv[])
             break;
         }
     }
+
+    if (!LLDBServerUtilities::SetupLogging(log_file, log_channels, 0))
+        return -1;
 
     // Make a port map for a port range that was specified.
     if (min_gdbserver_port < max_gdbserver_port)
@@ -226,7 +271,6 @@ main_platform (int argc, char *argv[])
     {
         fprintf (stderr, "error: --min-gdbserver-port (%u) is greater than --max-gdbserver-port (%u)\n", min_gdbserver_port, max_gdbserver_port);
         option_error = 3;
-        
     }
 
     // Print usage and exit if no listening port is specified.
@@ -239,20 +283,8 @@ main_platform (int argc, char *argv[])
         exit(option_error);
     }
     
-    // Execute any LLDB commands that we were asked to evaluate.
-    for (const auto &lldb_command : lldb_commands)
-    {
-        lldb_private::CommandReturnObject result;
-        printf("(lldb) %s\n", lldb_command.c_str());
-        debugger_sp->GetCommandInterpreter().HandleCommand(lldb_command.c_str(), eLazyBoolNo, result);
-        const char *output = result.GetOutputData();
-        if (output && output[0])
-            puts(output);
-    }
-
     std::unique_ptr<Socket> listening_socket_up;
     Socket *socket = nullptr;
-    printf ("Listening for a connection from %s...\n", listen_host_port.c_str());
     const bool children_inherit_listen_socket = false;
 
     // the test suite makes many connections in parallel, let's not miss any.
@@ -266,6 +298,16 @@ main_platform (int argc, char *argv[])
         exit(socket_error);
     }
     listening_socket_up.reset(socket);
+    printf ("Listening for a connection from %u...\n", listening_socket_up->GetLocalPortNumber());
+    if (port_file)
+    {
+        error = save_port_to_file(listening_socket_up->GetLocalPortNumber(), port_file);
+        if (error.Fail())
+        {
+            fprintf(stderr, "failed to write port to %s: %s", port_file.GetPath().c_str(), error.AsCString());
+            return 1;
+        }
+    }
 
     do {
         GDBRemoteCommunicationServerPlatform platform;
@@ -319,7 +361,7 @@ main_platform (int argc, char *argv[])
         if (platform.IsConnected())
         {
             // After we connected, we need to get an initial ack from...
-            if (platform.HandshakeWithClient(&error))
+            if (platform.HandshakeWithClient())
             {
                 bool interrupt = false;
                 bool done = false;

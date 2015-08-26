@@ -13,6 +13,7 @@
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/Debugger.h"
+#include "lldb/Core/Language.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/Stream.h"
 #include "lldb/Core/StreamString.h"
@@ -97,7 +98,8 @@ static FormatEntity::Entry::Definition g_function_child_entries[] =
     ENTRY ("line-offset"         , FunctionLineOffset     , UInt64),
     ENTRY ("pc-offset"           , FunctionPCOffset       , UInt64),
     ENTRY ("initial-function"    , FunctionInitial        , None),
-    ENTRY ("changed"             , FunctionChanged        , None)
+    ENTRY ("changed"             , FunctionChanged        , None),
+    ENTRY ("is-optimized"        , FunctionIsOptimized    , None)
 };
 
 static FormatEntity::Entry::Definition g_line_child_entries[] =
@@ -210,6 +212,7 @@ static FormatEntity::Entry::Definition g_top_level_entries[] =
     ENTRY_CHILDREN          ("ansi"                , Invalid                , None      , g_ansi_entries),
     ENTRY                   ("current-pc-arrow"    , CurrentPCArrow         , CString   ),
     ENTRY_CHILDREN          ("file"                , File                   , CString   , g_file_child_entries),
+    ENTRY                   ("language"            , Lang                   , CString),
     ENTRY_CHILDREN          ("frame"               , Invalid                , None      , g_frame_child_entries),
     ENTRY_CHILDREN          ("function"            , Invalid                , None      , g_function_child_entries),
     ENTRY_CHILDREN          ("line"                , Invalid                , None      , g_line_child_entries),
@@ -321,6 +324,7 @@ FormatEntity::Entry::TypeToCString (Type t)
     ENUM_TO_CSTR(ScriptTarget);
     ENUM_TO_CSTR(ModuleFile);
     ENUM_TO_CSTR(File);
+    ENUM_TO_CSTR(Lang);
     ENUM_TO_CSTR(FrameIndex);
     ENUM_TO_CSTR(FrameRegisterPC);
     ENUM_TO_CSTR(FrameRegisterSP);
@@ -340,6 +344,7 @@ FormatEntity::Entry::TypeToCString (Type t)
     ENUM_TO_CSTR(FunctionPCOffset);
     ENUM_TO_CSTR(FunctionInitial);
     ENUM_TO_CSTR(FunctionChanged);
+    ENUM_TO_CSTR(FunctionIsOptimized);
     ENUM_TO_CSTR(LineEntryFile);
     ENUM_TO_CSTR(LineEntryLineNumber);
     ENUM_TO_CSTR(LineEntryStartAddress);
@@ -474,7 +479,7 @@ DumpAddressOffsetFromFunction (Stream &s,
                 }
             }
             else if (sc->symbol && sc->symbol->ValueIsAddress())
-                func_addr = sc->symbol->GetAddress();
+                func_addr = sc->symbol->GetAddressRef();
         }
 
         if (func_addr.IsValid())
@@ -880,10 +885,10 @@ DumpValue (Stream &s,
     }
 
     // TODO use flags for these
-    const uint32_t type_info_flags = target->GetClangType().GetTypeInfo(NULL);
+    const uint32_t type_info_flags = target->GetCompilerType().GetTypeInfo(NULL);
     bool is_array = (type_info_flags & eTypeIsArray) != 0;
     bool is_pointer = (type_info_flags & eTypeIsPointer) != 0;
-    bool is_aggregate = target->GetClangType().IsAggregateType();
+    bool is_aggregate = target->GetCompilerType().IsAggregateType();
 
     if ((is_array || is_pointer) && (!is_array_range) && val_obj_display == ValueObject::eValueObjectRepresentationStyleValue) // this should be wrong, but there are some exceptions
     {
@@ -1299,13 +1304,13 @@ FormatEntity::Format (const Entry &entry,
                         // Watch for the special "tid" format...
                         if (entry.printf_format == "tid")
                         {
-                            bool handled = false;
+                            // TODO(zturner): Rather than hardcoding this to be platform specific, it should be controlled by a
+                            // setting and the default value of the setting can be different depending on the platform.
                             Target &target = thread->GetProcess()->GetTarget();
                             ArchSpec arch (target.GetArchitecture ());
                             llvm::Triple::OSType ostype = arch.IsValid() ? arch.GetTriple().getOS() : llvm::Triple::UnknownOS;
                             if ((ostype == llvm::Triple::FreeBSD) || (ostype == llvm::Triple::Linux))
                             {
-                                handled = true;
                                 format = "%" PRIu64;
                             }
                         }
@@ -1517,6 +1522,23 @@ FormatEntity::Format (const Entry &entry,
             }
             return false;
 
+        case Entry::Type::Lang:
+            if (sc)
+            {
+                CompileUnit *cu = sc->comp_unit;
+                if (cu)
+                {
+                    Language lang(cu->GetLanguage());
+                    const char *lang_name = lang.AsCString();
+                    if (lang_name)
+                    {
+                        s.PutCString(lang_name);
+                        return true;
+                    }
+                }
+            }
+            return false;
+
         case Entry::Type::FrameIndex:
             if (exe_ctx)
             {
@@ -1648,7 +1670,7 @@ FormatEntity::Format (const Entry &entry,
                             if (inline_info)
                             {
                                 s.PutCString(" [inlined] ");
-                                inline_info->GetName().Dump(&s);
+                                inline_info->GetName(sc->function->GetLanguage()).Dump(&s);
                             }
                         }
                     }
@@ -1661,9 +1683,9 @@ FormatEntity::Format (const Entry &entry,
             {
                 ConstString name;
                 if (sc->function)
-                    name = sc->function->GetMangled().GetName (Mangled::ePreferDemangledWithoutArguments);
+                    name = sc->function->GetNameNoArguments();
                 else if (sc->symbol)
-                    name = sc->symbol->GetMangled().GetName (Mangled::ePreferDemangledWithoutArguments);
+                    name = sc->symbol->GetNameNoArguments();
                 if (name)
                 {
                     s.PutCString(name.GetCString());
@@ -1706,7 +1728,7 @@ FormatEntity::Format (const Entry &entry,
                         {
                             s.PutCString (cstr);
                             s.PutCString (" [inlined] ");
-                            cstr = inline_info->GetName().GetCString();
+                            cstr = inline_info->GetName(sc->function->GetLanguage()).GetCString();
                         }
 
                         VariableList args;
@@ -1766,7 +1788,7 @@ FormatEntity::Format (const Entry &entry,
                                 ValueObjectSP var_value_sp (ValueObjectVariable::Create (exe_scope, var_sp));
                                 const char *var_representation = nullptr;
                                 const char *var_name = var_value_sp->GetName().GetCString();
-                                if (var_value_sp->GetClangType().IsAggregateType() &&
+                                if (var_value_sp->GetCompilerType().IsAggregateType() &&
                                     DataVisualization::ShouldPrintAsOneLiner(*var_value_sp.get()))
                                 {
                                     static StringSummaryFormat format(TypeSummaryImpl::Flags()
@@ -1851,6 +1873,16 @@ FormatEntity::Format (const Entry &entry,
 
         case Entry::Type::FunctionChanged:
             return function_changed == true;
+
+        case Entry::Type::FunctionIsOptimized:
+            {
+                bool is_optimized = false;
+                if (sc->function && sc->function->GetIsOptimized())
+                {
+                    is_optimized = true;
+                }
+                return is_optimized;
+            }
 
         case Entry::Type::FunctionInitial:
             return initial_function == true;
@@ -1958,7 +1990,7 @@ ParseEntry (const llvm::StringRef &format_str,
             switch (entry_def->type)
             {
                 case FormatEntity::Entry::Type::ParentString:
-                    entry.string = std::move(format_str.str());
+                    entry.string = format_str.str();
                     return error; // Success
 
                 case FormatEntity::Entry::Type::ParentNumber:
@@ -2008,7 +2040,7 @@ ParseEntry (const llvm::StringRef &format_str,
                 {
                     // Any value whose separator is a with a ':' means this value has a string argument
                     // that needs to be stored in the entry (like "${script.var:modulename.function}")
-                    entry.string = std::move(value.str());
+                    entry.string = value.str();
                 }
                 else
                 {
@@ -2229,7 +2261,7 @@ FormatEntity::ParseInternal (llvm::StringRef &format, Entry &parent_entry, uint3
                         Entry entry;
                         if (!variable_format.empty())
                         {
-                            entry.printf_format = std::move(variable_format.str());
+                            entry.printf_format = variable_format.str();
                             
                             // If the format contains a '%' we are going to assume this is
                             // a printf style format. So if you want to format your thread ID
@@ -2431,7 +2463,7 @@ MakeMatch (const llvm::StringRef &prefix, const char *suffix)
 {
     std::string match(prefix.str());
     match.append(suffix);
-    return std::move(match);
+    return match;
 }
 
 static void
@@ -2445,7 +2477,7 @@ AddMatches (const FormatEntity::Entry::Definition *def,
     {
         for (size_t i=0; i<n; ++i)
         {
-            std::string match = std::move(prefix.str());
+            std::string match = prefix.str();
             if (match_prefix.empty())
                 matches.AppendString(MakeMatch (prefix, def->children[i].name));
             else if (strncmp(def->children[i].name, match_prefix.data(), match_prefix.size()) == 0)
@@ -2470,7 +2502,7 @@ FormatEntity::AutoComplete (const char *s,
         // Hitting TAB after $ at the end of the string add a "{"
         if (dollar_pos == str.size() - 1)
         {
-            std::string match = std::move(str.str());
+            std::string match = str.str();
             match.append("{");
             matches.AppendString(std::move(match));
         }
@@ -2503,12 +2535,12 @@ FormatEntity::AutoComplete (const char *s,
                                 if (n > 0)
                                 {
                                     // "${thread.info" <TAB>
-                                    matches.AppendString(std::move(MakeMatch (str, ".")));
+                                    matches.AppendString(MakeMatch(str, "."));
                                 }
                                 else
                                 {
                                     // "${thread.id" <TAB>
-                                    matches.AppendString(std::move(MakeMatch (str, "}")));
+                                    matches.AppendString(MakeMatch (str, "}"));
                                     word_complete = true;
                                 }
                             }

@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/API/SBTarget.h"
 
 #include "lldb/lldb-public.h"
@@ -345,7 +343,11 @@ SBTarget::Launch
         if (getenv("LLDB_LAUNCH_FLAG_DISABLE_STDIO"))
             launch_flags |= eLaunchFlagDisableSTDIO;
 
-        ProcessLaunchInfo launch_info (stdin_path, stdout_path, stderr_path, working_directory, launch_flags);
+        ProcessLaunchInfo launch_info(FileSpec{stdin_path, false},
+                                      FileSpec{stdout_path, false},
+                                      FileSpec{stderr_path, false},
+                                      FileSpec{working_directory, false},
+                                      launch_flags);
 
         Module *exe_module = target_sp->GetExecutableModulePointer();
         if (exe_module)
@@ -808,7 +810,8 @@ SBTarget::BreakpointCreateByLocation (const SBFileSpec &sb_file_spec,
         const LazyBool skip_prologue = eLazyBoolCalculate;
         const bool internal = false;
         const bool hardware = false;
-        *sb_bp = target_sp->CreateBreakpoint (NULL, *sb_file_spec, line, check_inlines, skip_prologue, internal, hardware);
+        const LazyBool move_to_nearest_code = eLazyBoolCalculate;
+        *sb_bp = target_sp->CreateBreakpoint (NULL, *sb_file_spec, line, check_inlines, skip_prologue, internal, hardware, move_to_nearest_code);
     }
 
     if (log)
@@ -844,11 +847,11 @@ SBTarget::BreakpointCreateByName (const char *symbol_name,
         {
             FileSpecList module_spec_list;
             module_spec_list.Append (FileSpec (module_name, false));
-            *sb_bp = target_sp->CreateBreakpoint (&module_spec_list, NULL, symbol_name, eFunctionNameTypeAuto, skip_prologue, internal, hardware);
+            *sb_bp = target_sp->CreateBreakpoint (&module_spec_list, NULL, symbol_name, eFunctionNameTypeAuto, eLanguageTypeUnknown, skip_prologue, internal, hardware);
         }
         else
         {
-            *sb_bp = target_sp->CreateBreakpoint (NULL, NULL, symbol_name, eFunctionNameTypeAuto, skip_prologue, internal, hardware);
+            *sb_bp = target_sp->CreateBreakpoint (NULL, NULL, symbol_name, eFunctionNameTypeAuto, eLanguageTypeUnknown, skip_prologue, internal, hardware);
         }
     }
 
@@ -889,6 +892,7 @@ SBTarget::BreakpointCreateByName (const char *symbol_name,
                                               comp_unit_list.get(),
                                               symbol_name,
                                               name_type_mask,
+                                              eLanguageTypeUnknown,
                                               skip_prologue,
                                               internal,
                                               hardware);
@@ -924,6 +928,7 @@ SBTarget::BreakpointCreateByNames (const char *symbol_names[],
                                                 symbol_names,
                                                 num_names,
                                                 name_type_mask, 
+                                                eLanguageTypeUnknown,
                                                 skip_prologue,
                                                 internal,
                                                 hardware);
@@ -1055,6 +1060,7 @@ SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
         RegularExpression regexp(source_regex);
         FileSpecList source_file_spec_list;
         const bool hardware = false;
+        const LazyBool move_to_nearest_code = eLazyBoolCalculate;
         source_file_spec_list.Append (source_file.ref());
 
         if (module_name && module_name[0])
@@ -1062,11 +1068,11 @@ SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
             FileSpecList module_spec_list;
             module_spec_list.Append (FileSpec (module_name, false));
 
-            *sb_bp = target_sp->CreateSourceRegexBreakpoint (&module_spec_list, &source_file_spec_list, regexp, false, hardware);
+            *sb_bp = target_sp->CreateSourceRegexBreakpoint (&module_spec_list, &source_file_spec_list, regexp, false, hardware, move_to_nearest_code);
         }
         else
         {
-            *sb_bp = target_sp->CreateSourceRegexBreakpoint (NULL, &source_file_spec_list, regexp, false, hardware);
+            *sb_bp = target_sp->CreateSourceRegexBreakpoint (NULL, &source_file_spec_list, regexp, false, hardware, move_to_nearest_code);
         }
     }
 
@@ -1095,8 +1101,9 @@ SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
     {
         Mutex::Locker api_locker (target_sp->GetAPIMutex());
         const bool hardware = false;
+        const LazyBool move_to_nearest_code = eLazyBoolCalculate;
         RegularExpression regexp(source_regex);
-        *sb_bp = target_sp->CreateSourceRegexBreakpoint (module_list.get(), source_file_list.get(), regexp, false, hardware);
+        *sb_bp = target_sp->CreateSourceRegexBreakpoint (module_list.get(), source_file_list.get(), regexp, false, hardware, move_to_nearest_code);
     }
 
     if (log)
@@ -1339,7 +1346,7 @@ SBTarget::WatchAddress (lldb::addr_t addr, size_t size, bool read, bool write, S
         // Target::CreateWatchpoint() is thread safe.
         Error cw_error;
         // This API doesn't take in a type, so we can't figure out what it is.
-        ClangASTType *type = NULL;
+        CompilerType *type = NULL;
         watchpoint_sp = target_sp->CreateWatchpoint(addr, size, type, watch_type, cw_error);
         error.SetError(cw_error);
         sb_watchpoint.SetSP (watchpoint_sp);
@@ -1393,7 +1400,7 @@ SBTarget::CreateValueFromAddress (const char *name, SBAddress addr, SBType type)
     {
         lldb::addr_t load_addr(addr.GetLoadAddress(*this));
         ExecutionContext exe_ctx (ExecutionContextRef(ExecutionContext(m_opaque_sp.get(),false)));
-        ClangASTType ast_type(type.GetSP()->GetClangASTType(true));
+        CompilerType ast_type(type.GetSP()->GetCompilerType(true));
         new_value_sp = ValueObject::CreateValueObjectFromAddress(name, load_addr, exe_ctx, ast_type);
     }
     sb_value.SetSP(new_value_sp);
@@ -1420,7 +1427,7 @@ SBTarget::CreateValueFromData (const char *name, lldb::SBData data, lldb::SBType
     {
         DataExtractorSP extractor(*data);
         ExecutionContext exe_ctx (ExecutionContextRef(ExecutionContext(m_opaque_sp.get(),false)));
-        ClangASTType ast_type(type.GetSP()->GetClangASTType(true));
+        CompilerType ast_type(type.GetSP()->GetCompilerType(true));
         new_value_sp = ValueObject::CreateValueObjectFromData(name, *extractor, exe_ctx, ast_type);
     }
     sb_value.SetSP(new_value_sp);
@@ -1801,7 +1808,7 @@ SBTarget::FindFirstType (const char* typename_cstr)
                     
                     if (objc_decl_vendor->FindDecls(const_typename, true, 1, decls) > 0)
                     {
-                        if (ClangASTType type = ClangASTContext::GetTypeForDecl(decls[0]))
+                        if (CompilerType type = ClangASTContext::GetTypeForDecl(decls[0]))
                         {
                             return SBType(type);
                         }
@@ -1881,7 +1888,7 @@ SBTarget::FindTypes (const char* typename_cstr)
                     {
                         for (clang::NamedDecl *decl : decls)
                         {
-                            if (ClangASTType type = ClangASTContext::GetTypeForDecl(decl))
+                            if (CompilerType type = ClangASTContext::GetTypeForDecl(decl))
                             {
                                 sb_type_list.Append(SBType(type));
                             }
@@ -2288,6 +2295,19 @@ SBTarget::FindSymbols (const char *name, lldb::SymbolType symbol_type)
     
 }
 
+lldb::SBValue
+SBTarget::EvaluateExpression (const char *expr)
+{
+    TargetSP target_sp(GetSP());
+    if (!target_sp)
+        return SBValue();
+
+    SBExpressionOptions options;
+    lldb::DynamicValueType fetch_dynamic_value = target_sp->GetPreferDynamicValue();
+    options.SetFetchDynamicValue (fetch_dynamic_value);
+    options.SetUnwindOnError (true);
+    return EvaluateExpression(expr, options);
+}
 
 lldb::SBValue
 SBTarget::EvaluateExpression (const char *expr, const SBExpressionOptions &options)

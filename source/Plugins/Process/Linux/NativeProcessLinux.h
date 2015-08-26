@@ -10,19 +10,14 @@
 #ifndef liblldb_NativeProcessLinux_H_
 #define liblldb_NativeProcessLinux_H_
 
-// C Includes
-#include <semaphore.h>
-#include <signal.h>
-
 // C++ Includes
-#include <mutex>
-#include <unordered_map>
 #include <unordered_set>
 
 // Other libraries and framework includes
 #include "lldb/Core/ArchSpec.h"
 #include "lldb/lldb-types.h"
 #include "lldb/Host/Debug.h"
+#include "lldb/Host/FileSpec.h"
 #include "lldb/Host/HostThread.h"
 #include "lldb/Host/Mutex.h"
 #include "lldb/Target/MemoryRegionInfo.h"
@@ -45,21 +40,19 @@ namespace process_linux {
     /// Changes in the inferior process state are broadcasted.
     class NativeProcessLinux: public NativeProcessProtocol
     {
+        friend Error
+        NativeProcessProtocol::Launch (ProcessLaunchInfo &launch_info,
+                NativeDelegate &native_delegate,
+                MainLoop &mainloop,
+                NativeProcessProtocolSP &process_sp);
+
+        friend Error
+        NativeProcessProtocol::Attach (lldb::pid_t pid,
+                NativeProcessProtocol::NativeDelegate &native_delegate,
+                MainLoop &mainloop,
+                NativeProcessProtocolSP &process_sp);
+
     public:
-
-        static Error
-        LaunchProcess (
-            Module *exe_module,
-            ProcessLaunchInfo &launch_info,
-            NativeProcessProtocol::NativeDelegate &native_delegate,
-            NativeProcessProtocolSP &native_process_sp);
-
-        static Error
-        AttachToProcess (
-            lldb::pid_t pid,
-            NativeProcessProtocol::NativeDelegate &native_delegate,
-            NativeProcessProtocolSP &native_process_sp);
-
         // ---------------------------------------------------------------------
         // NativeProcessProtocol Interface
         // ---------------------------------------------------------------------
@@ -111,66 +104,28 @@ namespace process_linux {
         Error
         SetBreakpoint (lldb::addr_t addr, uint32_t size, bool hardware) override;
 
-        Error
-        SetWatchpoint (lldb::addr_t addr, size_t size, uint32_t watch_flags, bool hardware) override;
-
-        Error
-        RemoveWatchpoint (lldb::addr_t addr) override;
-
         void
         DoStopIDBumped (uint32_t newBumpId) override;
 
-        void
-        Terminate () override;
+        Error
+        GetLoadedModuleFileSpec(const char* module_path, FileSpec& file_spec) override;
+
+        Error
+        GetFileLoadAddress(const llvm::StringRef& file_name, lldb::addr_t& load_addr) override;
+
+        NativeThreadLinuxSP
+        GetThreadByID(lldb::tid_t id);
 
         // ---------------------------------------------------------------------
         // Interface used by NativeRegisterContext-derived classes.
         // ---------------------------------------------------------------------
-
-        /// Reads the contents from the register identified by the given (architecture
-        /// dependent) offset.
-        ///
-        /// This method is provided for use by RegisterContextLinux derivatives.
-        Error
-        ReadRegisterValue(lldb::tid_t tid, unsigned offset, const char *reg_name,
-                          unsigned size, RegisterValue &value);
-
-        /// Writes the given value to the register identified by the given
-        /// (architecture dependent) offset.
-        ///
-        /// This method is provided for use by RegisterContextLinux derivatives.
-        Error
-        WriteRegisterValue(lldb::tid_t tid, unsigned offset, const char *reg_name,
-                           const RegisterValue &value);
-
-        /// Reads all general purpose registers into the specified buffer.
-        Error
-        ReadGPR(lldb::tid_t tid, void *buf, size_t buf_size);
-
-        /// Reads generic floating point registers into the specified buffer.
-        Error
-        ReadFPR(lldb::tid_t tid, void *buf, size_t buf_size);
-
-        /// Reads the specified register set into the specified buffer.
-        /// For instance, the extended floating-point register set.
-        Error
-        ReadRegisterSet(lldb::tid_t tid, void *buf, size_t buf_size, unsigned int regset);
-
-        /// Writes all general purpose registers into the specified buffer.
-        Error
-        WriteGPR(lldb::tid_t tid, void *buf, size_t buf_size);
-
-        /// Writes generic floating point registers into the specified buffer.
-        Error
-        WriteFPR(lldb::tid_t tid, void *buf, size_t buf_size);
-
-        /// Writes the specified register set into the specified buffer.
-        /// For instance, the extended floating-point register set.
-        Error
-        WriteRegisterSet(lldb::tid_t tid, void *buf, size_t buf_size, unsigned int regset);
-
-        Error
-        GetLoadedModuleFileSpec(const char* module_path, FileSpec& file_spec) override;
+        static Error
+        PtraceWrapper(int req,
+                      lldb::pid_t pid,
+                      void *addr = nullptr,
+                      void *data = nullptr,
+                      size_t data_size = 0,
+                      long *result = nullptr);
 
     protected:
         // ---------------------------------------------------------------------
@@ -181,15 +136,14 @@ namespace process_linux {
 
     private:
 
-        class Monitor;
-
+        MainLoop::SignalHandleUP m_sigchld_handle;
         ArchSpec m_arch;
-
-        std::unique_ptr<Monitor> m_monitor_up;
 
         LazyBool m_supports_mem_region;
         std::vector<MemoryRegionInfo> m_mem_region_cache;
         Mutex m_mem_region_cache_mutex;
+
+        lldb::tid_t m_pending_notification_tid;
 
         // List of thread ids stepping with a breakpoint with the address of
         // the relevan breakpoint
@@ -204,25 +158,25 @@ namespace process_linux {
             LaunchArgs(Module *module,
                     char const **argv,
                     char const **envp,
-                    const std::string &stdin_path,
-                    const std::string &stdout_path,
-                    const std::string &stderr_path,
-                    const char *working_dir,
+                    const FileSpec &stdin_file_spec,
+                    const FileSpec &stdout_file_spec,
+                    const FileSpec &stderr_file_spec,
+                    const FileSpec &working_dir,
                     const ProcessLaunchInfo &launch_info);
 
             ~LaunchArgs();
 
-            Module *m_module;                 // The executable image to launch.
-            char const **m_argv;              // Process arguments.
-            char const **m_envp;              // Process environment.
-            const std::string &m_stdin_path;  // Redirect stdin if not empty.
-            const std::string &m_stdout_path; // Redirect stdout if not empty.
-            const std::string &m_stderr_path; // Redirect stderr if not empty.
-            const char *m_working_dir;        // Working directory or NULL.
+            Module *m_module;                  // The executable image to launch.
+            char const **m_argv;               // Process arguments.
+            char const **m_envp;               // Process environment.
+            const FileSpec m_stdin_file_spec;  // Redirect stdin if not empty.
+            const FileSpec m_stdout_file_spec; // Redirect stdout if not empty.
+            const FileSpec m_stderr_file_spec; // Redirect stderr if not empty.
+            const FileSpec m_working_dir;      // Working directory or empty.
             const ProcessLaunchInfo &m_launch_info;
         };
 
-        typedef std::function<::pid_t(Error &)> InitialOperation;
+        typedef std::function< ::pid_t(Error &)> InitialOperation;
 
         // ---------------------------------------------------------------------
         // Private Instance Methods
@@ -233,23 +187,21 @@ namespace process_linux {
         /// implementation of Process::DoLaunch.
         void
         LaunchInferior (
+            MainLoop &mainloop,
             Module *module,
             char const *argv[],
             char const *envp[],
-            const std::string &stdin_path,
-            const std::string &stdout_path,
-            const std::string &stderr_path,
-            const char *working_dir,
+            const FileSpec &stdin_file_spec,
+            const FileSpec &stdout_file_spec,
+            const FileSpec &stderr_file_spec,
+            const FileSpec &working_dir,
             const ProcessLaunchInfo &launch_info,
             Error &error);
 
         /// Attaches to an existing process.  Forms the
         /// implementation of Process::DoAttach
         void
-        AttachToInferior (lldb::pid_t pid, Error &error);
-
-        void
-        StartMonitorThread(const InitialOperation &operation, Error &error);
+        AttachToInferior (MainLoop &mainloop, lldb::pid_t pid, Error &error);
 
         ::pid_t
         Launch(LaunchArgs *args, Error &error);
@@ -261,7 +213,7 @@ namespace process_linux {
         SetDefaultPtraceOpts(const lldb::pid_t);
 
         static bool
-        DupDescriptor(const char *path, int fd, int flags);
+        DupDescriptor(const FileSpec &file_spec, int fd, int flags);
 
         static void *
         MonitorThread(void *baton);
@@ -273,25 +225,25 @@ namespace process_linux {
         WaitForNewThread(::pid_t tid);
 
         void
-        MonitorSIGTRAP(const siginfo_t *info, lldb::pid_t pid);
+        MonitorSIGTRAP(const siginfo_t &info, NativeThreadLinux &thread);
 
         void
-        MonitorTrace(lldb::pid_t pid, NativeThreadProtocolSP thread_sp);
+        MonitorTrace(NativeThreadLinux &thread);
 
         void
-        MonitorBreakpoint(lldb::pid_t pid, NativeThreadProtocolSP thread_sp);
+        MonitorBreakpoint(NativeThreadLinux &thread);
 
         void
-        MonitorWatchpoint(lldb::pid_t pid, NativeThreadProtocolSP thread_sp, uint32_t wp_index);
+        MonitorWatchpoint(NativeThreadLinux &thread, uint32_t wp_index);
 
         void
-        MonitorSignal(const siginfo_t *info, lldb::pid_t pid, bool exited);
+        MonitorSignal(const siginfo_t &info, NativeThreadLinux &thread, bool exited);
 
         bool
         SupportHardwareSingleStepping() const;
 
         Error
-        SetupSoftwareSingleStepping(NativeThreadProtocolSP thread_sp);
+        SetupSoftwareSingleStepping(NativeThreadLinux &thread);
 
 #if 0
         static ::ProcessMessage::CrashReason
@@ -310,20 +262,17 @@ namespace process_linux {
         bool
         HasThreadNoLock (lldb::tid_t thread_id);
 
-        NativeThreadProtocolSP
-        MaybeGetThreadNoLock (lldb::tid_t thread_id);
-
         bool
         StopTrackingThread (lldb::tid_t thread_id);
 
-        NativeThreadProtocolSP
+        NativeThreadLinuxSP
         AddThread (lldb::tid_t thread_id);
 
         Error
-        GetSoftwareBreakpointPCOffset (NativeRegisterContextSP context_sp, uint32_t &actual_opcode_size);
+        GetSoftwareBreakpointPCOffset(uint32_t &actual_opcode_size);
 
         Error
-        FixupBreakpointPCAsNeeded (NativeThreadProtocolSP &thread_sp);
+        FixupBreakpointPCAsNeeded(NativeThreadLinux &thread);
 
         /// Writes a siginfo_t structure corresponding to the given thread ID to the
         /// memory region pointed to by @p siginfo.
@@ -353,52 +302,25 @@ namespace process_linux {
         Detach(lldb::tid_t tid);
 
 
-        // Typedefs.
-        typedef std::unordered_set<lldb::tid_t> ThreadIDSet;
-
         // This method is requests a stop on all threads which are still running. It sets up a
         // deferred delegate notification, which will fire once threads report as stopped. The
         // triggerring_tid will be set as the current thread (main stop reason).
         void
         StopRunningThreads(lldb::tid_t triggering_tid);
 
-        struct PendingNotification
-        {
-            PendingNotification (lldb::tid_t triggering_tid):
-                triggering_tid (triggering_tid),
-                wait_for_stop_tids ()
-            {
-            }
+        // Notify the delegate if all threads have stopped.
+        void SignalIfAllThreadsStopped();
 
-            const lldb::tid_t  triggering_tid;
-            ThreadIDSet        wait_for_stop_tids;
-        };
-        typedef std::unique_ptr<PendingNotification> PendingNotificationUP;
-
-        // Fire pending notification if no pending thread stops remain.
-        void SignalIfRequirementsSatisfied();
-
-        void
-        RequestStopOnAllRunningThreads();
-
+        // Resume the given thread, optionally passing it the given signal. The type of resume
+        // operation (continue, single-step) depends on the state parameter.
         Error
-        ThreadDidStop(lldb::tid_t tid, bool initiated_by_llgs);
-
-        // Resume the thread with the given thread id using the request_thread_resume_function
-        // called. If error_when_already_running is then then an error is raised if we think this
-        // thread is already running.
-        Error
-        ResumeThread(lldb::tid_t tid, NativeThreadLinux::ResumeThreadFunction request_thread_resume_function,
-                bool error_when_already_running);
+        ResumeThread(NativeThreadLinux &thread, lldb::StateType state, int signo);
 
         void
-        DoStopThreads(PendingNotificationUP &&notification_up);
+        ThreadWasCreated(NativeThreadLinux &thread);
 
         void
-        ThreadWasCreated (lldb::tid_t tid);
-
-        // Member variables.
-        PendingNotificationUP m_pending_notification_up;
+        SigchldHandler();
     };
 
 } // namespace process_linux

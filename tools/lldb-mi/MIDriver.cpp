@@ -45,7 +45,7 @@ const CMIUtilString CMIDriver::ms_constAppNameLong(MIRSRC(IDS_MI_APPNAME_LONG));
 // Return:  None.
 // Throws:  None.
 //--
-CMIDriver::CMIDriver(void)
+CMIDriver::CMIDriver()
     : m_bFallThruToOtherDriverEnabled(false)
     , m_bDriverIsExiting(false)
     , m_handleMainThread(0)
@@ -66,14 +66,14 @@ CMIDriver::CMIDriver(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMIDriver::~CMIDriver(void)
+CMIDriver::~CMIDriver()
 {
 }
 
 //++ ------------------------------------------------------------------------------------
 // Details: Set whether *this driver (the parent) is enabled to pass a command to its
 //          fall through (child) driver to interpret the command and do work instead
-//          (if *this driver decides it can't hanled the command).
+//          (if *this driver decides it can't handle the command).
 // Type:    Method.
 // Args:    vbYes   - (R) True = yes fall through, false = do not pass on command.
 // Return:  MIstatus::success - Functional succeeded.
@@ -90,14 +90,14 @@ CMIDriver::SetEnableFallThru(const bool vbYes)
 //++ ------------------------------------------------------------------------------------
 // Details: Get whether *this driver (the parent) is enabled to pass a command to its
 //          fall through (child) driver to interpret the command and do work instead
-//          (if *this driver decides it can't hanled the command).
+//          (if *this driver decides it can't handle the command).
 // Type:    Method.
 // Args:    None.
 // Return:  bool - True = yes fall through, false = do not pass on command.
 // Throws:  None.
 //--
 bool
-CMIDriver::GetEnableFallThru(void) const
+CMIDriver::GetEnableFallThru() const
 {
     return m_bFallThruToOtherDriverEnabled;
 }
@@ -110,7 +110,7 @@ CMIDriver::GetEnableFallThru(void) const
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIDriver::GetAppNameShort(void) const
+CMIDriver::GetAppNameShort() const
 {
     return ms_constAppNameShort;
 }
@@ -123,7 +123,7 @@ CMIDriver::GetAppNameShort(void) const
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIDriver::GetAppNameLong(void) const
+CMIDriver::GetAppNameLong() const
 {
     return ms_constAppNameLong;
 }
@@ -136,7 +136,7 @@ CMIDriver::GetAppNameLong(void) const
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIDriver::GetVersionDescription(void) const
+CMIDriver::GetVersionDescription() const
 {
     return ms_constMIVersion;
 }
@@ -150,7 +150,7 @@ CMIDriver::GetVersionDescription(void) const
 // Throws:  None.
 //--
 bool
-CMIDriver::Initialize(void)
+CMIDriver::Initialize()
 {
     m_eCurrentDriverState = eDriverState_Initialising;
     m_clientUsageRefCnt++;
@@ -199,7 +199,7 @@ CMIDriver::Initialize(void)
 // Throws:  None.
 //--
 bool
-CMIDriver::Shutdown(void)
+CMIDriver::Shutdown()
 {
     if (--m_clientUsageRefCnt > 0)
         return MIstatus::success;
@@ -260,7 +260,7 @@ CMIDriver::WriteMessageToLog(const CMIUtilString &vMessage)
 // Throws:  None.
 //--
 bool
-CMIDriver::DoInitialize(void)
+CMIDriver::DoInitialize()
 {
     return CMIDriver::Instance().Initialize();
 }
@@ -275,7 +275,7 @@ CMIDriver::DoInitialize(void)
 // Throws:  None.
 //--
 bool
-CMIDriver::DoShutdown(void)
+CMIDriver::DoShutdown()
 {
     return CMIDriver::Instance().Shutdown();
 }
@@ -288,7 +288,7 @@ CMIDriver::DoShutdown(void)
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIDriver::GetName(void) const
+CMIDriver::GetName() const
 {
     const CMIUtilString &rName = GetAppNameLong();
     const CMIUtilString &rVsn = GetVersionDescription();
@@ -305,7 +305,7 @@ CMIDriver::GetName(void) const
 // Throws:  None.
 //--
 CMIUtilString
-CMIDriver::GetError(void) const
+CMIDriver::GetError() const
 {
     return GetErrorDescription();
 }
@@ -318,7 +318,7 @@ CMIDriver::GetError(void) const
 // Throws:  None.
 //--
 lldb::SBDebugger &
-CMIDriver::GetTheDebugger(void)
+CMIDriver::GetTheDebugger()
 {
     return m_rLldbDebugger.GetTheDebugger();
 }
@@ -343,7 +343,7 @@ CMIDriver::SetDriverToFallThruTo(const CMIDriverBase &vrOtherDriver)
 //++ ------------------------------------------------------------------------------------
 // Details: Proxy function CMIDriverMgr IDriver interface implementation. *this driver's
 //          implementation called from here to match the existing function name of the
-//          original LLDb driver class (the extra indirection is not necessarily required).
+//          original LLDB driver class (the extra indirection is not necessarily required).
 //          Check the arguments that were passed to this program to make sure they are
 //          valid and to get their argument values (if any).
 // Type:    Overridden.
@@ -370,16 +370,16 @@ CMIDriver::DoParseArgs(const int argc, const char *argv[], FILE *vpStdOut, bool 
 // Details: Check the arguments that were passed to this program to make sure they are
 //          valid and to get their argument values (if any). The following are options
 //          that are only handled by *this driver:
-//              --executable
+//              --executable <file>
+//              --source <file> or -s <file>
 //          The application's options --interpreter and --executable in code act very similar.
 //          The --executable is necessary to differentiate whether the MI Driver is being
 //          used by a client (e.g. Eclipse) or from the command line. Eclipse issues the option
 //          --interpreter and also passes additional arguments which can be interpreted as an
-//          executable if called from the command line. Using --executable tells the MI
-//          Driver is being called the command line and that the executable argument is indeed
-//          a specified executable an so actions commands to set up the executable for a
-//          debug session. Using --interpreter on the commnd line does not action additional
-//          commands to initialise a debug session and so be able to launch the process.
+//          executable if called from the command line. Using --executable tells the MI Driver
+//          it is being called from the command line and to prepare to launch the executable
+//          argument for a debug session. Using --interpreter on the command line does not
+//          issue additional commands to initialise a debug session.
 // Type:    Overridden.
 // Args:    argc        - (R)   An integer that contains the count of arguments that follow in
 //                              argv. The argc parameter is always greater than or equal to 1.
@@ -465,7 +465,7 @@ CMIDriver::ParseArgs(const int argc, const char *argv[], FILE *vpStdOut, bool &v
 // Throws:  None.
 //--
 bool
-CMIDriver::GetDriverIsGDBMICompatibleDriver(void) const
+CMIDriver::GetDriverIsGDBMICompatibleDriver() const
 {
     return true;
 }
@@ -479,7 +479,7 @@ CMIDriver::GetDriverIsGDBMICompatibleDriver(void) const
 // Throws:  None.
 //--
 bool
-CMIDriver::StartWorkerThreads(void)
+CMIDriver::StartWorkerThreads()
 {
     bool bOk = MIstatus::success;
 
@@ -507,7 +507,7 @@ CMIDriver::StartWorkerThreads(void)
 // Throws:  None.
 //--
 bool
-CMIDriver::StopWorkerThreads(void)
+CMIDriver::StopWorkerThreads()
 {
     CMICmnThreadMgrStd &rThreadMgr = CMICmnThreadMgrStd::Instance();
     return rThreadMgr.ThreadAllTerminate();
@@ -523,7 +523,7 @@ CMIDriver::StopWorkerThreads(void)
 // Throws:  None.
 //--
 bool
-CMIDriver::DoMainLoop(void)
+CMIDriver::DoMainLoop()
 {
     if (!InitClientIDEToMIDriver()) // Init Eclipse IDE
     {
@@ -559,7 +559,7 @@ CMIDriver::DoMainLoop(void)
     while (bOk && !m_bExitApp)
     {
         CMIUtilString errorText;
-        const MIchar *pCmd = m_rStdin.ReadLine (errorText);
+        const char *pCmd = m_rStdin.ReadLine (errorText);
         if (pCmd != nullptr)
         {
             CMIUtilString lineText(pCmd);
@@ -576,8 +576,7 @@ CMIDriver::DoMainLoop(void)
                 }
 
                 // Draw prompt if desired
-                if (bOk && m_rStdin.GetEnablePrompt())
-                    bOk = m_rStdOut.WriteMIResponse(m_rStdin.GetPrompt());
+                bOk = bOk && CMICmnStreamStdout::WritePrompt();
 
                 // Wait while the handler thread handles incoming events
                 CMICmnLLDBDebugger::Instance().WaitForHandleEvent();
@@ -608,7 +607,7 @@ CMIDriver::DoMainLoop(void)
 // Throws:  None.
 //--
 bool
-CMIDriver::DoAppQuit(void)
+CMIDriver::DoAppQuit()
 {
     bool bYesQuit = true;
 
@@ -650,8 +649,8 @@ CMIDriver::InterpretCommandFallThruDriver(const CMIUtilString &vTextLine, bool &
     //      errMsg = errMsg.StripCREndOfLine();
     //      errMsg = errMsg.StripCRAll();
     //      const CMIDriverBase * pOtherDriver = GetDriverToFallThruTo();
-    //      const MIchar * pName = pOtherDriver->GetDriverName().c_str();
-    //      const MIchar * pId = pOtherDriver->GetDriverId().c_str();
+    //      const char * pName = pOtherDriver->GetDriverName().c_str();
+    //      const char * pId = pOtherDriver->GetDriverId().c_str();
     //      const CMIUtilString msg( CMIUtilString::Format( MIRSRC( IDS_DRIVER_ERR_FALLTHRU_DRIVER_ERR ), pName, pId, errMsg.c_str() )
     //);
     //      m_pLog->WriteMsg( msg );
@@ -676,7 +675,7 @@ CMIDriver::InterpretCommandFallThruDriver(const CMIUtilString &vTextLine, bool &
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIDriver::GetDriverName(void) const
+CMIDriver::GetDriverName() const
 {
     return GetName();
 }
@@ -689,7 +688,7 @@ CMIDriver::GetDriverName(void) const
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIDriver::GetDriverId(void) const
+CMIDriver::GetDriverId() const
 {
     return GetId();
 }
@@ -728,7 +727,7 @@ CMIDriver::DoFallThruToAnotherDriver(const CMIUtilString &vCmd, CMIUtilString &v
 // Throws:  None.
 //--
 FILE *
-CMIDriver::GetStdin(void) const
+CMIDriver::GetStdin() const
 {
     // Note this fn is called on CMIDriverMgr register driver so stream has to be
     // available before *this driver has been initialized! Flaw?
@@ -747,7 +746,7 @@ CMIDriver::GetStdin(void) const
 // Throws:  None.
 //--
 FILE *
-CMIDriver::GetStdout(void) const
+CMIDriver::GetStdout() const
 {
     // Note this fn is called on CMIDriverMgr register driver so stream has to be
     // available before *this driver has been initialized! Flaw?
@@ -765,7 +764,7 @@ CMIDriver::GetStdout(void) const
 // Throws:  None.
 //--
 FILE *
-CMIDriver::GetStderr(void) const
+CMIDriver::GetStderr() const
 {
     // Note this fn is called on CMIDriverMgr register driver so stream has to be
     // available before *this driver has been initialized! Flaw?
@@ -804,7 +803,7 @@ CMIDriver::SetId(const CMIUtilString &vId)
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIDriver::GetId(void) const
+CMIDriver::GetId() const
 {
     return m_strDriverId;
 }
@@ -824,10 +823,14 @@ CMIDriver::GetId(void) const
 bool
 CMIDriver::InterpretCommand(const CMIUtilString &vTextLine)
 {
+    const bool bNeedToRebroadcastStopEvent = m_rLldbDebugger.CheckIfNeedToRebroadcastStopEvent();
     bool bCmdYesValid = false;
     bool bOk = InterpretCommandThisDriver(vTextLine, bCmdYesValid);
     if (bOk && !bCmdYesValid)
         bOk = InterpretCommandFallThruDriver(vTextLine, bCmdYesValid);
+
+    if (bNeedToRebroadcastStopEvent)
+        m_rLldbDebugger.RebroadcastStopEvent();
 
     return bOk;
 }
@@ -859,7 +862,7 @@ CMIDriver::WrapCLICommandIntoMICommand(const CMIUtilString &vTextLine) const
     // Also possible case when command not found:
     // 001
     //    ^ -- i.e. only tokens are present (or empty string at all)
-    const MIuint nCommandOffset = vTextLine.find_first_not_of(digits);
+    const size_t nCommandOffset = vTextLine.find_first_not_of(digits);
 
     // 2. Check if command is empty
     // For example:
@@ -869,7 +872,7 @@ CMIDriver::WrapCLICommandIntoMICommand(const CMIUtilString &vTextLine) const
     // or:
     // 001
     //    ^ -- command wasn't found
-    const bool bIsEmptyCommand = (nCommandOffset == (MIuint)CMIUtilString::npos);
+    const bool bIsEmptyCommand = (nCommandOffset == CMIUtilString::npos);
 
     // 3. Check and exit if it isn't a CLI command
     // For example:
@@ -922,7 +925,7 @@ bool
 CMIDriver::InterpretCommandThisDriver(const CMIUtilString &vTextLine, bool &vwbCmdYesValid)
 {
     // Convert any CLI commands into MI commands
-    CMIUtilString vMITextLine(WrapCLICommandIntoMICommand(vTextLine));
+    const CMIUtilString vMITextLine(WrapCLICommandIntoMICommand(vTextLine));
 
     vwbCmdYesValid = false;
     bool bCmdNotInCmdFactor = false;
@@ -941,7 +944,7 @@ CMIDriver::InterpretCommandThisDriver(const CMIUtilString &vTextLine, bool &vwbC
 
     // Check for escape character, may be cursor control characters
     // This code is not necessary for application operation, just want to keep tabs on what
-    // is been given to the driver to try and intepret.
+    // has been given to the driver to try and interpret.
     if (vMITextLine.at(0) == 27)
     {
         CMIUtilString logInput(MIRSRC(IDS_STDIN_INPUT_CTRL_CHARS));
@@ -1030,7 +1033,7 @@ CMIDriver::SetExitApplicationFlag(const bool vbForceExit)
 // Throws:  None.
 //--
 bool
-CMIDriver::GetExitApplicationFlag(void) const
+CMIDriver::GetExitApplicationFlag() const
 {
     return m_bExitApp;
 }
@@ -1043,7 +1046,7 @@ CMIDriver::GetExitApplicationFlag(void) const
 // Throws:  None.
 //--
 CMIDriver::DriverState_e
-CMIDriver::GetCurrentDriverState(void) const
+CMIDriver::GetCurrentDriverState() const
 {
     return m_eCurrentDriverState;
 }
@@ -1058,7 +1061,7 @@ CMIDriver::GetCurrentDriverState(void) const
 // Throws:  None.
 //--
 bool
-CMIDriver::SetDriverStateRunningNotDebugging(void)
+CMIDriver::SetDriverStateRunningNotDebugging()
 {
     // CODETAG_DEBUG_SESSION_RUNNING_PROG_RECEIVED_SIGINT_PAUSE_PROGRAM
 
@@ -1107,7 +1110,7 @@ CMIDriver::SetDriverStateRunningNotDebugging(void)
 // Throws:  None.
 //--
 bool
-CMIDriver::SetDriverStateRunningDebugging(void)
+CMIDriver::SetDriverStateRunningDebugging()
 {
     // CODETAG_DEBUG_SESSION_RUNNING_PROG_RECEIVED_SIGINT_PAUSE_PROGRAM
 
@@ -1154,7 +1157,7 @@ CMIDriver::SetDriverStateRunningDebugging(void)
 // Throws:  None.
 //--
 bool
-CMIDriver::InitClientIDEToMIDriver(void) const
+CMIDriver::InitClientIDEToMIDriver() const
 {
     // Put other IDE init functions here
     return InitClientIDEEclipse();
@@ -1171,9 +1174,9 @@ CMIDriver::InitClientIDEToMIDriver(void) const
 // Throws:  None.
 //--
 bool
-CMIDriver::InitClientIDEEclipse(void) const
+CMIDriver::InitClientIDEEclipse() const
 {
-    return CMICmnStreamStdout::TextToStdout("(gdb)");
+    return CMICmnStreamStdout::WritePrompt();
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -1188,7 +1191,7 @@ CMIDriver::InitClientIDEEclipse(void) const
 // Throws:  None.
 //--
 bool
-CMIDriver::HaveExecutableFileNamePathOnCmdLine(void) const
+CMIDriver::HaveExecutableFileNamePathOnCmdLine() const
 {
     return m_bHaveExecutableFileNamePathOnCmdLine;
 }
@@ -1202,7 +1205,7 @@ CMIDriver::HaveExecutableFileNamePathOnCmdLine(void) const
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIDriver::GetExecutableFileNamePathOnCmdLine(void) const
+CMIDriver::GetExecutableFileNamePathOnCmdLine() const
 {
     return m_strCmdLineArgExecuteableFileNamePath;
 }
@@ -1218,13 +1221,12 @@ CMIDriver::GetExecutableFileNamePathOnCmdLine(void) const
 // Throws:  None.
 //--
 bool
-CMIDriver::LocalDebugSessionStartupExecuteCommands(void)
+CMIDriver::LocalDebugSessionStartupExecuteCommands()
 {
     const CMIUtilString strCmd(CMIUtilString::Format("-file-exec-and-symbols \"%s\"", m_strCmdLineArgExecuteableFileNamePath.AddSlashes().c_str()));
     bool bOk = CMICmnStreamStdout::TextToStdout(strCmd);
     bOk = bOk && InterpretCommand(strCmd);
-    if (bOk && m_rStdin.GetEnablePrompt())
-        bOk = m_rStdOut.WriteMIResponse(m_rStdin.GetPrompt());
+    bOk = bOk && CMICmnStreamStdout::WritePrompt();
     return bOk;
 }
 
@@ -1237,7 +1239,7 @@ CMIDriver::LocalDebugSessionStartupExecuteCommands(void)
 // Throws:  None.
 //--
 void
-CMIDriver::SetDriverDebuggingArgExecutable(void)
+CMIDriver::SetDriverDebuggingArgExecutable()
 {
     m_bDriverDebuggingArgExecutable = true;
 }
@@ -1252,13 +1254,14 @@ CMIDriver::SetDriverDebuggingArgExecutable(void)
 // Throws:  None.
 //--
 bool
-CMIDriver::IsDriverDebuggingArgExecutable(void) const
+CMIDriver::IsDriverDebuggingArgExecutable() const
 {
     return m_bDriverDebuggingArgExecutable;
 }
 
 //++ ------------------------------------------------------------------------------------
-// Details: Execute commands from prepared source file
+// Details: Execute commands from command source file in specified mode, and
+//          set exit-flag if needed.
 // Type:    Method.
 // Args:    vbAsyncMode       - (R) True = execute commands in asynchronous mode, false = otherwise.
 // Return:  MIstatus::success - Function succeeded.
@@ -1304,8 +1307,7 @@ CMIDriver::ExecuteCommandFile(const bool vbAsyncMode)
         }
 
         // Draw the prompt after command will be executed (if enabled)
-        if (bOk && m_rStdin.GetEnablePrompt())
-            bOk = m_rStdOut.WriteMIResponse(m_rStdin.GetPrompt());
+        bOk = bOk && CMICmnStreamStdout::WritePrompt();
 
         // Exit if there is an error
         if (!bOk)

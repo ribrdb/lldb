@@ -18,7 +18,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValNumber::CMICmdArgValNumber(void)
+CMICmdArgValNumber::CMICmdArgValNumber()
     : m_nNumberFormatMask(CMICmdArgValNumber::eArgValNumberFormat_Decimal)
     , m_nNumber(0)
 {
@@ -49,7 +49,7 @@ CMICmdArgValNumber::CMICmdArgValNumber(const CMIUtilString &vrArgName, const boo
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValNumber::~CMICmdArgValNumber(void)
+CMICmdArgValNumber::~CMICmdArgValNumber()
 {
 }
 
@@ -66,7 +66,7 @@ bool
 CMICmdArgValNumber::Validate(CMICmdArgContext &vwArgContext)
 {
     if (vwArgContext.IsEmpty())
-        return MIstatus::success;
+        return m_bMandatory ? MIstatus::failure : MIstatus::success;
 
     if (vwArgContext.GetNumberArgsPresent() == 1)
     {
@@ -165,7 +165,7 @@ CMICmdArgValNumber::ExtractNumber(const CMIUtilString &vrTxt)
 // Throws:  None.
 //--
 MIint64
-CMICmdArgValNumber::GetNumber(void) const
+CMICmdArgValNumber::GetNumber() const
 {
     return m_nNumber;
 }

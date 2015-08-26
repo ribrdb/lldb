@@ -58,8 +58,6 @@ using namespace lldb_private::process_gdb_remote;
 //----------------------------------------------------------------------
 GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(const char *comm_name, const char *listener_name) :
     GDBRemoteCommunicationServer (comm_name, listener_name),
-    m_spawned_pids (),
-    m_spawned_pids_mutex (Mutex::eMutexTypeRecursive),
     m_process_launch_info (),
     m_process_launch_error (),
     m_proc_infos (),
@@ -79,14 +77,14 @@ GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(const cha
                                   &GDBRemoteCommunicationServerCommon::Handle_qGroupName);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qHostInfo,
                                   &GDBRemoteCommunicationServerCommon::Handle_qHostInfo);
-    RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qKillSpawnedProcess,
-                                  &GDBRemoteCommunicationServerCommon::Handle_qKillSpawnedProcess);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_QLaunchArch,
                                   &GDBRemoteCommunicationServerCommon::Handle_QLaunchArch);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qLaunchSuccess,
                                   &GDBRemoteCommunicationServerCommon::Handle_qLaunchSuccess);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_QListThreadsInStopReply,
                                   &GDBRemoteCommunicationServerCommon::Handle_QListThreadsInStopReply);
+    RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qEcho,
+                                  &GDBRemoteCommunicationServerCommon::Handle_qEcho);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qModuleInfo,
                                   &GDBRemoteCommunicationServerCommon::Handle_qModuleInfo);
     RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_qPlatform_chmod,
@@ -183,7 +181,15 @@ GDBRemoteCommunicationServerCommon::Handle_qHostInfo (StringExtractorGDBRemote &
     else
         response.Printf("watchpoint_exceptions_received:after;");
 #else
-    response.Printf("watchpoint_exceptions_received:after;");
+    if (host_arch.GetMachine() == llvm::Triple::aarch64 ||
+        host_arch.GetMachine() == llvm::Triple::aarch64_be ||
+        host_arch.GetMachine() == llvm::Triple::arm ||
+        host_arch.GetMachine() == llvm::Triple::armeb ||
+        host_arch.GetMachine() == llvm::Triple::mips64 ||
+        host_arch.GetMachine() == llvm::Triple::mips64el)
+        response.Printf("watchpoint_exceptions_received:before;");
+    else
+        response.Printf("watchpoint_exceptions_received:after;");
 #endif
 
     switch (lldb::endian::InlHostByteOrder())
@@ -479,94 +485,6 @@ GDBRemoteCommunicationServerCommon::Handle_qSpeedTest (StringExtractorGDBRemote 
 }
 
 GDBRemoteCommunication::PacketResult
-GDBRemoteCommunicationServerCommon::Handle_qKillSpawnedProcess (StringExtractorGDBRemote &packet)
-{
-    packet.SetFilePos(::strlen ("qKillSpawnedProcess:"));
-
-    lldb::pid_t pid = packet.GetU64(LLDB_INVALID_PROCESS_ID);
-
-    // verify that we know anything about this pid.
-    // Scope for locker
-    {
-        Mutex::Locker locker (m_spawned_pids_mutex);
-        if (m_spawned_pids.find(pid) == m_spawned_pids.end())
-        {
-            // not a pid we know about
-            return SendErrorResponse (10);
-        }
-    }
-
-    // go ahead and attempt to kill the spawned process
-    if (KillSpawnedProcess (pid))
-        return SendOKResponse ();
-    else
-        return SendErrorResponse (11);
-}
-
-bool
-GDBRemoteCommunicationServerCommon::KillSpawnedProcess (lldb::pid_t pid)
-{
-    // make sure we know about this process
-    {
-        Mutex::Locker locker (m_spawned_pids_mutex);
-        if (m_spawned_pids.find(pid) == m_spawned_pids.end())
-            return false;
-    }
-
-    // first try a SIGTERM (standard kill)
-    Host::Kill (pid, SIGTERM);
-
-    // check if that worked
-    for (size_t i=0; i<10; ++i)
-    {
-        {
-            Mutex::Locker locker (m_spawned_pids_mutex);
-            if (m_spawned_pids.find(pid) == m_spawned_pids.end())
-            {
-                // it is now killed
-                return true;
-            }
-        }
-        usleep (10000);
-    }
-
-    // check one more time after the final usleep
-    {
-        Mutex::Locker locker (m_spawned_pids_mutex);
-        if (m_spawned_pids.find(pid) == m_spawned_pids.end())
-            return true;
-    }
-
-    // the launched process still lives.  Now try killing it again,
-    // this time with an unblockable signal.
-    Host::Kill (pid, SIGKILL);
-
-    for (size_t i=0; i<10; ++i)
-    {
-        {
-            Mutex::Locker locker (m_spawned_pids_mutex);
-            if (m_spawned_pids.find(pid) == m_spawned_pids.end())
-            {
-                // it is now killed
-                return true;
-            }
-        }
-        usleep (10000);
-    }
-
-    // check one more time after the final usleep
-    // Scope for locker
-    {
-        Mutex::Locker locker (m_spawned_pids_mutex);
-        if (m_spawned_pids.find(pid) == m_spawned_pids.end())
-            return true;
-    }
-
-    // no luck - the process still lives
-    return false;
-}
-
-GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_vFile_Open (StringExtractorGDBRemote &packet)
 {
     packet.SetFilePos(::strlen("vFile:open:"));
@@ -582,8 +500,8 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_Open (StringExtractorGDBRemote 
             {
                 mode_t mode = packet.GetHexMaxU32(false, 0600);
                 Error error;
-                const FileSpec path_spec(path.c_str(), true);
-                int fd = ::open (path_spec.GetPath().c_str(), flags, mode);
+                const FileSpec path_spec{path, true};
+                int fd = ::open(path_spec.GetCString(), flags, mode);
                 const int save_errno = fd == -1 ? errno : 0;
                 StreamString response;
                 response.PutChar('F');
@@ -732,7 +650,7 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_Mode (StringExtractorGDBRemote 
     if (!path.empty())
     {
         Error error;
-        const uint32_t mode = File::GetPermissions(path.c_str(), error);
+        const uint32_t mode = File::GetPermissions(FileSpec{path, true}, error);
         StreamString response;
         response.Printf("F%u", mode);
         if (mode == 0 || error.Fail())
@@ -771,7 +689,7 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_symlink (StringExtractorGDBRemo
     packet.GetHexByteStringTerminatedBy(dst, ',');
     packet.GetChar(); // Skip ',' char
     packet.GetHexByteString(src);
-    Error error = FileSystem::Symlink(src.c_str(), dst.c_str());
+    Error error = FileSystem::Symlink(FileSpec{src, true}, FileSpec{dst, false});
     StreamString response;
     response.Printf("F%u,%u", error.GetError(), error.GetError());
     return SendPacketNoLock(response.GetData(), response.GetSize());
@@ -783,7 +701,7 @@ GDBRemoteCommunicationServerCommon::Handle_vFile_unlink (StringExtractorGDBRemot
     packet.SetFilePos(::strlen("vFile:unlink:"));
     std::string path;
     packet.GetHexByteString(path);
-    Error error = FileSystem::Unlink(path.c_str());
+    Error error = FileSystem::Unlink(FileSpec{path, true});
     StreamString response;
     response.Printf("F%u,%u", error.GetError(), error.GetError());
     return SendPacketNoLock(response.GetData(), response.GetSize());
@@ -808,7 +726,7 @@ GDBRemoteCommunicationServerCommon::Handle_qPlatform_shell (StringExtractorGDBRe
             int status, signo;
             std::string output;
             Error err = Host::RunShellCommand(path.c_str(),
-                                              working_dir.empty() ? NULL : working_dir.c_str(),
+                                              FileSpec{working_dir, true},
                                               &status, &signo, &output, timeout);
             StreamGDBRemote response;
             if (err.Fail())
@@ -873,8 +791,8 @@ GDBRemoteCommunicationServerCommon::Handle_qPlatform_mkdir (StringExtractorGDBRe
     {
         std::string path;
         packet.GetHexByteString(path);
-        Error error = FileSystem::MakeDirectory(path.c_str(), mode);
-        
+        Error error = FileSystem::MakeDirectory(FileSpec{path, false}, mode);
+
         StreamGDBRemote response;
         response.Printf("F%u", error.GetError());
 
@@ -893,7 +811,7 @@ GDBRemoteCommunicationServerCommon::Handle_qPlatform_chmod (StringExtractorGDBRe
     {
         std::string path;
         packet.GetHexByteString(path);
-        Error error = FileSystem::SetFilePermissions(path.c_str(), mode);
+        Error error = FileSystem::SetFilePermissions(FileSpec{path, true}, mode);
 
         StreamGDBRemote response;
         response.Printf("F%u", error.GetError());
@@ -915,6 +833,7 @@ GDBRemoteCommunicationServerCommon::Handle_qSupported (StringExtractorGDBRemote 
     response.PutCString (";QStartNoAckMode+");
     response.PutCString (";QThreadSuffixSupported+");
     response.PutCString (";QListThreadsInStopReply+");
+    response.PutCString (";qEcho+");
 #if defined(__linux__)
     response.PutCString (";qXfer:auxv:read+");
 #endif
@@ -965,7 +884,7 @@ GDBRemoteCommunicationServerCommon::Handle_QSetSTDIN (StringExtractorGDBRemote &
     packet.GetHexByteString(path);
     const bool read = false;
     const bool write = true;
-    if (file_action.Open(STDIN_FILENO, path.c_str(), read, write))
+    if (file_action.Open(STDIN_FILENO, FileSpec{path, false}, read, write))
     {
         m_process_launch_info.AppendFileAction(file_action);
         return SendOKResponse ();
@@ -982,7 +901,7 @@ GDBRemoteCommunicationServerCommon::Handle_QSetSTDOUT (StringExtractorGDBRemote 
     packet.GetHexByteString(path);
     const bool read = true;
     const bool write = false;
-    if (file_action.Open(STDOUT_FILENO, path.c_str(), read, write))
+    if (file_action.Open(STDOUT_FILENO, FileSpec{path, false}, read, write))
     {
         m_process_launch_info.AppendFileAction(file_action);
         return SendOKResponse ();
@@ -999,7 +918,7 @@ GDBRemoteCommunicationServerCommon::Handle_QSetSTDERR (StringExtractorGDBRemote 
     packet.GetHexByteString(path);
     const bool read = true;
     const bool write = false;
-    if (file_action.Open(STDERR_FILENO, path.c_str(), read, write))
+    if (file_action.Open(STDERR_FILENO, FileSpec{path, false}, read, write))
     {
         m_process_launch_info.AppendFileAction(file_action);
         return SendOKResponse ();
@@ -1153,6 +1072,13 @@ GDBRemoteCommunicationServerCommon::Handle_A (StringExtractorGDBRemote &packet)
 }
 
 GDBRemoteCommunication::PacketResult
+GDBRemoteCommunicationServerCommon::Handle_qEcho (StringExtractorGDBRemote &packet)
+{
+    // Just echo back the exact same packet for qEcho...
+    return SendPacketNoLock(packet.GetStringRef().c_str(), packet.GetStringRef().size());
+}
+
+GDBRemoteCommunication::PacketResult
 GDBRemoteCommunicationServerCommon::Handle_qModuleInfo (StringExtractorGDBRemote &packet)
 {
     packet.SetFilePos(::strlen ("qModuleInfo:"));
@@ -1207,7 +1133,7 @@ GDBRemoteCommunicationServerCommon::Handle_qModuleInfo (StringExtractorGDBRemote
     response.PutChar(';');
 
     response.PutCString("file_path:");
-    response.PutCStringAsRawHex8(module_path_spec.GetPath().c_str());
+    response.PutCStringAsRawHex8(module_path_spec.GetCString());
     response.PutChar(';');
     response.PutCString("file_offset:");
     response.PutHex64(file_offset);
@@ -1231,7 +1157,7 @@ GDBRemoteCommunicationServerCommon::CreateProcessInfoResponse (const ProcessInst
                      proc_info.GetEffectiveUserID(),
                      proc_info.GetEffectiveGroupID());
     response.PutCString ("name:");
-    response.PutCStringAsRawHex8(proc_info.GetExecutableFile().GetPath().c_str());
+    response.PutCStringAsRawHex8(proc_info.GetExecutableFile().GetCString());
     response.PutChar(';');
     const ArchSpec &proc_arch = proc_info.GetArchitecture();
     if (proc_arch.IsValid())
@@ -1285,6 +1211,7 @@ GDBRemoteCommunicationServerCommon::CreateProcessInfoResponse_DebugServerStyle (
             switch (proc_triple.getArch ())
             {
                 case llvm::Triple::arm:
+                case llvm::Triple::thumb:
                 case llvm::Triple::aarch64:
                     ostype = "ios";
                     break;

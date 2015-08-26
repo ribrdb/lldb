@@ -34,7 +34,7 @@
 #include "lldb/Expression/IRInterpreter.h"
 #include "lldb/Host/Endian.h"
 #include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangASTType.h"
+#include "lldb/Symbol/CompilerType.h"
 #include "lldb/Target/CPPLanguageRuntime.h"
 
 #include <map>
@@ -237,21 +237,24 @@ IRForTarget::GetFunctionAddress (llvm::Function *fun,
                 // For example, "std::basic_string<...>" has an alternate mangling scheme per
                 // the Itanium C++ ABI.
                 lldb::ProcessSP process_sp = m_data_allocator.GetTarget()->GetProcessSP();
-                lldb_private::CPPLanguageRuntime *cpp_runtime = process_sp->GetCPPLanguageRuntime();
-                if (cpp_runtime && cpp_runtime->GetAlternateManglings(name, alternates))
+                if (process_sp)
                 {
-                    for (size_t i = 0; i < alternates.size(); ++i)
+                    lldb_private::CPPLanguageRuntime *cpp_runtime = process_sp->GetCPPLanguageRuntime();
+                    if (cpp_runtime && cpp_runtime->GetAlternateManglings(name, alternates))
                     {
-                        const lldb_private::ConstString &alternate_name = alternates[i];
-                        if (log)
-                            log->Printf("Looking up address of function \"%s\" with alternate name \"%s\"",
-                                        name.GetCString(), alternate_name.GetCString());
-                        if ((found_it = m_decl_map->GetFunctionAddress (alternate_name, fun_addr)))
+                        for (size_t i = 0; i < alternates.size(); ++i)
                         {
+                            const lldb_private::ConstString &alternate_name = alternates[i];
                             if (log)
-                                log->Printf("Found address of function \"%s\" with alternate name \"%s\"",
+                                log->Printf("Looking up address of function \"%s\" with alternate name \"%s\"",
                                             name.GetCString(), alternate_name.GetCString());
-                            break;
+                            if ((found_it = m_decl_map->GetFunctionAddress (alternate_name, fun_addr)))
+                            {
+                                if (log)
+                                    log->Printf("Found address of function \"%s\" with alternate name \"%s\"",
+                                                name.GetCString(), alternate_name.GetCString());
+                                break;
+                            }
                         }
                     }
                 }
@@ -264,11 +267,11 @@ IRForTarget::GetFunctionAddress (llvm::Function *fun,
                 {
                     if (mangled_name.GetMangledName())
                         m_error_stream->Printf("error: call to a function '%s' ('%s') that is not present in the target\n",
-                                               mangled_name.GetName().GetCString(),
+                                               mangled_name.GetName(lldb::eLanguageTypeObjC_plus_plus).GetCString(),
                                                mangled_name.GetMangledName().GetCString());
                     else
                         m_error_stream->Printf("error: call to a function '%s' that is not present in the target\n",
-                                               mangled_name.GetName().GetCString());
+                                               mangled_name.GetName(lldb::eLanguageTypeObjC_plus_plus).GetCString());
                 }
                 return LookupResult::Fail;
             }
@@ -1506,13 +1509,13 @@ IRForTarget::MaybeHandleVariable (Value *llvm_value_ptr)
         if (value_decl == NULL)
             return false;
 
-        lldb_private::ClangASTType clang_type(&value_decl->getASTContext(), value_decl->getType());
+        lldb_private::CompilerType clang_type(&value_decl->getASTContext(), value_decl->getType());
 
         const Type *value_type = NULL;
 
         if (name[0] == '$')
         {
-            // The $__lldb_expr_result name indicates the the return value has allocated as
+            // The $__lldb_expr_result name indicates the return value has allocated as
             // a static variable.  Per the comment at ASTResultSynthesizer::SynthesizeBodyResult,
             // accesses to this static variable need to be redirected to the result of dereferencing
             // a pointer that is passed in as one of the arguments.

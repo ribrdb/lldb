@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 // C Includes
 #include <cstdlib>
 // C++ Includes
@@ -721,7 +719,7 @@ Args::StringToAddress (const ExecutionContext *exe_ctx, const char *s, lldb::add
                 else
                 {
                     // Since the compiler can't handle things like "main + 12" we should
-                    // try to do this for now. The compliler doesn't like adding offsets
+                    // try to do this for now. The compiler doesn't like adding offsets
                     // to function pointer types.
                     static RegularExpression g_symbol_plus_offset_regex("^(.*)([-\\+])[[:space:]]*(0x[0-9A-Fa-f]+|[0-9]+)[[:space:]]*$");
                     RegularExpression::Match regex_match(3);
@@ -1138,7 +1136,7 @@ Args::IsPositionalArgument (const char *arg)
         return false;
         
     bool is_positional = true;
-    char *cptr = (char *) arg;
+    const char *cptr = arg;
     
     if (cptr[0] == '%')
     {

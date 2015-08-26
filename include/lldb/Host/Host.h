@@ -244,8 +244,8 @@ public:
 #endif // !defined(__ANDROID__) && !defined(__ANDROID_NDK__)
 #endif // defined (__APPLE__) || defined (__linux__) || defined (__FreeBSD__) || defined (__GLIBC__) || defined(__NetBSD__)
 
-    static const lldb_private::UnixSignalsSP&
-    GetUnixSignals ();
+    static const lldb::UnixSignalsSP &
+    GetUnixSignals();
 
     static Error
     LaunchProcess (ProcessLaunchInfo &launch_info);
@@ -261,22 +261,22 @@ public:
     ShellExpandArguments (ProcessLaunchInfo &launch_info);
     
     static Error
-    RunShellCommand (const char *command,           // Shouldn't be NULL
-                     const char *working_dir,       // Pass NULL to use the current working directory
-                     int *status_ptr,               // Pass NULL if you don't want the process exit status
-                     int *signo_ptr,                // Pass NULL if you don't want the signal that caused the process to exit
-                     std::string *command_output,   // Pass NULL if you don't want the command output
-                     uint32_t timeout_sec,
-                     bool run_in_default_shell = true);
+    RunShellCommand(const char *command,           // Shouldn't be NULL
+                    const FileSpec &working_dir,   // Pass empty FileSpec to use the current working directory
+                    int *status_ptr,               // Pass NULL if you don't want the process exit status
+                    int *signo_ptr,                // Pass NULL if you don't want the signal that caused the process to exit
+                    std::string *command_output,   // Pass NULL if you don't want the command output
+                    uint32_t timeout_sec,
+                    bool run_in_default_shell = true);
 
     static Error
-    RunShellCommand (const Args& args,
-                     const char *working_dir,       // Pass NULL to use the current working directory
-                     int *status_ptr,               // Pass NULL if you don't want the process exit status
-                     int *signo_ptr,                // Pass NULL if you don't want the signal that caused the process to exit
-                     std::string *command_output,   // Pass NULL if you don't want the command output
-                     uint32_t timeout_sec,
-                     bool run_in_default_shell = true);
+    RunShellCommand(const Args& args,
+                    const FileSpec &working_dir,   // Pass empty FileSpec to use the current working directory
+                    int *status_ptr,               // Pass NULL if you don't want the process exit status
+                    int *signo_ptr,                // Pass NULL if you don't want the signal that caused the process to exit
+                    std::string *command_output,   // Pass NULL if you don't want the command output
+                    uint32_t timeout_sec,
+                    bool run_in_default_shell = true);
     
     static lldb::DataBufferSP
     GetAuxvData (lldb_private::Process *process);
@@ -287,7 +287,7 @@ public:
     static bool
     OpenFileInExternalEditor (const FileSpec &file_spec, 
                               uint32_t line_no);
-    
+
     static size_t
     GetEnvironment (StringList &env);
 };

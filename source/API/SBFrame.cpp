@@ -454,6 +454,17 @@ SBFrame::GetFrameID () const
     return frame_idx;
 }
 
+lldb::addr_t
+SBFrame::GetCFA () const
+{
+    ExecutionContext exe_ctx(m_opaque_sp.get());
+    StackFrame *frame = exe_ctx.GetFramePtr();
+    if (frame)
+        return frame->GetStackID().GetCallFrameAddress();
+    return LLDB_INVALID_ADDRESS;
+}
+
+
 addr_t
 SBFrame::GetPC () const
 {
@@ -1490,6 +1501,12 @@ SBFrame::EvaluateExpression (const char *expr, const SBExpressionOptions &option
 bool
 SBFrame::IsInlined()
 {
+    return static_cast<const SBFrame*>(this)->IsInlined();
+}
+
+bool
+SBFrame::IsInlined() const
+{
     Log *log(GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
     ExecutionContext exe_ctx(m_opaque_sp.get());
     StackFrame *frame = NULL;
@@ -1527,6 +1544,12 @@ SBFrame::IsInlined()
 const char *
 SBFrame::GetFunctionName()
 {
+    return static_cast<const SBFrame*>(this)->GetFunctionName();
+}
+
+const char *
+SBFrame::GetFunctionName() const
+{
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
     const char *name = NULL;
     ExecutionContext exe_ctx(m_opaque_sp.get());
@@ -1548,7 +1571,7 @@ SBFrame::GetFunctionName()
                     if (inlined_block)
                     {
                         const InlineFunctionInfo* inlined_info = inlined_block->GetInlinedFunctionInfo();
-                        name = inlined_info->GetName().AsCString();
+                        name = inlined_info->GetName(sc.function->GetLanguage()).AsCString();
                     }
                 }
                 
@@ -1580,3 +1603,58 @@ SBFrame::GetFunctionName()
     return name;
 }
 
+const char *
+SBFrame::GetDisplayFunctionName()
+{
+    Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
+    const char *name = NULL;
+    ExecutionContext exe_ctx(m_opaque_sp.get());
+    StackFrame *frame = NULL;
+    Target *target = exe_ctx.GetTargetPtr();
+    Process *process = exe_ctx.GetProcessPtr();
+    if (target && process)
+    {
+        Process::StopLocker stop_locker;
+        if (stop_locker.TryLock(&process->GetRunLock()))
+        {
+            frame = exe_ctx.GetFramePtr();
+            if (frame)
+            {
+                SymbolContext sc (frame->GetSymbolContext(eSymbolContextFunction | eSymbolContextBlock | eSymbolContextSymbol));
+                if (sc.block)
+                {
+                    Block *inlined_block = sc.block->GetContainingInlinedBlock ();
+                    if (inlined_block)
+                    {
+                        const InlineFunctionInfo* inlined_info = inlined_block->GetInlinedFunctionInfo();
+                        name = inlined_info->GetDisplayName(sc.function->GetLanguage()).AsCString();
+                    }
+                }
+                
+                if (name == NULL)
+                {
+                    if (sc.function)
+                        name = sc.function->GetDisplayName().GetCString();
+                }
+                
+                if (name == NULL)
+                {
+                    if (sc.symbol)
+                        name = sc.symbol->GetDisplayName().GetCString();
+                }
+            }
+            else
+            {
+                if (log)
+                    log->Printf ("SBFrame::GetDisplayFunctionName () => error: could not reconstruct frame object for this SBFrame.");
+            }
+        }
+        else
+        {
+            if (log)
+                log->Printf ("SBFrame::GetDisplayFunctionName() => error: process is running");
+            
+        }
+    }
+    return name;
+}

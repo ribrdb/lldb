@@ -19,6 +19,7 @@
 #include <list>
 #include <iosfwd>
 #include <vector>
+#include <unordered_set>
 
 // Other libraries and framework includes
 // Project includes
@@ -30,6 +31,7 @@
 #include "lldb/Core/Event.h"
 #include "lldb/Core/ThreadSafeValue.h"
 #include "lldb/Core/PluginInterface.h"
+#include "lldb/Core/StructuredData.h"
 #include "lldb/Core/UserSettingsController.h"
 #include "lldb/Breakpoint/BreakpointSiteList.h"
 #include "lldb/Host/HostThread.h"
@@ -57,8 +59,7 @@ public:
     // Pass NULL for "process" if the ProcessProperties are to be the global copy
     ProcessProperties (lldb_private::Process *process);
 
-    virtual
-    ~ProcessProperties();
+    ~ProcessProperties() override;
     
     bool
     GetDisableMemoryCache() const;
@@ -101,6 +102,9 @@ public:
     
     void
     SetDetachKeepsStopped (bool keep_stopped);
+
+    bool
+    GetWarningsOptimization () const;
 
 protected:
 
@@ -409,22 +413,22 @@ public:
         OptionParsingStarting ();
     }
     
-    ~ProcessLaunchCommandOptions ()
+    ~ProcessLaunchCommandOptions() override
     {
     }
     
     Error
-    SetOptionValue (uint32_t option_idx, const char *option_arg);
+    SetOptionValue (uint32_t option_idx, const char *option_arg) override;
     
     void
-    OptionParsingStarting ()
+    OptionParsingStarting() override
     {
         launch_info.Clear();
         disable_aslr = eLazyBoolCalculate;
     }
     
     const OptionDefinition*
-    GetDefinitions ()
+    GetDefinitions() override
     {
         return g_option_table;
     }
@@ -685,7 +689,20 @@ public:
         else
             m_running_user_expression--;
     }
-    
+
+    void
+    SetStopEventForLastNaturalStopID (lldb::EventSP event_sp)
+    {
+        m_last_natural_stop_event = event_sp;
+    }
+
+    lldb::EventSP GetStopEventForStopID (uint32_t stop_id) const
+    {
+        if (stop_id == m_last_natural_stop_id)
+            return m_last_natural_stop_event;
+        return lldb::EventSP();
+    }
+
 private:
     uint32_t m_stop_id;
     uint32_t m_last_natural_stop_id;
@@ -693,6 +710,7 @@ private:
     uint32_t m_memory_id;
     uint32_t m_last_user_expression_resume;
     uint32_t m_running_user_expression;
+    lldb::EventSP m_last_natural_stop_event;
 };
 inline bool operator== (const ProcessModID &lhs, const ProcessModID &rhs)
 {
@@ -751,6 +769,14 @@ public:
         eBroadcastInternalStateControlPause = (1<<1),
         eBroadcastInternalStateControlResume = (1<<2)
     };
+
+    //------------------------------------------------------------------
+    /// Process warning types.
+    //------------------------------------------------------------------
+    enum Warnings
+    {
+        eWarningsOptimization = 1
+    };
     
     typedef Range<lldb::addr_t, lldb::addr_t> LoadRange;
     // We use a read/write lock to allow on or more clients to
@@ -766,7 +792,7 @@ public:
     
     static ConstString &GetStaticBroadcasterClass ();
 
-    virtual ConstString &GetBroadcasterClass() const
+    ConstString &GetBroadcasterClass() const override
     {
         return GetStaticBroadcasterClass();
     }
@@ -796,19 +822,20 @@ public:
             ProcessEventData ();
             ProcessEventData (const lldb::ProcessSP &process, lldb::StateType state);
 
-            virtual ~ProcessEventData();
+            ~ProcessEventData() override;
 
             static const ConstString &
             GetFlavorString ();
 
-            virtual const ConstString &
-            GetFlavor () const;
+            const ConstString &
+            GetFlavor() const override;
 
-            const lldb::ProcessSP &
+            lldb::ProcessSP
             GetProcessSP() const
             {
-                return m_process_sp;
+                return m_process_wp.lock();
             }
+
             lldb::StateType
             GetState() const
             {
@@ -841,11 +868,11 @@ public:
                 return m_interrupted;
             }
 
-            virtual void
-            Dump (Stream *s) const;
+            void
+            Dump(Stream *s) const override;
 
-            virtual void
-            DoOnRemoval (Event *event_ptr);
+            void
+            DoOnRemoval(Event *event_ptr) override;
 
             static const Process::ProcessEventData *
             GetEventDataFromEvent (const Event *event_ptr);
@@ -903,7 +930,7 @@ public:
                 m_restarted_reasons.push_back(reason);
             }
 
-            lldb::ProcessSP m_process_sp;
+            lldb::ProcessWP m_process_wp;
             lldb::StateType m_state;
             std::vector<std::string> m_restarted_reasons;
             bool m_restarted;  // For "eStateStopped" events, this is true if the target was automatically restarted.
@@ -934,7 +961,7 @@ public:
     /// Construct with a shared pointer to a target, the Process listener,
     /// and the appropriate UnixSignalsSP for the process.
     //------------------------------------------------------------------
-    Process(Target &target, Listener &listener, const UnixSignalsSP &unix_signals_sp);
+    Process(Target &target, Listener &listener, const lldb::UnixSignalsSP &unix_signals_sp);
 
     //------------------------------------------------------------------
     /// Destructor.
@@ -942,8 +969,7 @@ public:
     /// The destructor is virtual since this class is designed to be
     /// inherited from by the plug-in instance.
     //------------------------------------------------------------------
-    virtual
-    ~Process();
+    ~Process() override;
 
     //------------------------------------------------------------------
     /// Find a Process plug-in that can debug \a module using the
@@ -1247,6 +1273,26 @@ public:
     UnloadImage (uint32_t image_token);
 
     //------------------------------------------------------------------
+    /// Called when the process is about to broadcast a public stop.
+    ///
+    /// There are public and private stops. Private stops are when the
+    /// process is doing things like stepping and the client doesn't
+    /// need to know about starts and stop that implement a thread plan.
+    /// Single stepping over a source line in code might end up being
+    /// implemented by one or more process starts and stops. Public stops
+    /// are when clients will be notified that the process is stopped.
+    /// These events typically trigger UI updates (thread stack frames to
+    /// be displayed, variables to be displayed, and more). This function
+    /// can be overriden and allows process subclasses to do something
+    /// before the eBroadcastBitStateChanged event is sent to public
+    /// clients.
+    //------------------------------------------------------------------
+    virtual void
+    WillPublicStop ()
+    {
+    }
+
+    //------------------------------------------------------------------
     /// Register for process and thread notifications.
     ///
     /// Clients can register notification callbacks by filling out a
@@ -1386,10 +1432,10 @@ public:
     Signal (int signal);
 
     void
-    SetUnixSignals (const UnixSignalsSP &signals_sp);
+    SetUnixSignals(const lldb::UnixSignalsSP &signals_sp);
 
-    UnixSignals &
-    GetUnixSignals ();
+    const lldb::UnixSignalsSP &
+    GetUnixSignals();
 
     //==================================================================
     // Plug-in Process Control Overrides
@@ -1453,31 +1499,14 @@ public:
     /// @param[in] pid
     ///     The process ID that we should attempt to attach to.
     ///
-    /// @return
-    ///     Returns \a pid if attaching was successful, or
-    ///     LLDB_INVALID_PROCESS_ID if attaching fails.
-    //------------------------------------------------------------------
-    virtual Error
-    DoAttachToProcessWithID (lldb::pid_t pid)
-    {
-        Error error;
-        error.SetErrorStringWithFormat("error: %s does not support attaching to a process by pid", GetPluginName().GetCString());
-        return error;
-    }
-
-    //------------------------------------------------------------------
-    /// Attach to an existing process using a process ID.
-    ///
-    /// @param[in] pid
-    ///     The process ID that we should attempt to attach to.
-    ///
     /// @param[in] attach_info
     ///     Information on how to do the attach. For example, GetUserID()
     ///     will return the uid to attach as.
     ///
     /// @return
-    ///     Returns \a pid if attaching was successful, or
-    ///     LLDB_INVALID_PROCESS_ID if attaching fails.
+    ///     Returns a successful Error attaching was successful, or
+    ///     an appropriate (possibly platform-specific) error code if
+    ///     attaching fails.
     /// hanming : need flag
     //------------------------------------------------------------------
     virtual Error
@@ -1499,7 +1528,9 @@ public:
     ///     will return the uid to attach as.
     ///
     /// @return
-    ///     Returns an error object.
+    ///     Returns a successful Error attaching was successful, or
+    ///     an appropriate (possibly platform-specific) error code if
+    ///     attaching fails.
     //------------------------------------------------------------------
     virtual Error
     DoAttachToProcessWithName (const char *process_name, const ProcessAttachInfo &attach_info)
@@ -1878,8 +1909,59 @@ public:
     void
     SendAsyncInterrupt ();
     
-    void
+    //------------------------------------------------------------------
+    // Notify this process class that modules got loaded.
+    //
+    // If subclasses override this method, they must call this version
+    // before doing anything in the subclass version of the function.
+    //------------------------------------------------------------------
+    virtual void
     ModulesDidLoad (ModuleList &module_list);
+
+
+    //------------------------------------------------------------------
+    /// Retrieve the list of shared libraries that are loaded for this process
+    /// 
+    /// For certain platforms, the time it takes for the DynamicLoader plugin to
+    /// read all of the shared libraries out of memory over a slow communication
+    /// channel may be too long.  In that instance, the gdb-remote stub may be
+    /// able to retrieve the necessary information about the solibs out of memory
+    /// and return a concise summary sufficient for the DynamicLoader plugin.
+    ///
+    /// @param [in] image_list_address
+    ///     The address where the table of shared libraries is stored in memory,
+    ///     if that is appropriate for this platform.  Else this may be 
+    ///     passed as LLDB_INVALID_ADDRESS.
+    ///
+    /// @param [in] image_count
+    ///     The number of shared libraries that are present in this process, if
+    ///     that is appropriate for this platofrm  Else this may be passed as
+    ///     LLDB_INVALID_ADDRESS.
+    ///
+    /// @return
+    ///     A StructureDataSP object which, if non-empty, will contain the 
+    ///     information the DynamicLoader needs to get the initial scan of
+    ///     solibs resolved.
+    //------------------------------------------------------------------
+    virtual lldb_private::StructuredData::ObjectSP
+    GetLoadedDynamicLibrariesInfos (lldb::addr_t image_list_address, lldb::addr_t image_count)
+    {
+        return StructuredData::ObjectSP();
+    }
+
+    //------------------------------------------------------------------
+    /// Print a user-visible warning about a module being built with optimization
+    ///
+    /// Prints a async warning message to the user one time per Module
+    /// where a function is found that was compiled with optimization, per
+    /// Process.
+    ///
+    /// @param [in] sc
+    ///     A SymbolContext with eSymbolContextFunction and eSymbolContextModule
+    ///     pre-computed.
+    //------------------------------------------------------------------
+    void
+    PrintWarningOptimization (const SymbolContext &sc);
 
 protected:
     
@@ -1904,6 +1986,37 @@ protected:
     //------------------------------------------------------------------
     void
     CompleteAttach ();
+
+    //------------------------------------------------------------------
+    /// Print a user-visible warning one time per Process
+    ///
+    /// A facility for printing a warning to the user once per repeat_key.
+    ///
+    /// warning_type is from the Process::Warnings enums.
+    /// repeat_key is a pointer value that will be used to ensure that the
+    /// warning message is not printed multiple times.  For instance, with a
+    /// warning about a function being optimized, you can pass the CompileUnit
+    /// pointer to have the warning issued for only the first function in a
+    /// CU, or the Function pointer to have it issued once for every function,
+    /// or a Module pointer to have it issued once per Module.
+    ///
+    /// Classes outside Process should call a specific PrintWarning method
+    /// so that the warning strings are all centralized in Process, instead of
+    /// calling PrintWarning() directly.
+    ///
+    /// @param [in] warning_type
+    ///     One of the types defined in Process::Warnings.
+    ///
+    /// @param [in] repeat_key
+    ///     A pointer value used to ensure that the warning is only printed once.
+    ///     May be nullptr, indicating that the warning is printed unconditionally
+    ///     every time.
+    ///
+    /// @param [in] fmt
+    ///     printf style format string
+    //------------------------------------------------------------------
+    void
+    PrintWarning (uint64_t warning_type, void *repeat_key, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
     
 public:
     //------------------------------------------------------------------
@@ -1969,11 +2082,17 @@ public:
     }
     
     uint32_t
-    GetLastNaturalStopID()
+    GetLastNaturalStopID() const
     {
         return m_mod_id.GetLastNaturalStopID();
     }
-    
+
+    lldb::EventSP
+    GetStopEventForStopID (uint32_t stop_id) const
+    {
+        return m_mod_id.GetStopEventForStopID(stop_id);
+    }
+
     //------------------------------------------------------------------
     /// Set accessor for the process exit status (return code).
     ///
@@ -2325,7 +2444,7 @@ public:
     ///     that a block that isn't set writable can still be written on from lldb,
     ///     just not by the process itself.
     ///
-    /// @param[in/out] error
+    /// @param[in,out] error
     ///     An error object to fill in if things go wrong.
     /// @return
     ///     The address of the allocated buffer in the process, or
@@ -2427,7 +2546,40 @@ public:
     ///     True if execution of JIT code is possible; false otherwise.
     //------------------------------------------------------------------
     void SetCanJIT (bool can_jit);
+
+    //------------------------------------------------------------------
+    /// Determines whether executing function calls using the interpreter
+    /// is possible for this process.
+    ///
+    /// @return
+    ///     True if possible; false otherwise.
+    //------------------------------------------------------------------
+    bool CanInterpretFunctionCalls ()
+    {
+        return m_can_interpret_function_calls;
+    }
     
+    //------------------------------------------------------------------
+    /// Sets whether executing function calls using the interpreter
+    /// is possible for this process.
+    ///
+    /// @param[in] can_interpret_function_calls
+    ///     True if possible; false otherwise.
+    //------------------------------------------------------------------
+    void SetCanInterpretFunctionCalls (bool can_interpret_function_calls)
+    {
+        m_can_interpret_function_calls = can_interpret_function_calls;
+    }
+
+    //------------------------------------------------------------------
+    /// Sets whether executing code in this process is possible.
+    /// This could be either through JIT or interpreting.
+    ///
+    /// @param[in] can_run_code
+    ///     True if execution of code is possible; false otherwise.
+    //------------------------------------------------------------------
+    void SetCanRunCode (bool can_run_code);
+
     //------------------------------------------------------------------
     /// Actually deallocate memory in the process.
     ///
@@ -2741,6 +2893,11 @@ public:
                           Listener *hijack_listener = NULL,
                           Stream *stream = NULL);
 
+    uint32_t
+    GetIOHandlerID () const
+    {
+        return m_iohandler_sync.GetValue();
+    }
 
     //--------------------------------------------------------------------------------------
     /// Waits for the process state to be running within a given msec timeout.
@@ -2751,14 +2908,9 @@ public:
     /// @param[in] timeout_msec
     ///     The maximum time length to wait for the process to transition to the
     ///     eStateRunning state, specified in milliseconds.
-    ///
-    /// @return
-    ///     true if successfully signalled that process started and IOHandler pushes, false
-    ///     if it timed out.
     //--------------------------------------------------------------------------------------
-    bool
-    SyncIOHandler (uint64_t timeout_msec);
-
+    void
+    SyncIOHandler (uint32_t iohandler_id, uint64_t timeout_msec);
 
     lldb::StateType
     WaitForStateChangedEvents (const TimeValue *timeout,
@@ -2774,7 +2926,7 @@ public:
     /// @param[in] stream
     ///     The output stream to get the state change description
     ///
-    /// @param[inout] pop_process_io_handler
+    /// @param[in,out] pop_process_io_handler
     ///     If this value comes in set to \b true, then pop the Process IOHandler if needed.
     ///     Else this variable will be set to \b true or \b false to indicate if the process
     ///     needs to have its process IOHandler popped.
@@ -2927,29 +3079,29 @@ public:
     //------------------------------------------------------------------
     // lldb::ExecutionContextScope pure virtual functions
     //------------------------------------------------------------------
-    virtual lldb::TargetSP
-    CalculateTarget ();
+    lldb::TargetSP
+    CalculateTarget()  override;
     
-    virtual lldb::ProcessSP
-    CalculateProcess ()
+    lldb::ProcessSP
+    CalculateProcess() override
     {
         return shared_from_this();
     }
     
-    virtual lldb::ThreadSP
-    CalculateThread ()
+    lldb::ThreadSP
+    CalculateThread() override
     {
         return lldb::ThreadSP();
     }
     
-    virtual lldb::StackFrameSP
-    CalculateStackFrame ()
+    lldb::StackFrameSP
+    CalculateStackFrame() override
     {
         return lldb::StackFrameSP();
     }
 
-    virtual void
-    CalculateExecutionContext (ExecutionContext &exe_ctx);
+    void
+    CalculateExecutionContext(ExecutionContext &exe_ctx) override;
     
     void
     SetSTDIOFileDescriptor (int file_descriptor);
@@ -3030,6 +3182,28 @@ public:
     virtual bool
     GetModuleSpec(const FileSpec& module_file_spec, const ArchSpec& arch, ModuleSpec &module_spec);
 
+    //------------------------------------------------------------------
+    /// Try to find the load address of a file.
+    /// The load address is defined as the address of the first memory
+    /// region what contains data mapped from the specified file.
+    ///
+    /// @param[in] file 
+    ///     The name of the file whose load address we are looking for
+    ///
+    /// @param[out] is_loaded
+    ///     \b True if the file is loaded into the memory and false
+    ///     otherwise.
+    ///
+    /// @param[out] load_addr
+    ///     The load address of the file if it is loaded into the
+    ///     processes address space, LLDB_INVALID_ADDRESS otherwise.
+    //------------------------------------------------------------------
+    virtual Error
+    GetFileLoadAddress(const FileSpec& file, bool& is_loaded, lldb::addr_t& load_addr)
+    {
+        return Error("Not supported");
+    }
+
 protected:
 
     //------------------------------------------------------------------
@@ -3089,14 +3263,14 @@ protected:
     public:
         AttachCompletionHandler (Process *process, uint32_t exec_count);
 
-        virtual
-        ~AttachCompletionHandler() 
+        ~AttachCompletionHandler() override
         {
         }
         
-        virtual EventActionResult PerformAction (lldb::EventSP &event_sp);
-        virtual EventActionResult HandleBeingInterrupted ();
-        virtual const char *GetExitString();
+        EventActionResult PerformAction(lldb::EventSP &event_sp) override;
+        EventActionResult HandleBeingInterrupted() override;
+        const char *GetExitString() override;
+
     private:
         uint32_t m_exec_count;
         std::string m_exit_string;
@@ -3125,6 +3299,8 @@ protected:
     // Type definitions
     //------------------------------------------------------------------
     typedef std::map<lldb::LanguageType, lldb::LanguageRuntimeSP> LanguageRuntimeCollection;
+    typedef std::unordered_set<void *> WarningsPointerSet;
+    typedef std::map<uint64_t, WarningsPointerSet> WarningsCollection;
 
     struct PreResumeCallbackAndBaton
     {
@@ -3172,7 +3348,7 @@ protected:
     lldb::DynamicCheckerFunctionsUP m_dynamic_checkers_ap; ///< The functions used by the expression parser to validate data that expressions use.
     lldb::OperatingSystemUP     m_os_ap;
     lldb::SystemRuntimeUP       m_system_runtime_ap;
-    UnixSignalsSP               m_unix_signals_sp;         /// This is the current signal set for this process.
+    lldb::UnixSignalsSP         m_unix_signals_sp;         /// This is the current signal set for this process.
     lldb::ABISP                 m_abi_sp;
     lldb::IOHandlerSP           m_process_input_reader;
     Communication               m_stdio_communication;
@@ -3182,7 +3358,7 @@ protected:
     std::string                 m_stderr_data;
     Mutex                       m_profile_data_comm_mutex;
     std::vector<std::string>    m_profile_data;
-    Predicate<bool>             m_iohandler_sync;
+    Predicate<uint32_t>         m_iohandler_sync;
     MemoryCache                 m_memory_cache;
     AllocatedMemoryCache        m_allocated_memory_cache;
     bool                        m_should_detach;   /// Should we detach if the process object goes away with an explicit call to Kill or Detach?
@@ -3203,6 +3379,8 @@ protected:
     lldb::StateType             m_last_broadcast_state;   /// This helps with the Public event coalescing in ShouldBroadcastEvent.
     std::map<lldb::addr_t,lldb::addr_t> m_resolved_indirect_addresses;
     bool m_destroy_in_process;
+    bool m_can_interpret_function_calls; // Some targets, e.g the OSX kernel, don't support the ability to modify the stack.
+    WarningsCollection          m_warnings_issued;  // A set of object pointers which have already had warnings printed
     
     enum {
         eCanJITDontKnow= 0,
@@ -3223,7 +3401,7 @@ protected:
     SetPrivateState (lldb::StateType state);
 
     bool
-    StartPrivateStateThread (bool force = false);
+    StartPrivateStateThread (bool is_secondary_thread = false);
 
     void
     StopPrivateStateThread ();
@@ -3234,11 +3412,22 @@ protected:
     void
     ResumePrivateStateThread ();
 
+    struct PrivateStateThreadArgs
+    {
+        Process *process;
+        bool is_secondary_thread;
+    };
+
     static lldb::thread_result_t
     PrivateStateThread (void *arg);
 
+    // The starts up the private state thread that will watch for events from the debugee.
+    // Pass true for is_secondary_thread in the case where you have to temporarily spin up a
+    // secondary state thread to handle events from a hand-called function on the primary
+    // private state thread.
+    
     lldb::thread_result_t
-    RunPrivateStateThread ();
+    RunPrivateStateThread (bool is_secondary_thread);
 
     void
     HandlePrivateEvent (lldb::EventSP &event_sp);
@@ -3299,15 +3488,15 @@ protected:
     void
     LoadOperatingSystemPlugin(bool flush);
 private:
+
     //------------------------------------------------------------------
     // For Process only
     //------------------------------------------------------------------
     void ControlPrivateStateThread (uint32_t signal);
     
     DISALLOW_COPY_AND_ASSIGN (Process);
-
 };
 
 } // namespace lldb_private
 
-#endif  // liblldb_Process_h_
+#endif // liblldb_Process_h_
