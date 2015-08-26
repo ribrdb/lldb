@@ -91,18 +91,18 @@ ReadTypeName(ValueObjectSP type, Process* process)
     return ConstString("");
 }
 
-ClangASTType
+CompilerType
 LookupRuntimeType(ValueObjectSP type, ExecutionContext* exe_ctx, bool* is_direct)
 {
     uint8_t kind = GetChild(*type, "kind")->GetValueAsUnsigned(0);
     *is_direct = GoASTContext::IsDirectIface(kind);
     if (GoASTContext::IsPointerKind(kind))
     {
-        ClangASTType type_ptr = type->GetClangType().GetPointerType();
+        CompilerType type_ptr = type->GetClangType().GetPointerType();
         Error err;
         ValueObjectSP elem = type->CreateValueObjectFromAddress("elem", type->GetAddressOf() + type->GetByteSize(), *exe_ctx, type_ptr)->Dereference(err);
         if (err.Fail())
-            return ClangASTType();
+            return CompilerType();
         bool tmp_direct;
         return LookupRuntimeType(elem, exe_ctx, &tmp_direct).GetPointerType();
     }
@@ -111,7 +111,7 @@ LookupRuntimeType(ValueObjectSP type, ExecutionContext* exe_ctx, bool* is_direct
     
     ConstString const_typename = ReadTypeName(type, process);
     if (const_typename.GetLength() == 0)
-        return ClangASTType();
+        return CompilerType();
     
     SymbolContext sc;
     TypeList type_list;
@@ -123,7 +123,7 @@ LookupRuntimeType(ValueObjectSP type, ExecutionContext* exe_ctx, bool* is_direct
     if (num_matches > 0) {
         return type_list.GetTypeAtIndex(0)->GetClangFullType();
     }
-    return ClangASTType();
+    return CompilerType();
 }
 
 }
@@ -159,18 +159,18 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
         
         bool direct;
         ExecutionContext exe_ctx (in_value.GetExecutionContextRef());
-        ClangASTType final_type = LookupRuntimeType(type, &exe_ctx, &direct);
+        CompilerType final_type = LookupRuntimeType(type, &exe_ctx, &direct);
         if (!final_type)
             return false;
         if (direct)
         {
-            class_type_or_name.SetClangASTType(final_type);
+            class_type_or_name.SetCompilerType(final_type);
         }
         else
         {
             // TODO: implement reference types or fix caller to support dynamic types that aren't pointers
             // so we don't have to introduce this extra pointer.
-            class_type_or_name.SetClangASTType(final_type.GetPointerType());
+            class_type_or_name.SetCompilerType(final_type.GetPointerType());
         }
 
         dynamic_address.SetLoadAddress(data_sp->GetPointerValue(), exe_ctx.GetTargetPtr());

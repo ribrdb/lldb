@@ -24,58 +24,100 @@ public:
     GoASTContext();
     ~GoASTContext();
     
-    virtual clang::ASTContext *
-    GetASTContext() const
-    {
-        return nullptr;
-    };
-    
     virtual ClangASTContext *
-    AsClangASTContext()
+    AsClangASTContext() override
     {
         return nullptr;
     }
     
     virtual GoASTContext*
-    AsGoASTContext()
+    AsGoASTContext() override
     {
         return this;
+    }
+    
+    //----------------------------------------------------------------------
+    // DWARF type parsing
+    //----------------------------------------------------------------------
+    virtual lldb::TypeSP
+    ParseTypeFromDWARF (const SymbolContext& sc,
+                        SymbolFileDWARF *dwarf,
+                        DWARFCompileUnit* dwarf_cu,
+                        const DWARFDebugInfoEntry *die,
+                        Log *log,
+                        bool *type_is_new_ptr) override
+    {
+        return nullptr;
+    }
+    
+    virtual Function *
+    ParseFunctionFromDWARF (const SymbolContext& sc,
+                            SymbolFileDWARF *dwarf,
+                            DWARFCompileUnit* dwarf_cu,
+                            const DWARFDebugInfoEntry *die) override
+    {
+        return nullptr;
     }
     
     void SetAddressByteSize(int byte_size) { m_pointer_byte_size = byte_size; }
     
     //----------------------------------------------------------------------
+    // CompilerDeclContext functions
+    //----------------------------------------------------------------------
+    
+    virtual bool
+    DeclContextIsStructUnionOrClass (void *opaque_decl_ctx) override
+    {
+        return false;
+    }
+    
+    virtual ConstString
+    DeclContextGetName (void *opaque_decl_ctx) override
+    {
+        return ConstString();
+    }
+    
+    virtual bool
+    DeclContextIsClassMethod (void *opaque_decl_ctx,
+                              lldb::LanguageType *language_ptr,
+                              bool *is_instance_method_ptr,
+                              ConstString *language_object_name_ptr) override
+    {
+        return false;
+    }
+    
+    //----------------------------------------------------------------------
     // Creating Types
     //----------------------------------------------------------------------
     
-    ClangASTType
-    CreateArrayType(const ConstString& name, const ClangASTType& element_type, int64_t length);
+    CompilerType
+    CreateArrayType(const ConstString& name, const CompilerType& element_type, int64_t length);
     
-    ClangASTType
+    CompilerType
     CreateBaseType(int go_kind, const ConstString& type_name_const_str, uint64_t byte_size);
     
     // For interface, map, chan.
-    ClangASTType
-    CreateTypedef(int kind, const ConstString& name, ClangASTType impl);
+    CompilerType
+    CreateTypedef(int kind, const ConstString& name, CompilerType impl);
     
-    ClangASTType
+    CompilerType
     CreateVoidType(const ConstString& name);
-    ClangASTType
-    CreateFunctionType(const lldb_private::ConstString &name, ClangASTType* params, size_t params_count, bool is_variadic, ClangASTType return_type);
+    CompilerType
+    CreateFunctionType(const lldb_private::ConstString &name, CompilerType* params, size_t params_count, bool is_variadic, CompilerType return_type);
     
-    ClangASTType
+    CompilerType
     CreateStructType(int kind, const ConstString& name, uint32_t byte_size);
     
     void
-    CompleteStructType(const ClangASTType& type);
+    CompleteStructType(const CompilerType& type);
     
     void
-    AddFieldToStruct(const ClangASTType& struct_type,
+    AddFieldToStruct(const CompilerType& struct_type,
                      const ConstString& name,
-                     const ClangASTType& field_type,
+                     const CompilerType& field_type,
                      uint32_t byte_offset);
     
-    typedef void (*CompleteTypeCallback)(void *baton, ClangASTType& type);
+    typedef void (*CompleteTypeCallback)(void *baton, CompilerType& type);
     void SetExternalSource(void* baton, CompleteTypeCallback callback) {
         m_complete_type = callback;
         m_complete_type_this = baton;
@@ -89,157 +131,185 @@ public:
     // Tests
     //----------------------------------------------------------------------
     
-    static bool IsGoString(const ClangASTType& type);
-    static bool IsGoSlice(const ClangASTType& type);
-    static bool IsGoInterface(const ClangASTType& type);
+    static bool IsGoString(const CompilerType& type);
+    static bool IsGoSlice(const CompilerType& type);
+    static bool IsGoInterface(const CompilerType& type);
     static bool IsDirectIface(uint8_t kind);
     static bool IsPointerKind(uint8_t kind);
     
     virtual bool
     IsArrayType (void * type,
-                 ClangASTType *element_type,
+                 CompilerType *element_type,
                  uint64_t *size,
-                 bool *is_incomplete);
+                 bool *is_incomplete) override;
     
     virtual bool
-    IsAggregateType (void * type);
+    IsAggregateType (void * type) override;
     
     virtual bool
-    IsCharType (void * type);
+    IsCharType (void * type) override;
     
     virtual bool
-    IsCompleteType (void * type);
+    IsCompleteType (void * type) override;
     
     virtual bool
-    IsDefined(void * type);
+    IsDefined(void * type) override;
     
     virtual bool
-    IsFloatingPointType (void * type, uint32_t &count, bool &is_complex);
+    IsFloatingPointType (void * type, uint32_t &count, bool &is_complex) override;
     
     virtual bool
-    IsFunctionType (void * type, bool *is_variadic_ptr = NULL);
+    IsFunctionType (void * type, bool *is_variadic_ptr = NULL) override;
     
     virtual size_t
-    GetNumberOfFunctionArguments (void * type);
+    GetNumberOfFunctionArguments (void * type) override;
     
-    virtual ClangASTType
-    GetFunctionArgumentAtIndex (void * type, const size_t index);
-    
-    virtual bool
-    IsFunctionPointerType (void * type);
+    virtual CompilerType
+    GetFunctionArgumentAtIndex (void * type, const size_t index) override;
     
     virtual bool
-    IsIntegerType (void * type, bool &is_signed);
+    IsFunctionPointerType (void * type) override;
+    
+    virtual bool
+    IsIntegerType (void * type, bool &is_signed) override;
     
     virtual bool
     IsPossibleDynamicType (void * type,
-                           ClangASTType *target_type, // Can pass NULL
+                           CompilerType *target_type, // Can pass NULL
                            bool check_cplusplus,
-                           bool check_objc);
+                           bool check_objc) override;
     
     virtual bool
-    IsPointerType (void * type, ClangASTType *pointee_type = NULL);
+    IsPointerType (void * type, CompilerType *pointee_type = NULL) override;
     
     virtual bool
-    IsScalarType (void * type);
+    IsScalarType (void * type) override;
     
     virtual bool
-    IsVoidType (void * type);
+    IsVoidType (void * type) override;
     
     //----------------------------------------------------------------------
     // Type Completion
     //----------------------------------------------------------------------
     
     virtual bool
-    GetCompleteType (void * type);
+    GetCompleteType (void * type) override;
     
     //----------------------------------------------------------------------
     // AST related queries
     //----------------------------------------------------------------------
     
     virtual uint32_t
-    GetPointerByteSize ();
+    GetPointerByteSize () override;
     
     //----------------------------------------------------------------------
     // Accessors
     //----------------------------------------------------------------------
     
     virtual ConstString
-    GetTypeName (void * type);
+    GetTypeName (void * type) override;
     
     virtual uint32_t
-    GetTypeInfo (void * type, ClangASTType *pointee_or_element_clang_type = NULL);
+    GetTypeInfo (void * type, CompilerType *pointee_or_element_clang_type = NULL) override;
     
     virtual lldb::LanguageType
-    GetMinimumLanguage (void * type);
+    GetMinimumLanguage (void * type) override;
     
     virtual lldb::TypeClass
-    GetTypeClass (void * type);
+    GetTypeClass (void * type) override;
     
     //----------------------------------------------------------------------
     // Creating related types
     //----------------------------------------------------------------------
     
-    virtual ClangASTType
-    GetArrayElementType (void * type, uint64_t *stride = nullptr);
+    virtual CompilerType
+    GetArrayElementType (void * type, uint64_t *stride = nullptr) override;
     
-    virtual ClangASTType
-    GetCanonicalType (void * type);
+    virtual CompilerType
+    GetCanonicalType (void * type) override;
     
     // Returns -1 if this isn't a function of if the function doesn't have a prototype
     // Returns a value >= 0 if there is a prototype.
     virtual int
-    GetFunctionArgumentCount (void * type);
+    GetFunctionArgumentCount (void * type) override;
     
-    virtual ClangASTType
-    GetFunctionArgumentTypeAtIndex (void * type, size_t idx);
+    virtual CompilerType
+    GetFunctionArgumentTypeAtIndex (void * type, size_t idx) override;
     
-    virtual ClangASTType
-    GetFunctionReturnType (void * type);
+    virtual CompilerType
+    GetFunctionReturnType (void * type) override;
     
     virtual size_t
-    GetNumMemberFunctions (void * type);
+    GetNumMemberFunctions (void * type) override;
     
     virtual TypeMemberFunctionImpl
-    GetMemberFunctionAtIndex (void * type, size_t idx);
+    GetMemberFunctionAtIndex (void * type, size_t idx) override;
     
-    virtual ClangASTType
-    GetPointeeType (void * type);
+    virtual CompilerType
+    GetPointeeType (void * type) override;
     
-    virtual ClangASTType
-    GetPointerType (void * type);
+    virtual CompilerType
+    GetPointerType (void * type) override;
     
     //----------------------------------------------------------------------
     // Exploring the type
     //----------------------------------------------------------------------
     
     virtual uint64_t
-    GetBitSize (void * type, ExecutionContextScope *exe_scope);
+    GetBitSize (void * type, ExecutionContextScope *exe_scope) override;
     
     virtual lldb::Encoding
-    GetEncoding (void * type, uint64_t &count);
+    GetEncoding (void * type, uint64_t &count) override;
     
     virtual lldb::Format
-    GetFormat (void * type);
+    GetFormat (void * type) override;
     
     virtual uint32_t
-    GetNumChildren (void * type, bool omit_empty_base_classes);
+    GetNumChildren (void * type, bool omit_empty_base_classes) override;
     
     virtual lldb::BasicType
-    GetBasicTypeEnumeration (void * type);
+    GetBasicTypeEnumeration (void * type) override;
     
     virtual uint32_t
-    GetNumFields (void * type);
+    GetNumFields (void * type) override;
     
-    virtual ClangASTType
+    virtual CompilerType
     GetFieldAtIndex (void * type,
                      size_t idx,
                      std::string& name,
                      uint64_t *bit_offset_ptr,
                      uint32_t *bitfield_bit_size_ptr,
-                     bool *is_bitfield_ptr);
+                     bool *is_bitfield_ptr) override;
     
-    virtual ClangASTType
+    virtual uint32_t
+    GetNumDirectBaseClasses (void *type) override
+    {
+        return 0;
+    }
+    
+    virtual uint32_t
+    GetNumVirtualBaseClasses (void *type) override
+    {
+        return 0;
+    }
+    
+    virtual CompilerType
+    GetDirectBaseClassAtIndex (void *type,
+                               size_t idx,
+                               uint32_t *bit_offset_ptr) override
+    {
+        return CompilerType();
+    }
+    
+    virtual CompilerType
+    GetVirtualBaseClassAtIndex (void *type,
+                                size_t idx,
+                                uint32_t *bit_offset_ptr) override
+    {
+        return CompilerType();
+    }
+    
+    virtual CompilerType
     GetChildClangTypeAtIndex (void * type,
                               ExecutionContext *exe_ctx,
                               size_t idx,
@@ -253,14 +323,14 @@ public:
                               uint32_t &child_bitfield_bit_offset,
                               bool &child_is_base_class,
                               bool &child_is_deref_of_parent,
-                              ValueObject *valobj);
+                              ValueObject *valobj) override;
     
     // Lookup a child given a name. This function will match base class names
     // and member member names in "clang_type" only, not descendants.
     virtual uint32_t
     GetIndexOfChildWithName (void * type,
                              const char *name,
-                             bool omit_empty_base_classes);
+                             bool omit_empty_base_classes) override;
     
     // Lookup a child member given a name. This function will match member names
     // only and will descend into "clang_type" children in search for the first
@@ -271,7 +341,21 @@ public:
     GetIndexOfChildMemberWithName (void * type,
                                    const char *name,
                                    bool omit_empty_base_classes,
-                                   std::vector<uint32_t>& child_indexes);
+                                   std::vector<uint32_t>& child_indexes) override;
+    
+    virtual size_t
+    GetNumTemplateArguments (void *type) override
+    {
+        return 0;
+    }
+    
+    virtual CompilerType
+    GetTemplateArgument (void *type,
+                         size_t idx,
+                         lldb::TemplateArgumentKind &kind) override
+    {
+        return CompilerType();
+    }
     
     //----------------------------------------------------------------------
     // Dumping types
@@ -289,7 +373,7 @@ public:
                bool show_types,
                bool show_summary,
                bool verbose,
-               uint32_t depth);
+               uint32_t depth) override;
     
     virtual bool
     DumpTypeValue (void * type,
@@ -300,20 +384,20 @@ public:
                    size_t data_byte_size,
                    uint32_t bitfield_bit_size,
                    uint32_t bitfield_bit_offset,
-                   ExecutionContextScope *exe_scope);
+                   ExecutionContextScope *exe_scope) override;
     
     virtual void
-    DumpTypeDescription (void * type); // Dump to stdout
+    DumpTypeDescription (void * type) override; // Dump to stdout
     
     virtual void
-    DumpTypeDescription (void * type, Stream *s);
+    DumpTypeDescription (void * type, Stream *s) override;
     
     //----------------------------------------------------------------------
     // TODO: These methods appear unused. Should they be removed?
     //----------------------------------------------------------------------
     
     virtual bool
-    IsRuntimeGeneratedType (void * type);
+    IsRuntimeGeneratedType (void * type) override;
     
     virtual void
     DumpSummary (void * type,
@@ -321,7 +405,7 @@ public:
                  Stream *s,
                  const DataExtractor &data,
                  lldb::offset_t data_offset,
-                 size_t data_byte_size);
+                 size_t data_byte_size) override;
         
     // Converts "s" to a floating point value and place resulting floating
     // point bytes in the "dst" buffer.
@@ -329,59 +413,59 @@ public:
     ConvertStringToFloatValue (void * type,
                                const char *s,
                                uint8_t *dst,
-                               size_t dst_size);
+                               size_t dst_size) override;
     
     //----------------------------------------------------------------------
     // TODO: Determine if these methods should move to ClangASTContext.
     //----------------------------------------------------------------------
     
     virtual bool
-    IsPointerOrReferenceType (void * type, ClangASTType *pointee_type = NULL);
+    IsPointerOrReferenceType (void * type, CompilerType *pointee_type = NULL) override;
     
     virtual unsigned
-    GetTypeQualifiers(void * type);
+    GetTypeQualifiers(void * type) override;
     
     virtual bool
-    IsCStringType (void * type, uint32_t &length);
+    IsCStringType (void * type, uint32_t &length) override;
     
     virtual size_t
-    GetTypeBitAlign (void * type);
+    GetTypeBitAlign (void * type) override;
     
-    virtual ClangASTType
-    GetBasicTypeFromAST (void * type, lldb::BasicType basic_type);
-    
-    virtual bool
-    IsBeingDefined (void * type);
+    virtual CompilerType
+    GetBasicTypeFromAST (lldb::BasicType basic_type) override;
     
     virtual bool
-    IsConst(void * type);
+    IsBeingDefined (void * type) override;
+    
+    virtual bool
+    IsConst(void * type) override;
     
     virtual uint32_t
-    IsHomogeneousAggregate (void * type, ClangASTType* base_type_ptr);
+    IsHomogeneousAggregate (void * type, CompilerType* base_type_ptr) override;
     
     virtual bool
-    IsPolymorphicClass (void * type);
+    IsPolymorphicClass (void * type) override;
     
     virtual bool
-    IsTypedefType (void * type);
+    IsTypedefType (void * type) override;
     
     // If the current object represents a typedef type, get the underlying type
-    virtual ClangASTType
-    GetTypedefedType (void * type);
+    virtual CompilerType
+    GetTypedefedType (void * type) override;
     
     virtual bool
     IsVectorType (void * type,
-                  ClangASTType *element_type,
-                  uint64_t *size);
+                  CompilerType *element_type,
+                  uint64_t *size) override;
     
-    virtual ClangASTType
-    GetFullyUnqualifiedType (void * type);
+    virtual CompilerType
+    GetFullyUnqualifiedType (void * type) override;
     
-    virtual ClangASTType
-    GetNonReferenceType (void * type);
+    virtual CompilerType
+    GetNonReferenceType (void * type) override;
     
     virtual bool
-    IsReferenceType (void * type, ClangASTType *pointee_type = nullptr, bool* is_rvalue = nullptr);
+    IsReferenceType (void * type, CompilerType *pointee_type = nullptr, bool* is_rvalue = nullptr) override;
     
 private:
     typedef std::map<ConstString, std::unique_ptr<GoType>> TypeMap;

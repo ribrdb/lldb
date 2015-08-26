@@ -79,7 +79,7 @@ lldb_private::formatters::LibstdcppMapIteratorSyntheticFrontEnd::Update()
     m_pair_address += (is_64bit ? 32 : 16);
     
     CompilerType my_type(valobj_sp->GetCompilerType());
-    if (ClangASTContext::GetNumTemplateArguments(my_type) >= 1)
+    if (my_type.GetNumTemplateArguments() >= 1)
     {
         TemplateArgumentKind kind;
         CompilerType pair_type = my_type.GetTemplateArgument(0, kind);

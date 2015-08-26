@@ -101,7 +101,7 @@ public:
     }
 
 private:
-    ClangASTType m_type;
+    CompilerType m_type;
     lldb::addr_t m_base_data_address;
     size_t m_len;
     std::vector<lldb::ValueObjectSP> m_children;

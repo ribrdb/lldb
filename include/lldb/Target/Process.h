@@ -3285,7 +3285,6 @@ protected:
     bool
     PrivateStateThreadIsValid () const
     {
-        Mutex::Locker locker(m_thread_mutex);
         return m_private_state_thread.IsJoinable();
     }
     

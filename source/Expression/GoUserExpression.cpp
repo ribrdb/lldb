@@ -92,7 +92,7 @@ public:
     ValueObjectSP VisitSliceExpr(const GoASTSliceExpr* e) { return NotImplemented(e); }
     ValueObjectSP VisitStructType(const GoASTStructType* e) { return NotImplemented(e); }
 
-    ClangASTType EvaluateType(const GoASTExpr* e);
+    CompilerType EvaluateType(const GoASTExpr* e);
 
 private:
     std::nullptr_t NotImplemented(const GoASTExpr* e)
@@ -128,10 +128,10 @@ FindGlobalVariable(TargetSP target, llvm::Twine name)
     return nullptr;
 }
     
-ClangASTType LookupType(TargetSP target, ConstString name)
+CompilerType LookupType(TargetSP target, ConstString name)
 {
     if (!target)
-        return ClangASTType();
+        return CompilerType();
     SymbolContext sc;
     TypeList type_list;
     uint32_t num_matches = target->GetImages().FindTypes (sc,
@@ -140,9 +140,9 @@ ClangASTType LookupType(TargetSP target, ConstString name)
                                                           2,
                                                           type_list);
     if (num_matches > 0) {
-        return type_list.GetTypeAtIndex(0)->GetClangFullType();
+        return type_list.GetTypeAtIndex(0)->GetFullCompilerType();
     }
-    return ClangASTType();
+    return CompilerType();
 
 }
 }  // namespace
@@ -294,7 +294,7 @@ GoInterpreter::VisitIdent(const GoASTIdent* e)
                     return nullptr;
             }
             ValueObjectSP regVal = ValueObjectRegister::Create(m_frame.get(), reg_ctx_sp, reg->kinds[eRegisterKindLLDB]);
-            ClangASTType goType = LookupType(m_frame->CalculateTarget(), ConstString(type));
+            CompilerType goType = LookupType(m_frame->CalculateTarget(), ConstString(type));
             if (regVal)
             {
                 regVal = regVal->Cast(goType);
@@ -339,7 +339,7 @@ GoInterpreter::VisitSelectorExpr(const lldb_private::GoASTSelectorExpr *e)
     ValueObjectSP target = EvaluateExpr(e->GetX());
     if (target)
     {
-        if (target->GetClangType().IsPointerType())
+        if (target->GetCompilerType().IsPointerType())
         {
             target = target->Dereference(m_error);
             if (m_error.Fail())
@@ -390,7 +390,7 @@ GoInterpreter::VisitBasicLit(const lldb_private::GoASTBasicLit *e)
     enc.PutU64(0, static_cast<uint64_t>(intvalue));
     DataExtractor data(buf, order, addr_size);
 
-    ClangASTType type = LookupType(target, ConstString("int64"));
+    CompilerType type = LookupType(target, ConstString("int64"));
     ExecutionContext exe_ctx;
     m_frame->CalculateExecutionContext(exe_ctx);
     return ValueObject::CreateValueObjectFromData(nullptr, data, exe_ctx, type);
@@ -406,7 +406,7 @@ GoInterpreter::VisitIndexExpr(const lldb_private::GoASTIndexExpr *e)
     if (!index)
         return nullptr;
     bool is_signed;
-    if (!index->GetClangType().IsIntegerType(is_signed))
+    if (!index->GetCompilerType().IsIntegerType(is_signed))
     {
         m_error.SetErrorString("Unsupported index");
         return nullptr;
@@ -429,7 +429,7 @@ GoInterpreter::VisitUnaryExpr(const GoASTUnaryExpr* e)
     {
         case GoLexer::OP_AMP:
         {
-            ClangASTType type = x->GetClangType().GetPointerType();
+            CompilerType type = x->GetCompilerType().GetPointerType();
             uint64_t address = x->GetAddressOf();
             ExecutionContext exe_ctx;
             m_frame->CalculateExecutionContext(exe_ctx);
@@ -443,13 +443,13 @@ GoInterpreter::VisitUnaryExpr(const GoASTUnaryExpr* e)
     }
 }
 
-ClangASTType
+CompilerType
 GoInterpreter::EvaluateType(const GoASTExpr* e)
 {
     TargetSP target = m_frame->CalculateTarget();
     if (auto* id = llvm::dyn_cast<GoASTIdent>(e))
     {
-        ClangASTType result = LookupType(target, ConstString(id->GetName().m_value));
+        CompilerType result = LookupType(target, ConstString(id->GetName().m_value));
         if (result.IsValid())
             return result;
         std::string fullname = (m_package + "." + id->GetName().m_value).str();
@@ -476,29 +476,29 @@ GoInterpreter::EvaluateType(const GoASTExpr* e)
         if (package.empty())
         {
             m_error.SetErrorStringWithFormat("Invalid %s in type expression", sel->GetX()->GetKindName());
-            return ClangASTType();
+            return CompilerType();
         }
         std::string fullname = (package + "." + sel->GetSel()->GetName().m_value).str();
-        ClangASTType result = LookupType(target, ConstString(fullname));
+        CompilerType result = LookupType(target, ConstString(fullname));
         if (!result)
             m_error.SetErrorStringWithFormat("Unknown type %s", fullname.c_str());
         return result;
     }
     if (auto* star = llvm::dyn_cast<GoASTStarExpr>(e))
     {
-        ClangASTType elem = EvaluateType(star->GetX());
+        CompilerType elem = EvaluateType(star->GetX());
         return elem.GetPointerType();
     }
     if (auto* paren = llvm::dyn_cast<GoASTParenExpr>(e))
         return EvaluateType(paren->GetX());
     if (auto* array = llvm::dyn_cast<GoASTArrayType>(e))
     {
-        ClangASTType elem = EvaluateType(array->GetElt());
+        CompilerType elem = EvaluateType(array->GetElt());
         
     }
     
     m_error.SetErrorStringWithFormat("Invalid %s in type expression", e->GetKindName());
-    return ClangASTType();
+    return CompilerType();
 }
 
 ValueObjectSP
@@ -511,7 +511,7 @@ GoInterpreter::VisitCallExpr(const lldb_private::GoASTCallExpr *e)
         return nullptr;
     }
     m_error.Clear();
-    ClangASTType type = EvaluateType(e->GetFun());
+    CompilerType type = EvaluateType(e->GetFun());
     if (!type)
     {
         return nullptr;

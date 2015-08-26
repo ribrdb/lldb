@@ -11,7 +11,7 @@
 
 #include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/StringPrinter.h"
-#include "lldb/Symbol/ClangASTType.h"
+#include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -66,9 +66,9 @@ public:
     
     int GetGoKind() const { return m_kind; }
     const ConstString& GetName() const { return m_name; }
-    virtual ClangASTType GetElementType() const
+    virtual CompilerType GetElementType() const
     {
-        return ClangASTType();
+        return CompilerType();
     }
     
     bool
@@ -98,12 +98,12 @@ private:
 class GoElem : public GoType
 {
 public:
-    GoElem(int kind, const ConstString& name, const ClangASTType& elem) : GoType(kind, name), m_elem(elem) { }
-    virtual ClangASTType GetElementType() const { return m_elem; }
+    GoElem(int kind, const ConstString& name, const CompilerType& elem) : GoType(kind, name), m_elem(elem) { }
+    virtual CompilerType GetElementType() const { return m_elem; }
 
 private:
     // TODO: should we store this differently?
-    ClangASTType m_elem;
+    CompilerType m_elem;
 
     GoElem(const GoElem&) = delete;
     const GoElem& operator=(const GoElem&) = delete;
@@ -112,7 +112,7 @@ private:
 class GoArray : public GoElem
 {
 public:
-    GoArray(const ConstString& name, int64_t length, const ClangASTType& elem) : GoElem(KIND_ARRAY, name, elem), m_length(length) { }
+    GoArray(const ConstString& name, int64_t length, const CompilerType& elem) : GoElem(KIND_ARRAY, name, elem), m_length(length) { }
     
     int64_t GetLength() const { return m_length; }
 private:
@@ -137,11 +137,11 @@ class GoStruct : public GoType
 {
 public:
     struct Field {
-        Field(const ConstString& name, const ClangASTType& type, uint64_t offset) : m_name(name), m_type(type), m_byte_offset(offset)
+        Field(const ConstString& name, const CompilerType& type, uint64_t offset) : m_name(name), m_type(type), m_byte_offset(offset)
         {
         }
         ConstString m_name;
-        ClangASTType m_type;
+        CompilerType m_type;
         uint64_t m_byte_offset;
     };
 
@@ -157,7 +157,7 @@ public:
     }
 
     void
-    AddField(const ConstString& name, const ClangASTType& type, uint64_t offset)
+    AddField(const ConstString& name, const CompilerType& type, uint64_t offset)
     {
         m_fields.push_back(Field(name, type, offset));
     }
@@ -223,7 +223,7 @@ GoASTContext::~GoASTContext() { }
 
 bool
 GoASTContext::IsArrayType (void * type,
-                           ClangASTType *element_type,
+                           CompilerType *element_type,
                            uint64_t *size,
                            bool *is_incomplete)
 {
@@ -254,7 +254,7 @@ GoASTContext::IsArrayType (void * type,
 
 bool
 GoASTContext::IsVectorType (void * type,
-              ClangASTType *element_type,
+              CompilerType *element_type,
               uint64_t *size)
 {
     if (element_type)
@@ -360,7 +360,7 @@ GoASTContext::IsFunctionType (void * type, bool *is_variadic_ptr)
 }
 
 uint32_t
-GoASTContext::IsHomogeneousAggregate (void * type, ClangASTType* base_type_ptr)
+GoASTContext::IsHomogeneousAggregate (void * type, CompilerType* base_type_ptr)
 {
     return false;
 }
@@ -371,7 +371,7 @@ GoASTContext::GetNumberOfFunctionArguments (void * type)
     assert(false);
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetFunctionArgumentAtIndex (void * type, const size_t index)
 {
     assert(false);
@@ -407,7 +407,7 @@ GoASTContext::IsPolymorphicClass (void * type)
 
 bool
 GoASTContext::IsPossibleDynamicType (void * type,
-                                     ClangASTType *target_type, // Can pass NULL
+                                     CompilerType *target_type, // Can pass NULL
                                      bool check_cplusplus,
                                      bool check_objc)
 {
@@ -425,7 +425,7 @@ GoASTContext::IsRuntimeGeneratedType (void * type)
 }
 
 bool
-GoASTContext::IsPointerType (void * type, ClangASTType *pointee_type)
+GoASTContext::IsPointerType (void * type, CompilerType *pointee_type)
 {
     if (!type)
         return false;
@@ -446,13 +446,13 @@ GoASTContext::IsPointerType (void * type, ClangASTType *pointee_type)
 }
 
 bool
-GoASTContext::IsPointerOrReferenceType (void * type, ClangASTType *pointee_type)
+GoASTContext::IsPointerOrReferenceType (void * type, CompilerType *pointee_type)
 {
     return IsPointerType(type, pointee_type);
 }
 
 bool
-GoASTContext::IsReferenceType (void * type, ClangASTType *pointee_type, bool* is_rvalue)
+GoASTContext::IsReferenceType (void * type, CompilerType *pointee_type, bool* is_rvalue)
 {
     return false;
 }
@@ -497,7 +497,7 @@ GoASTContext::GetCompleteType (void * type)
             return true;
         if (!m_complete_type)
             return false;
-        ClangASTType clang_type(this, s);
+        CompilerType clang_type(this, s);
         m_complete_type(m_complete_type_this, clang_type);
     }
             return true;
@@ -526,7 +526,7 @@ GoASTContext::GetTypeName (void * type)
 }
 
 uint32_t
-GoASTContext::GetTypeInfo (void * type, ClangASTType *pointee_or_element_clang_type)
+GoASTContext::GetTypeInfo (void * type, CompilerType *pointee_or_element_clang_type)
 {
     if (pointee_or_element_clang_type)
         pointee_or_element_clang_type->Clear();
@@ -609,7 +609,7 @@ GoASTContext::GetTypeQualifiers(void * type)
 // Creating related types
 //----------------------------------------------------------------------
 
-ClangASTType
+CompilerType
 GoASTContext::GetArrayElementType (void * type, uint64_t *stride)
 {
     GoArray* array = static_cast<GoType*>(type)->GetArray();
@@ -621,22 +621,22 @@ GoASTContext::GetArrayElementType (void * type, uint64_t *stride)
         }
         return array->GetElementType();
     }
-    return ClangASTType();
+    return CompilerType();
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetCanonicalType (void * type)
 {
     GoType* t = static_cast<GoType*>(type);
     if (t->IsTypedef())
         return t->GetElementType();
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetFullyUnqualifiedType (void * type)
 {
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
 
 // Returns -1 if this isn't a function of if the function doesn't have a prototype
@@ -647,16 +647,16 @@ GoASTContext::GetFunctionArgumentCount (void * type)
     return GetNumberOfFunctionArguments(type);
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetFunctionArgumentTypeAtIndex (void * type, size_t idx)
 {
     return GetFunctionArgumentAtIndex(type, idx);
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetFunctionReturnType (void * type)
 {
-    ClangASTType result;
+    CompilerType result;
     if (type)
     {
         GoType* t = static_cast<GoType*>(type);
@@ -678,49 +678,49 @@ GoASTContext::GetMemberFunctionAtIndex (void * type, size_t idx)
     assert(false);
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetNonReferenceType (void * type)
 {
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetPointeeType (void * type)
 {
     if (!type)
-        return ClangASTType();
+        return CompilerType();
     return static_cast<GoType*>(type)->GetElementType();
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetPointerType (void * type)
 {
     if (!type)
-        return ClangASTType();
+        return CompilerType();
     ConstString type_name = GetTypeName(type);
     ConstString pointer_name(std::string("*") + type_name.GetCString());
     GoType* pointer = (*m_types)[pointer_name].get();
     if (pointer == nullptr)
     {
-        pointer = new GoElem(GoType::KIND_PTR, pointer_name, ClangASTType(this, type));
+        pointer = new GoElem(GoType::KIND_PTR, pointer_name, CompilerType(this, type));
         (*m_types)[pointer_name].reset(pointer);
     }
-    return ClangASTType(this, pointer);
+    return CompilerType(this, pointer);
 }
 
 // If the current object represents a typedef type, get the underlying type
-ClangASTType
+CompilerType
 GoASTContext::GetTypedefedType (void * type)
 {
     if (IsTypedefType(type))
         return static_cast<GoType*>(type)->GetElementType();
-    return ClangASTType();
+    return CompilerType();
 }
 
 //----------------------------------------------------------------------
 // Create related types using the current type's AST
 //----------------------------------------------------------------------
-ClangASTType
+CompilerType
 GoASTContext::GetBasicTypeFromAST (void * type, lldb::BasicType basic_type)
 {
     assert(false);
@@ -861,7 +861,7 @@ GoASTContext::GetNumChildren (void * type, bool omit_empty_base_classes)
     GoType* t = static_cast<GoType*>(type);
     if (t->GetGoKind() == GoType::KIND_PTR)
     {
-        ClangASTType elem = t->GetElementType();
+        CompilerType elem = t->GetElementType();
         uint32_t ptr_children = elem.GetNumChildren(omit_empty_base_classes);
         if (ptr_children != 0)
             return ptr_children;
@@ -892,7 +892,7 @@ GoASTContext::GetNumFields (void * type)
     return 0;
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetFieldAtIndex (void * type,
                                size_t idx,
                                std::string& name,
@@ -908,7 +908,7 @@ GoASTContext::GetFieldAtIndex (void * type,
         *is_bitfield_ptr = false;
     
     if (!type || !GetCompleteType(type))
-        return ClangASTType();
+        return CompilerType();
     
     GoType* t = static_cast<GoType*>(type);
     if (t->IsTypedef())
@@ -926,10 +926,10 @@ GoASTContext::GetFieldAtIndex (void * type,
             return field->m_type;
         }
     }
-    return ClangASTType();
+    return CompilerType();
 }
 
-ClangASTType
+CompilerType
 GoASTContext::GetChildClangTypeAtIndex (void * type,
                                         ExecutionContext *exe_ctx,
                                         size_t idx,
@@ -954,22 +954,22 @@ GoASTContext::GetChildClangTypeAtIndex (void * type,
     child_is_deref_of_parent = false;
 
     if (!type || !GetCompleteType(type))
-        return ClangASTType();
+        return CompilerType();
 
     GoType* t = static_cast<GoType*>(type);
     if (t->GetStruct())
     {
         uint64_t bit_offset;
-        ClangASTType ret = GetFieldAtIndex(type, idx, child_name, &bit_offset, nullptr, nullptr);
+        CompilerType ret = GetFieldAtIndex(type, idx, child_name, &bit_offset, nullptr, nullptr);
         child_byte_size = ret.GetByteSize(exe_ctx ? exe_ctx->GetBestExecutionContextScope() : nullptr);
         child_byte_offset = bit_offset / 8;
         return ret;
     }
     else if (t->GetGoKind() == GoType::KIND_PTR)
     {
-        ClangASTType pointee = t->GetElementType();
+        CompilerType pointee = t->GetElementType();
         if (!pointee.IsValid() || pointee.IsVoidType())
-            return ClangASTType();
+            return CompilerType();
         if (transparent_pointers && pointee.IsAggregateType())
         {
             bool tmp_child_is_deref_of_parent = false;
@@ -1009,7 +1009,7 @@ GoASTContext::GetChildClangTypeAtIndex (void * type,
     {
         if (ignore_array_bounds || idx < a->GetLength())
         {
-            ClangASTType element_type = a->GetElementType();
+            CompilerType element_type = a->GetElementType();
             if (element_type.GetCompleteType())
             {
                 char element_name[64];
@@ -1037,7 +1037,7 @@ GoASTContext::GetChildClangTypeAtIndex (void * type,
                                                             child_is_deref_of_parent,
                                                             valobj);
     }
-    return ClangASTType();
+    return CompilerType();
 }
 
 // Lookup a child given a name. This function will match base class names
@@ -1136,7 +1136,7 @@ GoASTContext::DumpTypeValue (void * type,
         GoType* t = static_cast<GoType*>(type);
         if (t->IsTypedef())
         {
-            ClangASTType typedef_clang_type = t->GetElementType();
+            CompilerType typedef_clang_type = t->GetElementType();
             if (format == eFormatDefault)
                 format = typedef_clang_type.GetFormat();
             uint64_t typedef_byte_size = typedef_clang_type.GetByteSize(exe_scope);
@@ -1241,52 +1241,52 @@ GoASTContext::DumpTypeDescription (void * type, Stream *s)
     assert(false);
 }
 
-ClangASTType
+CompilerType
 GoASTContext::CreateArrayType(const ConstString& name,
-                              const ClangASTType& element_type,
+                              const CompilerType& element_type,
                               int64_t length)
 {
     GoType* type = new GoArray(name, length, element_type);
     (*m_types)[name].reset(type);
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
 
-ClangASTType
+CompilerType
 GoASTContext::CreateBaseType(int go_kind, const lldb_private::ConstString &name, uint64_t byte_size)
 {
     if (go_kind == GoType::KIND_UINT || go_kind == GoType::KIND_INT)
         m_int_byte_size = byte_size;
     GoType* type = new GoType(go_kind, name);
     (*m_types)[name].reset(type);
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
     
-ClangASTType
-GoASTContext::CreateTypedef(int kind, const ConstString& name, ClangASTType impl)
+CompilerType
+GoASTContext::CreateTypedef(int kind, const ConstString& name, CompilerType impl)
 {
     GoType* type = new GoElem(kind, name, impl);
     (*m_types)[name].reset(type);
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
     
-ClangASTType
+CompilerType
 GoASTContext::CreateVoidType(const lldb_private::ConstString &name)
 {
     GoType* type = new GoType(GoType::KIND_LLDB_VOID, name);
     (*m_types)[name].reset(type);
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
     
-ClangASTType
+CompilerType
 GoASTContext::CreateStructType(int kind, const lldb_private::ConstString &name, uint32_t byte_size)
 {
     GoType* type = new GoStruct(kind, name, byte_size);
     (*m_types)[name].reset(type);
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
 
 void
-GoASTContext::AddFieldToStruct(const lldb_private::ClangASTType &struct_type, const lldb_private::ConstString &name, const lldb_private::ClangASTType &field_type, uint32_t byte_offset)
+GoASTContext::AddFieldToStruct(const lldb_private::CompilerType &struct_type, const lldb_private::ConstString &name, const lldb_private::CompilerType &field_type, uint32_t byte_offset)
 {
     if (!struct_type)
         return;
@@ -1299,7 +1299,7 @@ GoASTContext::AddFieldToStruct(const lldb_private::ClangASTType &struct_type, co
 }
 
 void
-GoASTContext::CompleteStructType(const lldb_private::ClangASTType &struct_type)
+GoASTContext::CompleteStructType(const lldb_private::CompilerType &struct_type)
 {
     if (!struct_type)
         return;
@@ -1311,16 +1311,16 @@ GoASTContext::CompleteStructType(const lldb_private::ClangASTType &struct_type)
         s->SetComplete();
 }
     
-ClangASTType
-GoASTContext::CreateFunctionType(const lldb_private::ConstString &name, ClangASTType* params, size_t params_count, bool is_variadic, ClangASTType return_type)
+CompilerType
+GoASTContext::CreateFunctionType(const lldb_private::ConstString &name, CompilerType* params, size_t params_count, bool is_variadic, CompilerType return_type)
 {
     GoType* type = new GoElem(GoType::KIND_FUNC, name, return_type);
     (*m_types)[name].reset(type);
-    return ClangASTType(this, type);
+    return CompilerType(this, type);
 }
     
 bool
-GoASTContext::IsGoString(const lldb_private::ClangASTType &type)
+GoASTContext::IsGoString(const lldb_private::CompilerType &type)
 {
     if (!type.IsValid() || !type.GetTypeSystem()->AsGoASTContext())
         return false;
@@ -1328,7 +1328,7 @@ GoASTContext::IsGoString(const lldb_private::ClangASTType &type)
 }
     
 bool
-GoASTContext::IsGoSlice(const lldb_private::ClangASTType &type)
+GoASTContext::IsGoSlice(const lldb_private::CompilerType &type)
 {
     if (!type.IsValid() || !type.GetTypeSystem()->AsGoASTContext())
         return false;
@@ -1336,7 +1336,7 @@ GoASTContext::IsGoSlice(const lldb_private::ClangASTType &type)
 }
     
 bool
-GoASTContext::IsGoInterface(const lldb_private::ClangASTType &type)
+GoASTContext::IsGoInterface(const lldb_private::CompilerType &type)
 {
     if (!type.IsValid() || !type.GetTypeSystem()->AsGoASTContext())
         return false;
