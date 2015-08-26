@@ -146,7 +146,7 @@ enum
 
 static RegisterInfo g_register_infos[] = 
 {
-  //  NAME      ALT      SZ OFF ENCODING         FORMAT                COMPILER              DWARF                 GENERIC                      GDB                   LLDB NATIVE            VALUE REGS    INVALIDATE REGS
+  //  NAME      ALT      SZ OFF ENCODING         FORMAT                EH_FRAME              DWARF                 GENERIC                      STABS                 LLDB NATIVE            VALUE REGS    INVALIDATE REGS
   //  ======    =======  == === =============    ============          ===================== ===================== ============================ ====================  ====================== ==========    ===============
     { "eax",    NULL,    4,  0, eEncodingUint  , eFormatHex          , { gcc_eax             , dwarf_eax           , LLDB_INVALID_REGNUM       , gdb_eax            , LLDB_INVALID_REGNUM },      NULL,              NULL},
     { "ebx"   , NULL,    4,  0, eEncodingUint  , eFormatHex          , { gcc_ebx             , dwarf_ebx           , LLDB_INVALID_REGNUM       , gdb_ebx            , LLDB_INVALID_REGNUM },      NULL,              NULL},
@@ -236,7 +236,8 @@ ABISP
 ABIMacOSX_i386::CreateInstance (const ArchSpec &arch)
 {
     static ABISP g_abi_sp;
-     if (arch.GetTriple().getArch() == llvm::Triple::x86)
+     if ((arch.GetTriple().getArch() == llvm::Triple::x86) &&
+          (arch.GetTriple().isMacOSX() || arch.GetTriple().isiOS()))
      {
         if (!g_abi_sp)
             g_abi_sp.reset (new ABIMacOSX_i386);
@@ -417,7 +418,7 @@ ABIMacOSX_i386::PrepareNormalCall (Thread &thread,
             break;
         case Value::eValueTypeHostAddress:
             {
-                ClangASTType clang_type (val->GetClangType());
+                CompilerType clang_type (val->GetCompilerType());
                 if (clang_type)
                 {
                     uint32_t cstr_length = 0;
@@ -544,7 +545,7 @@ ABIMacOSX_i386::GetArgumentValues (Thread &thread,
         
         // We currently only support extracting values with Clang QualTypes.
         // Do we care about others?
-        ClangASTType clang_type (value->GetClangType());
+        CompilerType clang_type (value->GetCompilerType());
         if (clang_type)
         {
             bool is_signed;
@@ -552,7 +553,7 @@ ABIMacOSX_i386::GetArgumentValues (Thread &thread,
             if (clang_type.IsIntegerType (is_signed))
             {
                 ReadIntegerArgument(value->GetScalar(),
-                                    clang_type.GetBitSize(nullptr),
+                                    clang_type.GetBitSize(&thread),
                                     is_signed,
                                     thread.GetProcess().get(), 
                                     current_stack_argument);
@@ -560,7 +561,7 @@ ABIMacOSX_i386::GetArgumentValues (Thread &thread,
             else if (clang_type.IsPointerType())
             {
                 ReadIntegerArgument(value->GetScalar(),
-                                    clang_type.GetBitSize(nullptr),
+                                    clang_type.GetBitSize(&thread),
                                     false,
                                     thread.GetProcess().get(),
                                     current_stack_argument);
@@ -581,7 +582,7 @@ ABIMacOSX_i386::SetReturnValueObject(lldb::StackFrameSP &frame_sp, lldb::ValueOb
         return error;
     }
     
-    ClangASTType clang_type = new_value_sp->GetClangType();
+    CompilerType clang_type = new_value_sp->GetCompilerType();
     if (!clang_type)
     {
         error.SetErrorString ("Null clang type for return value.");
@@ -653,7 +654,7 @@ ABIMacOSX_i386::SetReturnValueObject(lldb::StackFrameSP &frame_sp, lldb::ValueOb
 
 ValueObjectSP
 ABIMacOSX_i386::GetReturnValueObjectImpl (Thread &thread,
-                                          ClangASTType &clang_type) const
+                                          CompilerType &clang_type) const
 {
     Value value;
     ValueObjectSP return_valobj_sp;
@@ -662,7 +663,7 @@ ABIMacOSX_i386::GetReturnValueObjectImpl (Thread &thread,
         return return_valobj_sp;
     
     //value.SetContext (Value::eContextTypeClangType, clang_type.GetOpaqueQualType());
-    value.SetClangType (clang_type);
+    value.SetCompilerType (clang_type);
     
     RegisterContext *reg_ctx = thread.GetRegisterContext().get();
         if (!reg_ctx)
@@ -672,7 +673,7 @@ ABIMacOSX_i386::GetReturnValueObjectImpl (Thread &thread,
             
     if (clang_type.IsIntegerType (is_signed))
     {
-        size_t bit_width = clang_type.GetBitSize(nullptr);
+        size_t bit_width = clang_type.GetBitSize(&thread);
         
         unsigned eax_id = reg_ctx->GetRegisterInfoByName("eax", 0)->kinds[eRegisterKindLLDB];
         unsigned edx_id = reg_ctx->GetRegisterInfoByName("edx", 0)->kinds[eRegisterKindLLDB];
@@ -746,8 +747,7 @@ ABIMacOSX_i386::CreateFunctionEntryUnwindPlan (UnwindPlan &unwind_plan)
     uint32_t pc_reg_num = dwarf_eip;
     
     UnwindPlan::RowSP row(new UnwindPlan::Row);
-    row->SetCFARegister (sp_reg_num);
-    row->SetCFAOffset (4);
+    row->GetCFAValue().SetIsRegisterPlusOffset (sp_reg_num, 4);
     row->SetRegisterLocationToAtCFAPlusOffset(pc_reg_num, -4, false);
     row->SetRegisterLocationToIsCFAPlusOffset(sp_reg_num, 0, true);
     unwind_plan.AppendRow (row);
@@ -774,8 +774,7 @@ ABIMacOSX_i386::CreateDefaultUnwindPlan (UnwindPlan &unwind_plan)
     UnwindPlan::RowSP row(new UnwindPlan::Row);
     const int32_t ptr_size = 4;
 
-    row->SetCFARegister (fp_reg_num);
-    row->SetCFAOffset (2 * ptr_size);
+    row->GetCFAValue().SetIsRegisterPlusOffset (fp_reg_num, 2 * ptr_size);
     row->SetOffset (0);
     
     row->SetRegisterLocationToAtCFAPlusOffset(fp_reg_num, ptr_size * -2, true);

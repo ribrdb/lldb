@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test watchpoint modify command to set condition on a watchpoint.
 """
 
@@ -25,7 +25,7 @@ class WatchpointConditionCmdTestCase(TestBase):
         self.exe_name = self.testMethodName
         self.d = {'CXX_SOURCES': self.source, 'EXE': self.exe_name}
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_watchpoint_cond_with_dsym(self):
         """Test watchpoint condition."""
@@ -34,6 +34,8 @@ class WatchpointConditionCmdTestCase(TestBase):
         self.watchpoint_condition()
 
     @dwarf_test
+    @expectedFailureAndroid(archs=['arm', 'aarch64']) # Watchpoints not supported
+    @expectedFailureWindows("llvm.org/pr24446") # WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows
     def test_watchpoint_cond_with_dwarf(self):
         """Test watchpoint condition."""
         self.buildDwarf(dictionary=self.d)

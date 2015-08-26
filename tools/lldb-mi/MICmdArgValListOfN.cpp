@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdArgValListOfN.cpp
-//
-// Overview:    CMICmdArgValListOfN implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmdArgValListOfN.h"
 #include "MICmdArgContext.h"
@@ -36,7 +24,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValListOfN::CMICmdArgValListOfN(void)
+CMICmdArgValListOfN::CMICmdArgValListOfN()
 {
 }
 
@@ -63,7 +51,7 @@ CMICmdArgValListOfN::CMICmdArgValListOfN(const CMIUtilString &vrArgName, const b
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValListOfN::~CMICmdArgValListOfN(void)
+CMICmdArgValListOfN::~CMICmdArgValListOfN()
 {
 }
 
@@ -86,7 +74,7 @@ CMICmdArgValListOfN::Validate(CMICmdArgContext &vwArgContext)
     }
 
     if (vwArgContext.IsEmpty())
-        return MIstatus::success;
+        return m_bMandatory ? MIstatus::failure : MIstatus::success;
 
     const CMIUtilString &rArg(vwArgContext.GetArgsLeftToParse());
     if (IsListOfN(rArg) && CreateList(rArg))
@@ -182,7 +170,7 @@ CMICmdArgValListOfN::IsListOfN(const CMIUtilString &vrTxt) const
 // Throws:  None.
 //--
 const CMICmdArgValListBase::VecArgObjPtr_t &
-CMICmdArgValListOfN::GetExpectedOptions(void) const
+CMICmdArgValListOfN::GetExpectedOptions() const
 {
     return m_argValue;
 }

@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/DataFormatters/CXXFormatterFunctions.h"
 
 #include "lldb/Core/DataBufferHeap.h"
@@ -83,7 +81,7 @@ m_children()
     if (valobj_sp)
     {
         Update();
-        m_bool_type = valobj_sp->GetClangType().GetBasicTypeFromAST(lldb::eBasicTypeBool);
+        m_bool_type = valobj_sp->GetCompilerType().GetBasicTypeFromAST(lldb::eBasicTypeBool);
     }
 }
 
@@ -266,7 +264,7 @@ lldb_private::formatters::LibCxxMapIteratorSyntheticFrontEnd::Update()
                                                      NULL,
                                                      NULL,
                                                      NULL,
-                                                     ValueObject::GetValueForExpressionPathOptions().DontCheckDotVsArrowSyntax().DontAllowSyntheticChildren(),
+                                                     ValueObject::GetValueForExpressionPathOptions().DontCheckDotVsArrowSyntax().SetSyntheticChildrenTraversal(ValueObject::GetValueForExpressionPathOptions::SyntheticChildrenTraversal::None),
                                                      NULL).get();
     
     return false;
@@ -379,7 +377,7 @@ lldb_private::formatters::LibcxxSharedPtrSyntheticFrontEnd::GetChildAtIndex (siz
                 return lldb::ValueObjectSP();
             uint64_t count = 1 + shared_owners_sp->GetValueAsUnsigned(0);
             DataExtractor data(&count, 8, m_byte_order, m_ptr_size);
-            m_count_sp = CreateValueObjectFromData("count", data, valobj_sp->GetExecutionContextRef(), shared_owners_sp->GetClangType());
+            m_count_sp = CreateValueObjectFromData("count", data, valobj_sp->GetExecutionContextRef(), shared_owners_sp->GetCompilerType());
         }
         return m_count_sp;
     }
@@ -392,7 +390,7 @@ lldb_private::formatters::LibcxxSharedPtrSyntheticFrontEnd::GetChildAtIndex (siz
                 return lldb::ValueObjectSP();
             uint64_t count = 1 + shared_weak_owners_sp->GetValueAsUnsigned(0);
             DataExtractor data(&count, 8, m_byte_order, m_ptr_size);
-            m_weak_count_sp = CreateValueObjectFromData("count", data, valobj_sp->GetExecutionContextRef(), shared_weak_owners_sp->GetClangType());
+            m_weak_count_sp = CreateValueObjectFromData("count", data, valobj_sp->GetExecutionContextRef(), shared_weak_owners_sp->GetCompilerType());
         }
         return m_weak_count_sp;
     }

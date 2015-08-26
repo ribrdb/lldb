@@ -10,6 +10,8 @@
 
 // C Includes
 // C++ Includes
+#include <unordered_map>
+
 // Other libraries and framework includes
 #include "lldb/Core/DataBufferHeap.h"
 #include "lldb/Core/Debugger.h"
@@ -19,8 +21,8 @@
 #include "lldb/Core/StreamString.h"
 #include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
-#include "lldb/Symbol/ClangNamespaceDecl.h"
 #include "lldb/Symbol/ObjectFile.h"
+#include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StopInfo.h"
@@ -181,7 +183,7 @@ OperatingSystemGo::Init(ThreadList &threads)
             log->Printf("OperatingSystemGo unable to find struct Gobuf");
         return false;
     }
-    ClangASTType gobuf_type(gobuf_sp->GetClangLayoutType());
+    CompilerType gobuf_type(gobuf_sp->GetLayoutCompilerType());
     for (int idx = 0; idx < real_registers_sp->GetRegisterCount(); ++idx)
     {
         RegisterInfo reg = *real_registers_sp->GetRegisterInfoAtIndex(idx);
@@ -202,7 +204,7 @@ OperatingSystemGo::Init(ThreadList &threads)
         {
             std::string field_name;
             uint64_t bit_offset = 0;
-            ClangASTType field_type = gobuf_type.GetFieldAtIndex(field_index, field_name, &bit_offset, nullptr, nullptr);
+            CompilerType field_type = gobuf_type.GetFieldAtIndex(field_index, field_name, &bit_offset, nullptr, nullptr);
             reg.byte_size = field_type.GetByteSize(nullptr);
             reg.byte_offset = bit_offset / 8;
         }
@@ -397,7 +399,7 @@ OperatingSystemGo::CreateGoroutineAtIndex(uint64_t idx, Error &err)
 {
     err.Clear();
     Goroutine result;
-    ValueObjectSP g = m_allg_sp->GetSyntheticArrayMemberFromPointer(idx, true)->Dereference(err);
+    ValueObjectSP g = m_allg_sp->GetSyntheticArrayMember(idx, true)->Dereference(err);
     if (err.Fail())
     {
         return result;

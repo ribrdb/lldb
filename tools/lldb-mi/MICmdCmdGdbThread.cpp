@@ -7,17 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdGdbThread.cpp
-//
 // Overview:    CMICmdCmdGdbThread      implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 // In-house headers:
 #include "MICmdCmdGdbThread.h"
@@ -31,7 +21,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdGdbThread::CMICmdCmdGdbThread(void)
+CMICmdCmdGdbThread::CMICmdCmdGdbThread()
 {
     // Command factory matches this name with that received from the stdin stream
     m_strMiCmd = "thread";
@@ -47,7 +37,7 @@ CMICmdCmdGdbThread::CMICmdCmdGdbThread(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdGdbThread::~CMICmdCmdGdbThread(void)
+CMICmdCmdGdbThread::~CMICmdCmdGdbThread()
 {
 }
 
@@ -61,7 +51,7 @@ CMICmdCmdGdbThread::~CMICmdCmdGdbThread(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdGdbThread::Execute(void)
+CMICmdCmdGdbThread::Execute()
 {
     // Do nothing
 
@@ -78,7 +68,7 @@ CMICmdCmdGdbThread::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdGdbThread::Acknowledge(void)
+CMICmdCmdGdbThread::Acknowledge()
 {
     const CMICmnMIValueConst miValueConst(MIRSRC(IDS_WORD_NOT_IMPLEMENTED));
     const CMICmnMIValueResult miValueResult("msg", miValueConst);
@@ -97,7 +87,7 @@ CMICmdCmdGdbThread::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdGdbThread::CreateSelf(void)
+CMICmdCmdGdbThread::CreateSelf()
 {
     return new CMICmdCmdGdbThread();
 }

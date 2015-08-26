@@ -31,8 +31,7 @@ public:
     }
 
     bool
-    FindExternalVisibleDeclsByName (const clang::DeclContext *decl_ctx,
-                                    clang::DeclarationName name)
+    FindExternalVisibleDeclsByName(const clang::DeclContext *decl_ctx, clang::DeclarationName name) override
     {
         static unsigned int invocation_id = 0;
         unsigned int current_id = invocation_id++;
@@ -60,7 +59,7 @@ public:
             if (!m_decl_vendor.FinishDecl(non_const_interface_decl))
                 break;
 
-            clang::DeclContext::lookup_const_result result = non_const_interface_decl->lookup(name);
+            clang::DeclContext::lookup_result result = non_const_interface_decl->lookup(name);
 
             return (result.size() != 0);
         }
@@ -70,16 +69,8 @@ public:
         return false;
     }
 
-    clang::ExternalLoadResult
-    FindExternalLexicalDecls (const clang::DeclContext *DC,
-                              bool (*isKindWeWant)(clang::Decl::Kind),
-                              llvm::SmallVectorImpl<clang::Decl*> &Decls)
-    {
-        return clang::ELR_Success;
-    }
-
     void
-    CompleteType (clang::TagDecl *tag_decl)
+    CompleteType(clang::TagDecl *tag_decl) override
     {
         static unsigned int invocation_id = 0;
         unsigned int current_id = invocation_id++;
@@ -109,7 +100,7 @@ public:
     }
 
     void
-    CompleteType (clang::ObjCInterfaceDecl *interface_decl)
+    CompleteType(clang::ObjCInterfaceDecl *interface_decl) override
     {
         static unsigned int invocation_id = 0;
         unsigned int current_id = invocation_id++;
@@ -141,17 +132,16 @@ public:
     }
 
     bool
-    layoutRecordType(const clang::RecordDecl *Record,
-                     uint64_t &Size,
-                     uint64_t &Alignment,
-                     llvm::DenseMap <const clang::FieldDecl *, uint64_t> &FieldOffsets,
-                     llvm::DenseMap <const clang::CXXRecordDecl *, clang::CharUnits> &BaseOffsets,
-                     llvm::DenseMap <const clang::CXXRecordDecl *, clang::CharUnits> &VirtualBaseOffsets)
+    layoutRecordType(const clang::RecordDecl *Record, uint64_t &Size, uint64_t &Alignment,
+                     llvm::DenseMap<const clang::FieldDecl *, uint64_t> &FieldOffsets,
+                     llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits> &BaseOffsets,
+                     llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits> &VirtualBaseOffsets) override
     {
         return false;
     }
 
-    void StartTranslationUnit (clang::ASTConsumer *Consumer)
+    void
+    StartTranslationUnit(clang::ASTConsumer *Consumer) override
     {
         clang::TranslationUnitDecl *translation_unit_decl = m_decl_vendor.m_ast_ctx.getASTContext()->getTranslationUnitDecl();
         translation_unit_decl->setHasExternalVisibleStorage();
@@ -195,7 +185,8 @@ AppleObjCDeclVendor::GetDeclForISA(ObjCLanguageRuntime::ObjCISA isa)
                                                                                 ast_ctx->getTranslationUnitDecl(),
                                                                                 clang::SourceLocation(),
                                                                                 &identifier_info,
-                                                                                NULL);
+                                                                                nullptr,
+                                                                                nullptr);
     
     ClangASTMetadata meta_data;
     meta_data.SetISAPtr(isa);
@@ -366,7 +357,7 @@ public:
         
         clang::Selector sel = ast_ctx.Selectors.getSelector(is_zero_argument ? 0 : selector_components.size(), selector_components.data());
         
-        clang::QualType ret_type = type_realizer_sp->RealizeType(interface_decl->getASTContext(), m_type_vector[0].c_str(), for_expression).GetQualType();
+        clang::QualType ret_type = ClangASTContext::GetQualType(type_realizer_sp->RealizeType(interface_decl->getASTContext(), m_type_vector[0].c_str(), for_expression));
         
         if (ret_type.isNull())
             return NULL;
@@ -393,7 +384,7 @@ public:
              ++ai)
         {
             const bool for_expression = true;
-            clang::QualType arg_type = type_realizer_sp->RealizeType(ast_ctx, m_type_vector[ai].c_str(), for_expression).GetQualType();
+            clang::QualType arg_type = ClangASTContext::GetQualType(type_realizer_sp->RealizeType(ast_ctx, m_type_vector[ai].c_str(), for_expression));
             
             if (arg_type.isNull())
                 return NULL; // well, we just wasted a bunch of time.  Wish we could delete the stuff we'd just made!
@@ -454,8 +445,9 @@ AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl)
             return;
         
         FinishDecl(superclass_decl);
-        
-        interface_decl->setSuperClass(superclass_decl);
+        clang::ASTContext *context = m_ast_ctx.getASTContext();
+        interface_decl->setSuperClass(
+                context->getTrivialTypeSourceInfo(context->getObjCInterfaceType(superclass_decl)));
     };
     
     auto instance_method_func = [log, interface_decl, this](const char *name, const char *types) -> bool
@@ -499,12 +491,12 @@ AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl)
         if (!name || !type)
             return false;
         
-        const bool for_expression = true;
+        const bool for_expression = false;
         
         if (log)
             log->Printf("[  AOTV::FD] Instance variable [%s] [%s], offset at %" PRIx64, name, type, offset_ptr);
         
-        ClangASTType ivar_type = m_runtime.GetEncodingToType()->RealizeType(m_ast_ctx, type, for_expression);
+        CompilerType ivar_type = m_runtime.GetEncodingToType()->RealizeType(m_ast_ctx, type, for_expression);
         
         if (ivar_type.IsValid())
         {
@@ -515,7 +507,7 @@ AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl)
                                                                           clang::SourceLocation(),
                                                                           clang::SourceLocation(),
                                                                           &m_ast_ctx.getASTContext()->Idents.get(name),
-                                                                          ivar_type.GetQualType(),
+                                                                          ClangASTContext::GetQualType(ivar_type),
                                                                           type_source_info,                      // TypeSourceInfo *
                                                                           clang::ObjCIvarDecl::Public,
                                                                           0,
@@ -588,7 +580,7 @@ AppleObjCDeclVendor::FindDecls (const ConstString &name,
         clang::IdentifierInfo &identifier_info = ast_ctx->Idents.get(name.GetStringRef());
         clang::DeclarationName decl_name = ast_ctx->DeclarationNames.getIdentifier(&identifier_info);
         
-        clang::DeclContext::lookup_const_result lookup_result = ast_ctx->getTranslationUnitDecl()->lookup(decl_name);
+        clang::DeclContext::lookup_result lookup_result = ast_ctx->getTranslationUnitDecl()->lookup(decl_name);
         
         if (!lookup_result.empty())
         {

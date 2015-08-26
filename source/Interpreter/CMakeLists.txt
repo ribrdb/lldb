@@ -31,6 +31,7 @@ add_lldb_library(lldbInterpreter
   OptionValueFileSpecLIst.cpp
   OptionValueFormat.cpp
   OptionValueFormatEntity.cpp
+  OptionValueLanguage.cpp
   OptionValuePathMappings.cpp
   OptionValueProperties.cpp
   OptionValueRegex.cpp
@@ -42,8 +43,5 @@ add_lldb_library(lldbInterpreter
   OptionGroupWatchpoint.cpp
   Options.cpp
   Property.cpp
-  PythonDataObjects.cpp
   ScriptInterpreter.cpp
-  ScriptInterpreterNone.cpp
-  ScriptInterpreterPython.cpp
   )

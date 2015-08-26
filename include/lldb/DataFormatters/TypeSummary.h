@@ -25,8 +25,8 @@
 
 #include "lldb/Core/Error.h"
 #include "lldb/Core/FormatEntity.h"
+#include "lldb/Core/StructuredData.h"
 #include "lldb/Core/ValueObject.h"
-#include "lldb/Interpreter/ScriptInterpreterPython.h"
 #include "lldb/Symbol/Type.h"
 
 namespace lldb_private {
@@ -162,6 +162,22 @@ namespace lldb_private {
                     m_flags &= ~lldb::eTypeOptionHideChildren;
                 return *this;
             }
+
+            bool
+            GetHideEmptyAggregates () const
+            {
+                return (m_flags & lldb::eTypeOptionHideEmptyAggregates) == lldb::eTypeOptionHideEmptyAggregates;
+            }
+
+            Flags&
+            SetHideEmptyAggregates (bool value = true)
+            {
+                if (value)
+                    m_flags |= lldb::eTypeOptionHideEmptyAggregates;
+                else
+                    m_flags &= ~lldb::eTypeOptionHideEmptyAggregates;
+                return *this;
+            }
             
             bool
             GetDontShowValue () const
@@ -211,6 +227,22 @@ namespace lldb_private {
                 return *this;
             }
             
+            bool
+            GetNonCacheable () const
+            {
+                return (m_flags & lldb::eTypeOptionNonCacheable) == lldb::eTypeOptionNonCacheable;
+            }
+            
+            Flags&
+            SetNonCacheable (bool value = true)
+            {
+                if (value)
+                    m_flags |= lldb::eTypeOptionNonCacheable;
+                else
+                    m_flags &= ~lldb::eTypeOptionNonCacheable;
+                return *this;
+            }
+            
             uint32_t
             GetValue ()
             {
@@ -252,11 +284,22 @@ namespace lldb_private {
         {
             return m_flags.GetSkipReferences();
         }
+        bool
+        NonCacheable () const
+        {
+            return m_flags.GetNonCacheable();
+        }
         
         virtual bool
         DoesPrintChildren (ValueObject* valobj) const
         {
             return !m_flags.GetDontShowChildren();
+        }
+
+        virtual bool
+        DoesPrintEmptyAggregates () const
+        {
+            return !m_flags.GetHideEmptyAggregates();
         }
         
         virtual bool
@@ -317,6 +360,12 @@ namespace lldb_private {
         SetHideNames (bool value)
         {
             m_flags.SetHideItemNames(value);
+        }
+        
+        virtual void
+        SetNonCacheable (bool value)
+        {
+            m_flags.SetNonCacheable(value);
         }
         
         uint32_t
@@ -381,8 +430,7 @@ namespace lldb_private {
         StringSummaryFormat(const TypeSummaryImpl::Flags& flags,
                             const char* f);
         
-        virtual
-        ~StringSummaryFormat()
+        ~StringSummaryFormat() override
         {
         }
 
@@ -395,23 +443,22 @@ namespace lldb_private {
         void
         SetSummaryString (const char* f);
 
-        virtual bool
+        bool
         FormatObject(ValueObject *valobj,
                      std::string& dest,
-                     const TypeSummaryOptions& options);
+                     const TypeSummaryOptions& options) override;
         
-        virtual std::string
-        GetDescription();
+        std::string
+        GetDescription() override;
         
-        virtual bool
-        IsScripted ()
+        bool
+        IsScripted() override
         {
             return false;
         }
         
-        
-        virtual Type
-        GetType ()
+        Type
+        GetType() override
         {
             return TypeSummaryImpl::eTypeString;
         }
@@ -463,27 +510,26 @@ namespace lldb_private {
                 m_description.clear();
         }
         
-        virtual
-        ~CXXFunctionSummaryFormat ()
+        ~CXXFunctionSummaryFormat() override
         {
         }
         
-        virtual bool
-        FormatObject (ValueObject *valobj,
-                      std::string& dest,
-                      const TypeSummaryOptions& options);
+        bool
+        FormatObject(ValueObject *valobj,
+		     std::string& dest,
+		     const TypeSummaryOptions& options) override;
         
-        virtual std::string
-        GetDescription ();
+        std::string
+        GetDescription() override;
         
-        virtual bool
-        IsScripted ()
+        bool
+        IsScripted() override
         {
             return false;
         }
         
-        virtual Type
-        GetType ()
+        Type
+        GetType() override
         {
             return TypeSummaryImpl::eTypeCallback;
         }
@@ -501,8 +547,8 @@ namespace lldb_private {
     {
         std::string m_function_name;
         std::string m_python_script;
-        lldb::ScriptInterpreterObjectSP m_script_function_sp;
-        
+        StructuredData::ObjectSP m_script_function_sp;
+
         ScriptSummaryFormat(const TypeSummaryImpl::Flags& flags,
                             const char *function_name,
                             const char* python_script = NULL);
@@ -538,33 +584,31 @@ namespace lldb_private {
                 m_python_script.clear();
         }
         
-        virtual
-        ~ScriptSummaryFormat ()
+        ~ScriptSummaryFormat() override
         {
         }
         
-        virtual bool
-        FormatObject (ValueObject *valobj,
-                      std::string& dest,
-                      const TypeSummaryOptions& options);
+        bool
+        FormatObject(ValueObject *valobj,
+		     std::string& dest,
+		     const TypeSummaryOptions& options) override;
         
-        virtual std::string
-        GetDescription ();
+        std::string
+        GetDescription() override;
         
-        virtual bool
-        IsScripted ()
+        bool
+        IsScripted() override
         {
             return true;
         }
         
-        virtual Type
-        GetType ()
+        Type
+        GetType() override
         {
             return TypeSummaryImpl::eTypeScript;
         }
         
         typedef std::shared_ptr<ScriptSummaryFormat> SharedPointer;
-        
         
     private:
         DISALLOW_COPY_AND_ASSIGN(ScriptSummaryFormat);
@@ -572,4 +616,4 @@ namespace lldb_private {
 #endif
 } // namespace lldb_private
 
-#endif	// lldb_TypeSummary_h_
+#endif // lldb_TypeSummary_h_

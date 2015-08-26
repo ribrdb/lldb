@@ -14,13 +14,13 @@
 // Other libraries and framework includes
 // Project includes
 #include "lldb/Breakpoint/Breakpoint.h"
-#include "lldb/lldb-private-log.h"
 #include "lldb/Core/Log.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Symbol/Block.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Type.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StopInfo.h"
@@ -262,9 +262,7 @@ ThreadPlanStepOut::DoPlanExplainsStop (Event *event_ptr)
     if (stop_info_sp)
     {
         StopReason reason = stop_info_sp->GetStopReason();
-        switch (reason)
-        {
-        case eStopReasonBreakpoint:
+        if (reason == eStopReasonBreakpoint)
         {
             // If this is OUR breakpoint, we're fine, otherwise we don't know why this happened...
             BreakpointSiteSP site_sp (m_thread.GetProcess()->GetBreakpointSiteList().FindByID (stop_info_sp->GetValue()));
@@ -310,16 +308,10 @@ ThreadPlanStepOut::DoPlanExplainsStop (Event *event_ptr)
             }
             return false;
         }
-        case eStopReasonWatchpoint:
-        case eStopReasonSignal:
-        case eStopReasonException:
-        case eStopReasonExec:
-        case eStopReasonThreadExiting:
+        else if (IsUsuallyUnexplainedStopReason(reason))
             return false;
-
-        default:
+        else
             return true;
-        }
     }
     return true;
 }
@@ -541,7 +533,7 @@ ThreadPlanStepOut::CalculateReturnValue ()
         
     if (m_immediate_step_from_function != NULL)
     {
-        ClangASTType return_clang_type = m_immediate_step_from_function->GetClangType().GetFunctionReturnType();
+        CompilerType return_clang_type = m_immediate_step_from_function->GetCompilerType().GetFunctionReturnType();
         if (return_clang_type)
         {
             lldb::ABISP abi_sp = m_thread.GetProcess()->GetABI();

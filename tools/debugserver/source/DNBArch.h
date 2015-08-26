@@ -27,7 +27,7 @@ class MachThread;
 
 typedef DNBArchProtocol * (* DNBArchCallbackCreate)(MachThread *thread);
 typedef const DNBRegisterSetInfo * (* DNBArchCallbackGetRegisterSetInfo)(nub_size_t *num_reg_sets);
-typedef const uint8_t * const (* DNBArchCallbackGetBreakpointOpcode)(nub_size_t byte_size);
+typedef const uint8_t * (* DNBArchCallbackGetBreakpointOpcode)(nub_size_t byte_size);
 
 typedef struct DNBArchPluginInfoTag
 {
@@ -43,10 +43,13 @@ public:
     static DNBArchProtocol *
     Create (MachThread *thread);
 
+    static uint32_t
+    GetRegisterCPUType ();
+
     static const DNBRegisterSetInfo * 
     GetRegisterSetInfo (nub_size_t *num_reg_sets);
 
-    static const uint8_t * const 
+    static const uint8_t *
     GetBreakpointOpcode (nub_size_t byte_size);
 
     static void
@@ -68,8 +71,8 @@ public:
     {
         
     }
-    virtual bool            GetRegisterValue (int set, int reg, DNBRegisterValue *value) = 0;
-    virtual bool            SetRegisterValue (int set, int reg, const DNBRegisterValue *value) = 0;
+    virtual bool            GetRegisterValue (uint32_t set, uint32_t reg, DNBRegisterValue *value) = 0;
+    virtual bool            SetRegisterValue (uint32_t set, uint32_t reg, const DNBRegisterValue *value) = 0;
     virtual nub_size_t      GetRegisterContext (void *buf, nub_size_t buf_len) = 0;
     virtual nub_size_t      SetRegisterContext (const void *buf, nub_size_t buf_len) = 0;
     virtual uint32_t        SaveRegisterState () = 0;
@@ -91,7 +94,7 @@ public:
     virtual uint32_t        EnableHardwareWatchpoint (nub_addr_t addr, nub_size_t size, bool read, bool write, bool also_set_on_task) { return INVALID_NUB_HW_INDEX; }
     virtual bool            DisableHardwareBreakpoint (uint32_t hw_index) { return false; }
     virtual bool            DisableHardwareWatchpoint (uint32_t hw_index, bool also_set_on_task) { return false; }
-    virtual uint32_t        GetHardwareWatchpointHit() { return INVALID_NUB_HW_INDEX; }
+    virtual uint32_t        GetHardwareWatchpointHit(nub_addr_t &addr) { return INVALID_NUB_HW_INDEX; }
     virtual bool            StepNotComplete () { return false; }
 
 protected:

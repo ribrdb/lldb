@@ -51,12 +51,17 @@ public:
     static const NativeSocket kInvalidSocketValue;
 
     Socket(NativeSocket socket, SocketProtocol protocol, bool should_close);
-    ~Socket();
+    ~Socket() override;
 
     // Initialize a Tcp Socket object in listening mode.  listen and accept are implemented
     // separately because the caller may wish to manipulate or query the socket after it is
     // initialized, but before entering a blocking accept.
-    static Error TcpListen(llvm::StringRef host_and_port, bool child_processes_inherit, Socket *&socket, Predicate<uint16_t>* predicate);
+    static Error TcpListen(
+        llvm::StringRef host_and_port,
+        bool child_processes_inherit,
+        Socket *&socket,
+        Predicate<uint16_t>* predicate,
+        int backlog = 5);
     static Error TcpConnect(llvm::StringRef host_and_port, bool child_processes_inherit, Socket *&socket);
     static Error UdpConnect(llvm::StringRef host_and_port, bool child_processes_inherit, Socket *&send_socket, Socket *&recv_socket);
     static Error UnixDomainConnect(llvm::StringRef host_and_port, bool child_processes_inherit, Socket *&socket);
@@ -90,14 +95,14 @@ public:
     NativeSocket GetNativeSocket () const { return m_socket; }
     SocketProtocol GetSocketProtocol () const { return m_protocol; }
 
-    virtual Error Read (void *buf, size_t &num_bytes);
-    virtual Error Write (const void *buf, size_t &num_bytes);
+    Error Read (void *buf, size_t &num_bytes) override;
+    Error Write (const void *buf, size_t &num_bytes) override;
 
     virtual Error PreDisconnect ();
-    virtual Error Close ();
+    Error Close() override;
 
-    virtual bool IsValid () const { return m_socket != kInvalidSocketValue; }
-    virtual WaitableHandle GetWaitableHandle ();
+    bool IsValid () const override { return m_socket != kInvalidSocketValue; }
+    WaitableHandle GetWaitableHandle () override;
 
     static bool
     DecodeHostAndPort (llvm::StringRef host_and_port, 
@@ -111,6 +116,7 @@ protected:
     NativeSocket m_socket;
     SocketAddress m_udp_send_sockaddr;    // Send address used for UDP connections.
 };
-}
 
-#endif
+} // namespace lldb_private
+
+#endif // liblldb_Host_Socket_h_

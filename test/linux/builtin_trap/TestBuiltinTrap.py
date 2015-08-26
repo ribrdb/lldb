@@ -13,7 +13,7 @@ class BuiltinTrapTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym_and_run_command(self):
         """Test that LLDB handles a function with __builtin_trap correctly."""
@@ -21,9 +21,7 @@ class BuiltinTrapTestCase(TestBase):
         self.builtin_trap_unwind()
 
     @dwarf_test
-    @expectedFailureGcc # llvm.org/pr15936: LLDB is omits a function that contains an
-                        #           illegal opcode from backtraces. This
-                        #           failure is GCC 4.6 specific.
+    @expectedFailureAll("llvm.org/pr15936", compiler="gcc", compiler_version=["<=","4.6"])
     def test_with_dwarf_and_run_command(self):
         """Test that LLDB handles a function with __builtin_trap correctly."""
         self.buildDwarf()

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test calling a function that hits a signal set to auto-restart, make sure the call completes.
 """
 
@@ -19,7 +19,7 @@ class ExprCommandThatRestartsTestCase(TestBase):
         self.main_source_spec = lldb.SBFileSpec (self.main_source)
 
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     @skipIfDarwin # llvm.org/pr19246: intermittent failure
     def test_with_dsym(self):
@@ -28,7 +28,7 @@ class ExprCommandThatRestartsTestCase(TestBase):
         self.call_function()
 
     @dwarf_test
-    @skipIfLinux # llvm.org/pr19246: intermittent failure
+    @skipIfFreeBSD # llvm.org/pr19246: intermittent failure
     @skipIfDarwin # llvm.org/pr19246: intermittent failure
     @skipIfWindows # Test relies on signals, unsupported on Windows
     def test_with_dwarf(self):
@@ -81,6 +81,8 @@ class ExprCommandThatRestartsTestCase(TestBase):
         self.assertTrue (self.start_sigchld_no != -1, "Got an actual value for sigchld_no")
 
         options = lldb.SBExpressionOptions()
+        # processing 30 signals takes a while, increase the expression timeout a bit
+        options.SetTimeoutInMicroSeconds(3000000) # 3s
         options.SetUnwindOnError(True)
 
         frame = self.thread.GetFrameAtIndex(0)

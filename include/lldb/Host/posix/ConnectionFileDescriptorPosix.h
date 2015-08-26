@@ -38,31 +38,28 @@ class ConnectionFileDescriptor : public Connection
 
     ConnectionFileDescriptor(int fd, bool owns_fd);
 
-    virtual ~ConnectionFileDescriptor();
+    ConnectionFileDescriptor(Socket* socket);
 
-    virtual bool IsConnected() const;
+    ~ConnectionFileDescriptor() override;
 
-    virtual lldb::ConnectionStatus Connect(const char *s, Error *error_ptr);
+    bool IsConnected() const override;
 
-    virtual lldb::ConnectionStatus Disconnect(Error *error_ptr);
+    lldb::ConnectionStatus Connect(const char *s, Error *error_ptr) override;
 
-    virtual size_t Read(void *dst, size_t dst_len, uint32_t timeout_usec, lldb::ConnectionStatus &status, Error *error_ptr);
+    lldb::ConnectionStatus Disconnect(Error *error_ptr) override;
 
-    virtual size_t Write(const void *src, size_t src_len, lldb::ConnectionStatus &status, Error *error_ptr);
+    size_t Read(void *dst, size_t dst_len, uint32_t timeout_usec, lldb::ConnectionStatus &status, Error *error_ptr) override;
 
-    virtual std::string GetURI();
+    size_t Write(const void *src, size_t src_len, lldb::ConnectionStatus &status, Error *error_ptr) override;
+
+    std::string GetURI() override;
 
     lldb::ConnectionStatus BytesAvailable(uint32_t timeout_usec, Error *error_ptr);
 
-    bool InterruptRead();
+    bool InterruptRead() override;
 
     lldb::IOObjectSP
-    GetReadObject()
-    {
-        return m_read_sp;
-    }
-    const lldb::IOObjectSP
-    GetReadObject() const
+    GetReadObject() override
     {
         return m_read_sp;
     }
@@ -104,6 +101,8 @@ class ConnectionFileDescriptor : public Connection
     std::string m_uri;
 
   private:
+    void InitializeSocket(Socket* socket);
+
     DISALLOW_COPY_AND_ASSIGN(ConnectionFileDescriptor);
 };
 

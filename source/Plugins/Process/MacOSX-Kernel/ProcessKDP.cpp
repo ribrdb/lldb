@@ -12,6 +12,8 @@
 #include <stdlib.h>
 
 // C++ Includes
+#include <mutex>
+
 // Other libraries and framework includes
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/PluginManager.h"
@@ -30,10 +32,12 @@
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionGroupString.h"
 #include "lldb/Interpreter/OptionGroupUInt64.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
+#include "lldb/Utility/StringExtractor.h"
 
 #define USEC_PER_SEC 1000000
 
@@ -43,7 +47,6 @@
 #include "ThreadKDP.h"
 #include "Plugins/DynamicLoader/Darwin-Kernel/DynamicLoaderDarwinKernel.h"
 #include "Plugins/DynamicLoader/Static/DynamicLoaderStatic.h"
-#include "Utility/StringExtractor.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -403,15 +406,6 @@ ProcessKDP::DoLaunch (Module *exe_module,
     return error;
 }
 
-
-Error
-ProcessKDP::DoAttachToProcessWithID (lldb::pid_t attach_pid)
-{
-    Error error;
-    error.SetErrorString ("attach to process by ID is not suppported in kdp remote debugging");
-    return error;
-}
-
 Error
 ProcessKDP::DoAttachToProcessWithID (lldb::pid_t attach_pid, const ProcessAttachInfo &attach_info)
 {
@@ -588,7 +582,7 @@ ProcessKDP::UpdateThreadList (ThreadList &old_thread_list, ThreadList &new_threa
         log->Printf ("ProcessKDP::%s (pid = %" PRIu64 ")", __FUNCTION__, GetID());
     
     // Even though there is a CPU mask, it doesn't mean we can see each CPU
-    // indivudually, there is really only one. Lets call this thread 1.
+    // individually, there is really only one. Lets call this thread 1.
     ThreadSP thread_sp (old_thread_list.FindThreadByProtocolID(g_kernel_tid, false));
     if (!thread_sp)
         thread_sp = GetKernelThread ();
@@ -834,24 +828,23 @@ ProcessKDP::DoSignal (int signo)
 void
 ProcessKDP::Initialize()
 {
-    static bool g_initialized = false;
-    
-    if (g_initialized == false)
+    static std::once_flag g_once_flag;
+
+    std::call_once(g_once_flag, []()
     {
-        g_initialized = true;
         PluginManager::RegisterPlugin (GetPluginNameStatic(),
                                        GetPluginDescriptionStatic(),
                                        CreateInstance,
                                        DebuggerInitialize);
-        
+
         Log::Callbacks log_callbacks = {
             ProcessKDPLog::DisableLog,
             ProcessKDPLog::EnableLog,
             ProcessKDPLog::ListLogCategories
         };
-        
+
         Log::RegisterLogChannel (ProcessKDP::GetPluginNameStatic(), log_callbacks);
-    }
+    });
 }
 
 void

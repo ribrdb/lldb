@@ -13,14 +13,15 @@ class LibcxxStringDataFormatterTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym_and_run_command(self):
         """Test data formatter commands."""
         self.buildDsym()
         self.data_formatter_commands()
 
-    @skipIfLinux # No standard locations for libc++ on Linux, so skip for now 
+    @skipIfGcc
+    @skipIfWindows # libc++ not ported to Windows yet
     @dwarf_test
     def test_with_dwarf_and_run_command(self):
         """Test data formatter commands."""
@@ -63,7 +64,9 @@ class LibcxxStringDataFormatterTestCase(TestBase):
                     '(std::__1::wstring) S = L"!!!!"',
                     '(const wchar_t *) mazeltov = 0x','L"מזל טוב"',
                     '(std::__1::string) q = "hello world"',
-                    '(std::__1::string) Q = "quite a long std::strin with lots of info inside it"'])
+                    '(std::__1::string) Q = "quite a long std::strin with lots of info inside it"',
+                    '(std::__1::string) IHaveEmbeddedZeros = "a\\0b\\0c\\0d"',
+                    '(std::__1::wstring) IHaveEmbeddedZerosToo = L"hello world!\\0てざ ル゜䋨ミ㠧槊 きゅへ狦穤襩 じゃ馩リョ 䤦監"'])
 
         self.runCmd("n")
 
@@ -85,7 +88,9 @@ class LibcxxStringDataFormatterTestCase(TestBase):
                     '(std::__1::wstring) S = L"!!!!!"',
                     '(const wchar_t *) mazeltov = 0x','L"מזל טוב"',
                     '(std::__1::string) q = "hello world"',
-                    '(std::__1::string) Q = "quite a long std::strin with lots of info inside it"'])
+                    '(std::__1::string) Q = "quite a long std::strin with lots of info inside it"',
+                    '(std::__1::string) IHaveEmbeddedZeros = "a\\0b\\0c\\0d"',
+                    '(std::__1::wstring) IHaveEmbeddedZerosToo = L"hello world!\\0てざ ル゜䋨ミ㠧槊 きゅへ狦穤襩 じゃ馩リョ 䤦監"'])
 
 if __name__ == '__main__':
     import atexit

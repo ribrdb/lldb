@@ -7,23 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnLLDBDebugger.h
-//
-// Overview:    CMICmnLLDBDebugger interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // Third party headers
-#include <queue>
+#include <condition_variable>
 #include <map>
+#include <mutex>
 #include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBListener.h"
 #include "lldb/API/SBEvent.h"
@@ -43,9 +32,6 @@ class CMICmnLLDBDebuggerHandleEvents;
 //          to facilitate their work effort. The instance runs in its own worker
 //          thread.
 //          A singleton class.
-// Gotchas: None.
-// Authors: Illya Rudkin 26/02/2014.
-// Changes: None.
 //--
 class CMICmnLLDBDebugger : public CMICmnBase, public CMIUtilThreadActiveObjBase, public MI::ISingleton<CMICmnLLDBDebugger>
 {
@@ -53,13 +39,16 @@ class CMICmnLLDBDebugger : public CMICmnBase, public CMIUtilThreadActiveObjBase,
 
     // Methods:
   public:
-    bool Initialize(void);
-    bool Shutdown(void);
+    bool Initialize() override;
+    bool Shutdown() override;
 
     bool SetDriver(const CMIDriverBase &vClientDriver);
-    CMIDriverBase &GetDriver(void) const;
-    lldb::SBDebugger &GetTheDebugger(void);
-    lldb::SBListener &GetTheListener(void);
+    CMIDriverBase &GetDriver() const;
+    lldb::SBDebugger &GetTheDebugger();
+    lldb::SBListener &GetTheListener();
+    void WaitForHandleEvent();
+    bool CheckIfNeedToRebroadcastStopEvent();
+    void RebroadcastStopEvent();
 
     // MI Commands can use these functions to listen for events they require
     bool RegisterForEvent(const CMIUtilString &vClientName, const CMIUtilString &vBroadcasterClass, const MIuint vEventMask);
@@ -70,13 +59,13 @@ class CMICmnLLDBDebugger : public CMICmnBase, public CMIUtilThreadActiveObjBase,
     // Overridden:
   public:
     // From CMIUtilThreadActiveObjBase
-    virtual const CMIUtilString &ThreadGetName(void) const;
+    const CMIUtilString &ThreadGetName() const override;
 
     // Overridden:
   protected:
     // From CMIUtilThreadActiveObjBase
-    virtual bool ThreadRun(bool &vrIsAlive);
-    virtual bool ThreadFinish(void);
+    bool ThreadRun(bool &vrIsAlive) override;
+    bool ThreadFinish() override;
 
     // Typedefs:
   private:
@@ -87,13 +76,13 @@ class CMICmnLLDBDebugger : public CMICmnBase, public CMIUtilThreadActiveObjBase,
 
     // Methods:
   private:
-    /* ctor */ CMICmnLLDBDebugger(void);
+    /* ctor */ CMICmnLLDBDebugger();
     /* ctor */ CMICmnLLDBDebugger(const CMICmnLLDBDebugger &);
     void operator=(const CMICmnLLDBDebugger &);
 
-    bool InitSBDebugger(void);
-    bool InitSBListener(void);
-    bool InitStdStreams(void);
+    bool InitSBDebugger();
+    bool InitSBListener();
+    bool InitStdStreams();
     bool MonitorSBListenerEvents(bool &vrbYesExit);
 
     bool BroadcasterGetMask(const CMIUtilString &vBroadcasterClass, MIuint &vEventMask) const;
@@ -108,7 +97,7 @@ class CMICmnLLDBDebugger : public CMICmnBase, public CMIUtilThreadActiveObjBase,
     // Overridden:
   private:
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmnLLDBDebugger(void);
+    /* dtor */ ~CMICmnLLDBDebugger() override;
 
     // Attributes:
   private:
@@ -118,4 +107,7 @@ class CMICmnLLDBDebugger : public CMICmnBase, public CMIUtilThreadActiveObjBase,
     const CMIUtilString m_constStrThisThreadId;
     MapBroadcastClassNameToEventMask_t m_mapBroadcastClassNameToEventMask;
     MapIdToEventMask_t m_mapIdToEventMask;
+    std::mutex m_mutexEventQueue;
+    std::condition_variable m_conditionEventQueueEmpty;
+    uint32_t m_nLastStopId;
 };

@@ -14,10 +14,21 @@
 
 #include "lldb/lldb-private.h"
 
+namespace llvm
+{
+namespace sys
+{
+class DynamicLibrary;
+}
+}
+
 namespace lldb_private
 {
     class Platform;
     class ExecutionContext;
+
+    typedef llvm::sys::DynamicLibrary (*LoadPluginCallbackType)(const lldb::DebuggerSP &debugger_sp,
+                                                                const FileSpec &spec, Error &error);
 
     //----------------------------------------------------------------------
     // Every register is described in detail including its name, alternate
@@ -90,6 +101,8 @@ namespace lldb_private
         const char *usage_text;                  // Full text explaining what this options does and what (if any) argument to
                                                  // pass it.
     };
+
+    typedef struct type128 { uint64_t x[2]; } type128;
 
 } // namespace lldb_private
 

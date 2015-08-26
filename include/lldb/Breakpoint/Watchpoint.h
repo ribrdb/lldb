@@ -20,10 +20,11 @@
 
 // Project includes
 #include "lldb/lldb-private.h"
-#include "lldb/Target/Target.h"
-#include "lldb/Core/UserID.h"
 #include "lldb/Breakpoint/WatchpointOptions.h"
 #include "lldb/Breakpoint/StoppointLocation.h"
+#include "lldb/Core/UserID.h"
+#include "lldb/Symbol/CompilerType.h"
+#include "lldb/Target/Target.h"
 
 namespace lldb_private {
 
@@ -76,7 +77,7 @@ public:
         DISALLOW_COPY_AND_ASSIGN (WatchpointEventData);
     };
 
-    Watchpoint (Target& target, lldb::addr_t addr, uint32_t size, const ClangASTType *type, bool hardware = true);
+    Watchpoint (Target& target, lldb::addr_t addr, uint32_t size, const CompilerType *type, bool hardware = true);
     ~Watchpoint ();
 
     void
@@ -194,8 +195,8 @@ public:
     bool
     IsDisabledDuringEphemeralMode();
     
-    const ClangASTType &
-    GetClangASTType()
+    const CompilerType &
+    GetCompilerType()
     {
         return m_type;
     }
@@ -239,7 +240,7 @@ private:
     std::string m_watch_spec_str;      // Spec for the watchpoint.
     lldb::ValueObjectSP m_old_value_sp;
     lldb::ValueObjectSP m_new_value_sp;
-    ClangASTType m_type;
+    CompilerType m_type;
     Error       m_error;               // An error object describing errors associated with this watchpoint.
     WatchpointOptions m_options;       // Settable watchpoint options, which is a delegate to handle
                                        // the callback machinery.

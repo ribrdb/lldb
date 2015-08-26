@@ -48,8 +48,8 @@ public:
     static const DNBRegisterSetInfo *
     GetRegisterSetInfo(nub_size_t *num_reg_sets);
 
-    virtual bool            GetRegisterValue(int set, int reg, DNBRegisterValue *value);
-    virtual bool            SetRegisterValue(int set, int reg, const DNBRegisterValue *value);
+    virtual bool            GetRegisterValue(uint32_t set, uint32_t reg, DNBRegisterValue *value);
+    virtual bool            SetRegisterValue(uint32_t set, uint32_t reg, const DNBRegisterValue *value);
     virtual nub_size_t      GetRegisterContext (void *buf, nub_size_t buf_len);
     virtual nub_size_t      SetRegisterContext (const void *buf, nub_size_t buf_len);
     virtual uint32_t        SaveRegisterState ();
@@ -67,7 +67,7 @@ public:
     virtual bool            NotifyException(MachException::Data& exc);
 
     static DNBArchProtocol *Create (MachThread *thread);
-    static const uint8_t * const SoftwareBreakpointOpcode (nub_size_t byte_size);
+    static const uint8_t *  SoftwareBreakpointOpcode (nub_size_t byte_size);
     static uint32_t         GetCPUType();
 
     virtual uint32_t        NumSupportedHardwareWatchpoints();
@@ -79,7 +79,7 @@ protected:
 
 
     kern_return_t           EnableHardwareSingleStep (bool enable);
-    static bool             FixGenericRegisterNumber (int &set, int &reg);
+    static bool             FixGenericRegisterNumber (uint32_t &set, uint32_t &reg);
 
     typedef enum RegisterSetTag
     {

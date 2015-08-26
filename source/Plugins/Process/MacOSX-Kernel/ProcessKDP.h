@@ -29,7 +29,6 @@
 #include "lldb/Target/Thread.h"
 
 #include "CommunicationKDP.h"
-#include "Utility/StringExtractor.h"
 
 class ThreadKDP;
 
@@ -95,9 +94,6 @@ public:
     
     virtual lldb_private::Error
     DoConnectRemote (lldb_private::Stream *strm, const char *remote_url);
-    
-    virtual lldb_private::Error
-    DoAttachToProcessWithID (lldb::pid_t pid);
     
     virtual lldb_private::Error
     DoAttachToProcessWithID (lldb::pid_t pid, const lldb_private::ProcessAttachInfo &attach_info);

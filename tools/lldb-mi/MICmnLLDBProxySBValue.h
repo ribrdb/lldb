@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnLLDBProxySBValue.h
-//
-// Overview:    CMICmnLLDBProxySBValue interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // Third Party Headers:
@@ -27,15 +15,12 @@
 // In-house headers:
 #include "MIDataTypes.h"
 
-// Declerations:
+// Declarations:
 class CMIUtilString;
 
 //++ ============================================================================
 // Details: MI proxy wrapper class to lldb::SBValue. The class provides functionality
-//          to assist in the use of SBValue's parculiar function usage.
-// Gotchas: None.
-// Authors: Illya Rudkin 03/04/2014.
-// Changes: None.
+//          to assist in the use of SBValue's particular function usage.
 //--
 class CMICmnLLDBProxySBValue
 {

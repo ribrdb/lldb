@@ -7,21 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MIUtilSingletonHelper.h
-//
-// Overview:    Contains template functions to aid the initialisation and
-//              shutdown of MI modules. MI modules (or components) can
-//              use other MI modules to help them achieve their one task
-//              (Modules only do one task).
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 namespace MI
@@ -36,13 +21,11 @@ namespace MI
 //          MI components (singletons) required by a client module.
 // Type:    Template method.
 // Args:    vErrorResrcId   - (R)  The string resource ID error message identifier to place in errMsg.
-//          vwrbOk          - (RW) On input True = Try to initalise MI driver module.
+//          vwrbOk          - (RW) On input True = Try to initialize MI driver module.
 //                                 On output True = MI driver module initialise successfully.
 //          vwrErrMsg       - (W)  MI driver module initialise error description on failure.
 // Return:  MIstatus::success - Functional succeeded.
 //          MIstatus::failure - Functional failed.
-// Authors: Aidan Dodds 17/03/2014.
-// Changes: None.
 //--
 template <typename T>
 bool
@@ -58,7 +41,7 @@ ModuleInit(const MIint vErrorResrcId, bool &vwrbOk, CMIUtilString &vwrErrMsg)
 }
 
 //++ ============================================================================
-// Details: Short cut helper function to simplify repeated shutodown of
+// Details: Short cut helper function to simplify repeated shutdown of
 //          MI components (singletons) required by a client module.
 // Type:    Template method.
 // Args:    vErrorResrcId   - (R)  The string resource ID error message identifier
@@ -70,8 +53,6 @@ ModuleInit(const MIint vErrorResrcId, bool &vwrbOk, CMIUtilString &vwrErrMsg)
 //                                 failure.
 // Return:  True - Module shutdown succeeded.
 //          False - Module shutdown failed.
-// Authors: Aidan Dodds 17/03/2014.
-// Changes: None.
 //--
 template <typename T>
 bool

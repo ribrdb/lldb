@@ -11,6 +11,7 @@
 #include "lldb/API/SBError.h"
 #include "lldb/API/SBFileSpec.h"
 #include "lldb/API/SBLaunchInfo.h"
+#include "lldb/API/SBUnixSignals.h"
 #include "lldb/Core/ArchSpec.h"
 #include "lldb/Core/Error.h"
 #include "lldb/Host/File.h"
@@ -188,7 +189,7 @@ SBPlatformShellCommand::~SBPlatformShellCommand()
 void
 SBPlatformShellCommand::Clear()
 {
-    m_opaque_ptr->m_output = std::move(std::string());
+    m_opaque_ptr->m_output = std::string();
     m_opaque_ptr->m_status = 0;
     m_opaque_ptr->m_signo = 0;
 }
@@ -329,9 +330,9 @@ SBPlatform::SetWorkingDirectory(const char *path)
     if (platform_sp)
     {
         if (path)
-            platform_sp->SetWorkingDirectory(ConstString(path));
+            platform_sp->SetWorkingDirectory(FileSpec{path, false});
         else
-            platform_sp->SetWorkingDirectory(ConstString());
+            platform_sp->SetWorkingDirectory(FileSpec{});
         return true;
     }
     return false;
@@ -378,7 +379,7 @@ SBPlatform::GetTriple()
     PlatformSP platform_sp(GetSP());
     if (platform_sp)
     {
-        ArchSpec arch(platform_sp->GetRemoteSystemArchitecture());
+        ArchSpec arch(platform_sp->GetSystemArchitecture());
         if (arch.IsValid())
         {
             // Const-ify the string so we don't need to worry about the lifetime of the string
@@ -545,7 +546,7 @@ SBPlatform::Run (SBPlatformShellCommand &shell_command)
                     shell_command.SetWorkingDirectory(working_dir);
             }
             return platform_sp->RunShellCommand(command,
-                                                working_dir,
+                                                FileSpec{working_dir, false},
                                                 &shell_command.m_opaque_ptr->m_status,
                                                 &shell_command.m_opaque_ptr->m_signo,
                                                 &shell_command.m_opaque_ptr->m_output,
@@ -598,7 +599,7 @@ SBPlatform::MakeDirectory (const char *path, uint32_t file_permissions)
     PlatformSP platform_sp(GetSP());
     if (platform_sp)
     {
-        sb_error.ref() = platform_sp->MakeDirectory(path, file_permissions);
+        sb_error.ref() = platform_sp->MakeDirectory(FileSpec{path, false}, file_permissions);
     }
     else
     {
@@ -614,7 +615,7 @@ SBPlatform::GetFilePermissions (const char *path)
     if (platform_sp)
     {
         uint32_t file_permissions = 0;
-        platform_sp->GetFilePermissions(path, file_permissions);
+        platform_sp->GetFilePermissions(FileSpec{path, false}, file_permissions);
         return file_permissions;
     }
     return 0;
@@ -628,7 +629,7 @@ SBPlatform::SetFilePermissions (const char *path, uint32_t file_permissions)
     PlatformSP platform_sp(GetSP());
     if (platform_sp)
     {
-        sb_error.ref() = platform_sp->SetFilePermissions(path, file_permissions);
+        sb_error.ref() = platform_sp->SetFilePermissions(FileSpec{path, false}, file_permissions);
     }
     else
     {
@@ -638,3 +639,11 @@ SBPlatform::SetFilePermissions (const char *path, uint32_t file_permissions)
     
 }
 
+SBUnixSignals
+SBPlatform::GetUnixSignals() const
+{
+    if (auto platform_sp = GetSP())
+        return SBUnixSignals{platform_sp};
+
+    return {};
+}

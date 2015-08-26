@@ -51,6 +51,8 @@ class BasicExprCommandsTestCase(TestBase):
             patterns = ["\(float\) \$.* = 2\.234"])
         # (float) $2 = 2.234
 
+    @expectedFailureAll("llvm.org/pr23139", oslist=["linux"], compiler="gcc", compiler_version=[">=","4.9"], archs=["i386"])
+    @expectedFailureWindows("llvm.org/pr21765")
     def test_many_expr_commands(self):
         self.build_and_run()
 
@@ -92,6 +94,7 @@ class BasicExprCommandsTestCase(TestBase):
         # (const char *) $8 = 0x... "/Volumes/data/lldb/svn/trunk/test/expression_command/test/a.out"
 
     @python_api_test
+    @expectedFailureAll("llvm.org/pr23139", oslist=["linux"], compiler="gcc", compiler_version=[">=","4.9"], archs=["i386"])
     def test_evaluate_expression_python(self):
         """Test SBFrame.EvaluateExpression() API for evaluating an expression."""
         self.buildDefault()
@@ -191,6 +194,7 @@ class BasicExprCommandsTestCase(TestBase):
 
     # rdar://problem/8686536
     # CommandInterpreter::HandleCommand is stripping \'s from input for WantsRawCommand commands
+    @expectedFailureWindows("llvm.org/pr21765")
     def test_expr_commands_can_handle_quotes(self):
         """Throw some expression commands with quotes at lldb."""
         self.buildDefault()

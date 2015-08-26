@@ -226,7 +226,7 @@ OptionValueProperties::SetSubValue (const ExecutionContext *exe_ctx,
     const bool will_modify = true;
     lldb::OptionValueSP value_sp (GetSubValue (exe_ctx, name, will_modify, error));
     if (value_sp)
-        error = value_sp->SetValueFromCString(value, op);
+        error = value_sp->SetValueFromString(value ? llvm::StringRef(value) : llvm::StringRef(), op);
     else
     {
         if (error.AsCString() == nullptr)
@@ -308,6 +308,15 @@ OptionValueProperties::GetPropertyAtIndexAsOptionValueArch (const ExecutionConte
     const Property *property = GetPropertyAtIndex (exe_ctx, false, idx);
     if (property)
         return property->GetValue()->GetAsArch();
+    return nullptr;
+}
+
+OptionValueLanguage *
+OptionValueProperties::GetPropertyAtIndexAsOptionValueLanguage (const ExecutionContext *exe_ctx, uint32_t idx) const
+{
+    const Property *property = GetPropertyAtIndex (exe_ctx, false, idx);
+    if (property)
+        return property->GetValue()->GetAsLanguage();
     return nullptr;
 }
 
@@ -600,7 +609,7 @@ OptionValueProperties::Clear ()
 
 
 Error
-OptionValueProperties::SetValueFromCString (const char *value, VarSetOperationType op)
+OptionValueProperties::SetValueFromString (llvm::StringRef value, VarSetOperationType op)
 {
     Error error;
     
@@ -619,7 +628,7 @@ OptionValueProperties::SetValueFromCString (const char *value, VarSetOperationTy
         case eVarSetOperationInsertAfter:
         case eVarSetOperationAppend:
         case eVarSetOperationInvalid:
-            error = OptionValue::SetValueFromCString (value, op);
+            error = OptionValue::SetValueFromString (value, op);
             break;
     }
     

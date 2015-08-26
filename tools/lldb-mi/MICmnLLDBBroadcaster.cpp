@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnLLDBBroadcaster.cpp
-//
-// Overview:    CMICmnLLDBBroadcaster implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmnLLDBBroadcaster.h"
 
@@ -29,7 +17,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnLLDBBroadcaster::CMICmnLLDBBroadcaster(void)
+CMICmnLLDBBroadcaster::CMICmnLLDBBroadcaster()
     : lldb::SBBroadcaster("MI driver")
 {
 }
@@ -41,13 +29,13 @@ CMICmnLLDBBroadcaster::CMICmnLLDBBroadcaster(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnLLDBBroadcaster::~CMICmnLLDBBroadcaster(void)
+CMICmnLLDBBroadcaster::~CMICmnLLDBBroadcaster()
 {
     Shutdown();
 }
 
 //++ ------------------------------------------------------------------------------------
-// Details: Initialize resources for *this broardcaster object.
+// Details: Initialize resources for *this broadcaster object.
 // Type:    Method.
 // Args:    None.
 // Return:  MIstatus::success - Functionality succeeded.
@@ -55,7 +43,7 @@ CMICmnLLDBBroadcaster::~CMICmnLLDBBroadcaster(void)
 // Throws:  None.
 //--
 bool
-CMICmnLLDBBroadcaster::Initialize(void)
+CMICmnLLDBBroadcaster::Initialize()
 {
     m_clientUsageRefCnt++;
 
@@ -68,7 +56,7 @@ CMICmnLLDBBroadcaster::Initialize(void)
 }
 
 //++ ------------------------------------------------------------------------------------
-// Details: Release resources for *this broardcaster object.
+// Details: Release resources for *this broadcaster object.
 // Type:    Method.
 // Args:    None.
 // Return:  MIstatus::success - Functionality succeeded.
@@ -76,7 +64,7 @@ CMICmnLLDBBroadcaster::Initialize(void)
 // Throws:  None.
 //--
 bool
-CMICmnLLDBBroadcaster::Shutdown(void)
+CMICmnLLDBBroadcaster::Shutdown()
 {
     if (--m_clientUsageRefCnt > 0)
         return MIstatus::success;

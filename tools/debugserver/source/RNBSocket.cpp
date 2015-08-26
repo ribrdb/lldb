@@ -349,7 +349,7 @@ RNBSocket::Read (std::string &p)
 
     //DNBLogThreadedIf(LOG_RNB_COMM, "%8u RNBSocket::%s calling read()", (uint32_t)m_timer.ElapsedMicroSeconds(true), __FUNCTION__);
     DNBError err;
-    int bytesread = read (m_fd, buf, sizeof (buf));
+    ssize_t bytesread = read (m_fd, buf, sizeof (buf));
     if (bytesread <= 0)
         err.SetError(errno, DNBError::POSIX);
     else
@@ -385,7 +385,7 @@ RNBSocket::Write (const void *buffer, size_t length)
         return rnb_err;
 
     DNBError err;
-    int bytessent = write (m_fd, buffer, length);
+    ssize_t bytessent = write (m_fd, buffer, length);
     if (bytessent < 0)
         err.SetError(errno, DNBError::POSIX);
 
@@ -395,7 +395,7 @@ RNBSocket::Write (const void *buffer, size_t length)
     if (bytessent < 0)
         return rnb_err;
 
-    if (bytessent != length)
+    if ((size_t)bytessent != length)
         return rnb_err;
 
     DNBLogThreadedIf(LOG_RNB_PACKETS, "putpkt: %*s", (int)length, (char *)buffer);   // All data is string based in debugserver, so this is safe

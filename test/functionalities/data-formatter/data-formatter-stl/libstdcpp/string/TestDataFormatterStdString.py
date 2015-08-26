@@ -13,7 +13,7 @@ class StdStringDataFormatterTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym_and_run_command(self):
         """Test data formatter commands."""
@@ -21,6 +21,7 @@ class StdStringDataFormatterTestCase(TestBase):
         self.data_formatter_commands()
 
     @expectedFailureFreeBSD("llvm.org/pr20548") # fails to build on lab.llvm.org buildbot
+    @skipIfWindows # libstdcpp not ported to Windows
     @dwarf_test
     def test_with_dwarf_and_run_command(self):
         """Test data formatter commands."""

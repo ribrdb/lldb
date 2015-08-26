@@ -1,4 +1,4 @@
-//===-- Platform.cpp --------------------------------------------*- C++ -*-===//
+//===-- MICmnMIValueList.cpp ------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -6,18 +6,6 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-
-//++
-// File:        MICmnMIValueList.h
-//
-// Overview:    CMICmnMIValueList implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 // In-house headers:
 #include "MICmnMIValueList.h"
@@ -73,7 +61,7 @@ CMICmnMIValueList::CMICmnMIValueList(const CMICmnMIValue &vValue)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnMIValueList::~CMICmnMIValueList(void)
+CMICmnMIValueList::~CMICmnMIValueList()
 {
 }
 
@@ -81,33 +69,29 @@ CMICmnMIValueList::~CMICmnMIValueList(void)
 // Details: Build the result value's mandatory data part, one tuple
 // Type:    Method.
 // Args:    None.
-// Return:  MIstatus::success - Functional succeeded.
-//          MIstatus::failure - Functional failed.
+// Return:  None.
 // Throws:  None.
 //--
-bool
-CMICmnMIValueList::BuildList(void)
+void
+CMICmnMIValueList::BuildList()
 {
-    const MIchar *pFormat = "[%s]";
+    const char *pFormat = "[%s]";
     m_strValue = CMIUtilString::Format(pFormat, m_strValue.c_str());
-
-    return MIstatus::success;
 }
 
 //++ ------------------------------------------------------------------------------------
 // Details: Add another MI result object to  the value list's of list is results.
-//          Only result obejcts can be added to a list of result otherwise this function
+//          Only result objects can be added to a list of result otherwise this function
 //          will return MIstatus::failure.
 // Type:    Method.
 // Args:    vResult - (R) The MI result object.
-// Return:  MIstatus::success - Functional succeeded.
-//          MIstatus::failure - Functional failed.
+// Return:  None.
 // Throws:  None.
 //--
-bool
+void
 CMICmnMIValueList::Add(const CMICmnMIValueResult &vResult)
 {
-    return BuildList(vResult);
+    BuildList(vResult);
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -116,27 +100,25 @@ CMICmnMIValueList::Add(const CMICmnMIValueResult &vResult)
 //          will return MIstatus::failure.
 // Type:    Method.
 // Args:    vValue  - (R) The MI value object.
-// Return:  MIstatus::success - Functional succeeded.
-//          MIstatus::failure - Functional failed.
+// Return:  None.
 // Throws:  None.
 //--
-bool
+void
 CMICmnMIValueList::Add(const CMICmnMIValue &vValue)
 {
-    return BuildList(vValue);
+    BuildList(vValue);
 }
 
 //++ ------------------------------------------------------------------------------------
 // Details: Add another MI result object to  the value list's of list is results.
-//          Only result obejcts can be added to a list of result otherwise this function
+//          Only result objects can be added to a list of result otherwise this function
 //          will return MIstatus::failure.
 // Type:    Method.
 // Args:    vResult - (R) The MI result object.
-// Return:  MIstatus::success - Functional succeeded.
-//          MIstatus::failure - Functional failed.
+// Return:  None.
 // Throws:  None.
 //--
-bool
+void
 CMICmnMIValueList::BuildList(const CMICmnMIValueResult &vResult)
 {
     // Clear out the default "<Invalid>" text
@@ -144,14 +126,13 @@ CMICmnMIValueList::BuildList(const CMICmnMIValueResult &vResult)
     {
         m_bJustConstructed = false;
         m_strValue = vResult.GetString();
-        return BuildList();
+        BuildList();
+        return;
     }
 
     const CMIUtilString data(ExtractContentNoBrackets());
-    const MIchar *pFormat = "[%s,%s]";
+    const char *pFormat = "[%s,%s]";
     m_strValue = CMIUtilString::Format(pFormat, data.c_str(), vResult.GetString().c_str());
-
-    return MIstatus::success;
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -160,11 +141,10 @@ CMICmnMIValueList::BuildList(const CMICmnMIValueResult &vResult)
 //          will return MIstatus::failure.
 // Type:    Method.
 // Args:    vValue  - (R) The MI value object.
-// Return:  MIstatus::success - Functional succeeded.
-//          MIstatus::failure - Functional failed.
+// Return:  None.
 // Throws:  None.
 //--
-bool
+void
 CMICmnMIValueList::BuildList(const CMICmnMIValue &vValue)
 {
     // Clear out the default "<Invalid>" text
@@ -172,15 +152,17 @@ CMICmnMIValueList::BuildList(const CMICmnMIValue &vValue)
     {
         m_bJustConstructed = false;
         m_strValue = vValue.GetString();
-        return BuildList();
+        BuildList();
+        return;
     }
 
-    const MIchar *pFormat = "[%s,%s]";
-    m_strValue = m_strValue.FindAndReplace("[", "");
-    m_strValue = m_strValue.FindAndReplace("]", "");
+    // Remove already present '[' and ']' from the start and end
+    m_strValue = m_strValue.Trim();
+    size_t len = m_strValue.size();
+    if ( (len > 1) && (m_strValue[0] == '[') && (m_strValue[len - 1] == ']') )
+        m_strValue = m_strValue.substr(1, len - 2);
+    const char *pFormat = "[%s,%s]";
     m_strValue = CMIUtilString::Format(pFormat, m_strValue.c_str(), vValue.GetString().c_str());
-
-    return MIstatus::success;
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -192,7 +174,7 @@ CMICmnMIValueList::BuildList(const CMICmnMIValue &vValue)
 // Throws:  None.
 //--
 CMIUtilString
-CMICmnMIValueList::ExtractContentNoBrackets(void) const
+CMICmnMIValueList::ExtractContentNoBrackets() const
 {
     CMIUtilString data(m_strValue);
 

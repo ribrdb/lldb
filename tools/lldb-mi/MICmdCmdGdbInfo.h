@@ -1,4 +1,4 @@
-//===-- MICmdCmdGdbInfo.h --------------------------*- C++ -*-===//
+//===-- MICmdCmdGdbInfo.h ---------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,9 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdGdbInfo.h
-//
 // Overview:    CMICmdCmdGdbInfo    interface.
 //
 //              To implement new MI commands derive a new command class from the command base
@@ -20,13 +17,6 @@
 //                  MICmdCmd.h / .cpp
 //              For an introduction to adding a new command see CMICmdCmdSupportInfoMiCmdQuery
 //              command class as an example.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 #pragma once
 
@@ -47,29 +37,26 @@
 //          class instantiates a request info command for a matching request. The
 //          design/code of *this class then does not then become bloated. Use a
 //          lightweight version of the current MI command system.
-// Gotchas: None.
-// Authors: Illya Rudkin 05/06/2014.
-// Changes: None.
 //--
 class CMICmdCmdGdbInfo : public CMICmdBase
 {
     // Statics:
   public:
     // Required by the CMICmdFactory when registering *this command
-    static CMICmdBase *CreateSelf(void);
+    static CMICmdBase *CreateSelf();
 
     // Methods:
   public:
-    /* ctor */ CMICmdCmdGdbInfo(void);
+    /* ctor */ CMICmdCmdGdbInfo();
 
     // Overridden:
   public:
     // From CMICmdInvoker::ICmd
-    virtual bool Execute(void);
-    virtual bool Acknowledge(void);
-    virtual bool ParseArgs(void);
+    bool Execute() override;
+    bool Acknowledge() override;
+    bool ParseArgs() override;
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmdCmdGdbInfo(void);
+    /* dtor */ ~CMICmdCmdGdbInfo() override;
 
     // Typedefs:
   private:
@@ -79,7 +66,7 @@ class CMICmdCmdGdbInfo : public CMICmdBase
     // Methods:
   private:
     bool GetPrintFn(const CMIUtilString &vrPrintFnName, FnPrintPtr &vrwpFn) const;
-    bool PrintFnSharedLibrary(void);
+    bool PrintFnSharedLibrary();
 
     // Attributes:
   private:

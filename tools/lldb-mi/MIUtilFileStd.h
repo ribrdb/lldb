@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MIUtilFileStd.h
-//
-// Overview:    CMIUtilFileStd interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // In-house headers:
@@ -27,33 +15,30 @@
 
 //++ ============================================================================
 // Details: MI common code utility class. File handling.
-// Gotchas: None.
-// Authors: Aidan Dodds 10/03/2014.
-// Changes: None.
 //--
 class CMIUtilFileStd : public CMICmnBase
 {
     // Static:
   public:
-    static MIchar GetSlash(void);
+    static char GetSlash();
 
     // Methods:
   public:
-    /* ctor */ CMIUtilFileStd(void);
+    /* ctor */ CMIUtilFileStd();
     //
     bool CreateWrite(const CMIUtilString &vFileNamePath, bool &vwrbNewCreated);
     bool Write(const CMIUtilString &vData);
-    bool Write(const MIchar *vpData, const MIuint vCharCnt);
-    void Close(void);
-    bool IsOk(void) const;
+    bool Write(const char *vpData, const MIuint vCharCnt);
+    void Close();
+    bool IsOk() const;
     bool IsFileExist(const CMIUtilString &vFileNamePath) const;
-    const CMIUtilString &GetLineReturn(void) const;
-    CMIUtilString StripOffFileName(const CMIUtilString &vDirectoryPath) const;
+    const CMIUtilString &GetLineReturn() const;
+    static CMIUtilString StripOffFileName(const CMIUtilString &vDirectoryPath);
 
     // Overridden:
   public:
     // From CMICmnBase
-    /* dtor */ virtual ~CMIUtilFileStd(void);
+    /* dtor */ ~CMIUtilFileStd() override;
 
     // Attributes:
   private:

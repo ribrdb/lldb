@@ -35,7 +35,7 @@ public:
 
     virtual const DNBRegisterSetInfo *
                             GetRegisterSetInfo(nub_size_t *num_reg_sets) const;
-    virtual bool            GetRegisterValue(int set, int reg, DNBRegisterValue *value) const;
+    virtual bool            GetRegisterValue(uint32_t set, uint32_t reg, DNBRegisterValue *value) const;
     virtual kern_return_t   GetRegisterState  (int set, bool force);
     virtual kern_return_t   SetRegisterState  (int set);
     virtual bool            RegisterSetStateIsValid (int set) const;
@@ -46,7 +46,7 @@ public:
     virtual bool            ThreadWillResume();
     virtual bool            ThreadDidStop();
 
-    static const uint8_t * const SoftwareBreakpointOpcode (nub_size_t byte_size);
+    static const uint8_t *  SoftwareBreakpointOpcode (nub_size_t byte_size);
     static uint32_t         GetCPUType();
 
 protected:

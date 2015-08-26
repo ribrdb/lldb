@@ -27,7 +27,7 @@
 
 static const uint8_t g_breakpoint_opcode[] = { 0x7F, 0xC0, 0x00, 0x08 };
 
-const uint8_t * const
+const uint8_t *
 DNBArchMachPPC::SoftwareBreakpointOpcode (nub_size_t size)
 {
     if (size == 4)
@@ -418,7 +418,7 @@ DNBArchMachPPC::GetRegisterSetInfo(nub_size_t *num_reg_sets) const
 }
 
 bool
-DNBArchMachPPC::GetRegisterValue(int set, int reg, DNBRegisterValue *value) const
+DNBArchMachPPC::GetRegisterValue(uint32_t set, uint32_t reg, DNBRegisterValue *value) const
 {
     if (set == REGISTER_SET_GENERIC)
     {

@@ -10,6 +10,7 @@
 #ifndef SymbolFileDWARF_DWARFCompileUnit_h_
 #define SymbolFileDWARF_DWARFCompileUnit_h_
 
+#include "lldb/lldb-enumerations.h"
 #include "DWARFDebugInfoEntry.h"
 #include "SymbolFileDWARF.h"
 
@@ -52,6 +53,7 @@ public:
     dw_offset_t GetAbbrevOffset() const;
     uint8_t     GetAddressByteSize() const { return m_addr_size; }
     dw_addr_t   GetBaseAddress() const { return m_base_addr; }
+    dw_addr_t   GetAddrBase() const { return 0; } // TODO: Read out DW_AT_addr_base from the parent compile unit
     void        ClearDIEs(bool keep_compile_unit_die);
     void        BuildAddressRangeTable (SymbolFileDWARF* dwarf2Data,
                                         DWARFDebugAranges* debug_aranges);
@@ -186,8 +188,17 @@ public:
     uint32_t
     GetProducerVersionUpdate();
 
+    static lldb::LanguageType
+    LanguageTypeFromDWARF(uint64_t val);
+
+    lldb::LanguageType
+    GetLanguageType();
+
     bool
     IsDWARF64() const;
+
+    bool
+    GetIsOptimized ();
 
 protected:
     SymbolFileDWARF*    m_dwarf2Data;
@@ -204,7 +215,9 @@ protected:
     uint32_t            m_producer_version_major;
     uint32_t            m_producer_version_minor;
     uint32_t            m_producer_version_update;
+    lldb::LanguageType  m_language_type;
     bool                m_is_dwarf64;
+    lldb_private::LazyBool m_is_optimized;
     
     void
     ParseProducerInfo ();

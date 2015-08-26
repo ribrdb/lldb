@@ -19,10 +19,8 @@ class ValueLocker;
 
 namespace lldb {
 
-class SBValue
+class LLDB_API SBValue
 {
-friend class ValueLocker;
-
 public:
     SBValue ();
 
@@ -84,6 +82,7 @@ public:
     ValueType
     GetValueType ();
 
+    // If you call this on a newly created ValueObject, it will always return false.
     bool
     GetValueDidChange ();
 
@@ -223,7 +222,7 @@ public:
     ///     and also if the target can be run to figure out the dynamic
     ///     type of the child value.
     ///
-    /// @param[in] synthetic_allowed
+    /// @param[in] can_create_synthetic
     ///     If \b true, then allow child values to be created by index
     ///     for pointers and arrays for indexes that normally wouldn't
     ///     be allowed.
@@ -351,6 +350,7 @@ public:
     lldb::SBValue
     Dereference ();
 
+    // Deprecated - please use GetType().IsPointerType() instead.
     bool
     TypeIsPointerType ();
     
@@ -389,7 +389,7 @@ public:
     /// @param[in] write
     ///     Stop when this value is modified
     ///
-    /// @param[out]
+    /// @param[out] error
     ///     An error object. Contains the reason if there is some failure.
     ///
     /// @return
@@ -422,7 +422,7 @@ public:
     /// @param[in] write
     ///     Stop when this value is modified
     ///
-    /// @param[out]
+    /// @param[out] error
     ///     An error object. Contains the reason if there is some failure.
     ///
     /// @return

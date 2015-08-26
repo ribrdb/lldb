@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MIUtilDateTimeStd.cpp
-//
-// Overview:    CMIUtilDateTimeStd implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MIUtilDateTimeStd.h"
 #include "MICmnResources.h"
@@ -30,7 +18,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilDateTimeStd::CMIUtilDateTimeStd(void)
+CMIUtilDateTimeStd::CMIUtilDateTimeStd()
 {
 }
 
@@ -41,7 +29,7 @@ CMIUtilDateTimeStd::CMIUtilDateTimeStd(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilDateTimeStd::~CMIUtilDateTimeStd(void)
+CMIUtilDateTimeStd::~CMIUtilDateTimeStd()
 {
 }
 
@@ -53,7 +41,7 @@ CMIUtilDateTimeStd::~CMIUtilDateTimeStd(void)
 // Throws:  None.
 //--
 CMIUtilString
-CMIUtilDateTimeStd::GetDate(void)
+CMIUtilDateTimeStd::GetDate()
 {
     CMIUtilString strDate(MIRSRC(IDS_WORD_INVALIDBRKTS));
 
@@ -73,13 +61,31 @@ CMIUtilDateTimeStd::GetDate(void)
 // Throws:  None.
 //--
 CMIUtilString
-CMIUtilDateTimeStd::GetTime(void)
+CMIUtilDateTimeStd::GetTime()
 {
     std::time(&m_rawTime);
     const std::tm *pTi = std::localtime(&m_rawTime);
     const CMIUtilString seconds(CMIUtilString::Format("%d", pTi->tm_sec));
     const CMIUtilString zero((seconds.length() == 1) ? "0" : "");
     const CMIUtilString strTime(CMIUtilString::Format("%d:%d:%s%s", pTi->tm_hour, pTi->tm_min, zero.c_str(), seconds.c_str()));
+
+    return strTime;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: Retrieve system local current date and time in yyyy-MM-dd--HH-mm-ss format for log file names.
+// Type:    Method.
+// Args:    None.
+// Return:  CMIUtilString - Text description.
+// Throws:  None.
+//--
+CMIUtilString
+CMIUtilDateTimeStd::GetDateTimeLogFilename()
+{
+    std::time(&m_rawTime);
+    const std::tm *pTi = std::localtime(&m_rawTime);
+    const CMIUtilString strTime(CMIUtilString::Format("%d%02d%02d%02d%02d%02d", pTi->tm_year + 1900, pTi->tm_mon,
+                                                      pTi->tm_mday, pTi->tm_hour, pTi->tm_min, pTi->tm_sec));
 
     return strTime;
 }

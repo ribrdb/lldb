@@ -1,4 +1,4 @@
-//===-- Platform.cpp --------------------------------------------*- C++ -*-===//
+//===-- MICmnMIValue.cpp ----------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -6,18 +6,6 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-
-//++
-// File:        MICmnMIValue.h
-//
-// Overview:    CMICmnMIValue implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 // In-house headers:
 #include "MICmnMIValue.h"
@@ -30,7 +18,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnMIValue::CMICmnMIValue(void)
+CMICmnMIValue::CMICmnMIValue()
     : m_strValue(MIRSRC(IDS_WORD_INVALIDBRKTS))
     , m_bJustConstructed(true)
 {
@@ -43,7 +31,7 @@ CMICmnMIValue::CMICmnMIValue(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnMIValue::~CMICmnMIValue(void)
+CMICmnMIValue::~CMICmnMIValue()
 {
 }
 
@@ -58,7 +46,7 @@ CMICmnMIValue::~CMICmnMIValue(void)
 // Throws:  None.
 //--
 const CMIUtilString &
-CMICmnMIValue::GetString(void) const
+CMICmnMIValue::GetString() const
 {
     return m_strValue;
 }

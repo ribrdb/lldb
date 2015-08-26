@@ -12,6 +12,11 @@
 
 #include "GDBRemoteCommunicationServerCommon.h"
 
+#include <set>
+
+namespace lldb_private {
+namespace process_gdb_remote {
+
 class GDBRemoteCommunicationServerPlatform :
     public GDBRemoteCommunicationServerCommon
 {
@@ -23,7 +28,7 @@ public:
     virtual
     ~GDBRemoteCommunicationServerPlatform();
 
-    lldb_private::Error
+    Error
     LaunchProcess () override;
 
     // Set both ports to zero to let the platform automatically bind to 
@@ -56,6 +61,8 @@ public:
     SetPortOffset (uint16_t port_offset);
 
 protected:
+    Mutex m_spawned_pids_mutex;
+    std::set<lldb::pid_t> m_spawned_pids;
     lldb::PlatformSP m_platform_sp;
 
     PortMap m_port_map;
@@ -63,6 +70,9 @@ protected:
 
     PacketResult
     Handle_qLaunchGDBServer (StringExtractorGDBRemote &packet);
+
+    PacketResult
+    Handle_qKillSpawnedProcess (StringExtractorGDBRemote &packet);
 
     PacketResult
     Handle_qProcessInfo (StringExtractorGDBRemote &packet);
@@ -76,7 +86,13 @@ protected:
     PacketResult
     Handle_qC (StringExtractorGDBRemote &packet);
 
+    PacketResult
+    Handle_jSignalsInfo(StringExtractorGDBRemote &packet);
+
 private:
+    bool
+    KillSpawnedProcess (lldb::pid_t pid);
+
     bool
     DebugserverProcessReaped (lldb::pid_t pid);
 
@@ -92,5 +108,8 @@ private:
     //------------------------------------------------------------------
     DISALLOW_COPY_AND_ASSIGN (GDBRemoteCommunicationServerPlatform);
 };
+
+} // namespace process_gdb_remote
+} // namespace lldb_private
 
 #endif  // liblldb_GDBRemoteCommunicationServerPlatform_h_

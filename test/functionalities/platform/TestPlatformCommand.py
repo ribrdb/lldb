@@ -18,6 +18,7 @@ class PlatformCommandTestCase(TestBase):
         self.expect("platform list",
             patterns = ['^Available platforms:'])
 
+    @expectedFailureFreeBSD("llvm.org/pr23747 failing on the buildbot")
     def test_process_list(self):
         self.expect("platform process list",
             substrs = ['PID', 'TRIPLE', 'NAME'])
@@ -33,8 +34,11 @@ class PlatformCommandTestCase(TestBase):
 
     def test_shell(self):
         """ Test that the platform shell command can invoke ls. """
-        if sys.platform.startswith("win32"):
+        triple = self.dbg.GetSelectedPlatform().GetTriple()
+        if re.match(".*-.*-windows", triple):
           self.expect("platform shell dir c:\\", substrs = ["Windows", "Program Files"])
+        elif re.match(".*-.*-.*-android", triple):
+          self.expect("platform shell ls /", substrs = ["cache", "dev", "system"])
         else:
           self.expect("platform shell ls /", substrs = ["dev", "tmp", "usr"])
 

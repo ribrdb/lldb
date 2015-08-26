@@ -12,7 +12,7 @@
 
 #include "lldb/lldb-types.h"
 
-#if defined (_WIN32)
+#if defined (_MSC_VER)
     #if defined(EXPORT_LIBLLDB)
         #define  LLDB_API __declspec(dllexport)
     #elif defined(IMPORT_LIBLLDB)
@@ -136,6 +136,8 @@
 // ignore GCC function attributes
 #define __attribute__(X)
 #endif
+
+#define UNUSED_IF_ASSERT_DISABLED(x) ((void)(x))
 
 #if defined(__cplusplus)
 

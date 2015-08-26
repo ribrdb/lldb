@@ -10,8 +10,11 @@
 #include "lldb/Host/windows/windows.h"
 
 #include <shellapi.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "lldb/Host/FileSystem.h"
+#include "llvm/Support/FileSystem.h"
 
 using namespace lldb_private;
 
@@ -22,23 +25,27 @@ FileSystem::GetNativePathSyntax()
 }
 
 Error
-FileSystem::MakeDirectory(const char *path, uint32_t file_permissions)
+FileSystem::MakeDirectory(const FileSpec &file_spec, uint32_t file_permissions)
 {
     // On Win32, the mode parameter is ignored, as Windows files and directories support a
     // different permission model than POSIX.
     Error error;
-    if (!::CreateDirectory(path, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)
-        error.SetError(::GetLastError(), lldb::eErrorTypeWin32);
+    const auto err_code = llvm::sys::fs::create_directories(file_spec.GetPath(), true);
+    if (err_code)
+    {
+        error.SetErrorString(err_code.message().c_str());
+    }
+
     return error;
 }
 
 Error
-FileSystem::DeleteDirectory(const char *path, bool recurse)
+FileSystem::DeleteDirectory(const FileSpec &file_spec, bool recurse)
 {
     Error error;
     if (!recurse)
     {
-        BOOL result = ::RemoveDirectory(path);
+        BOOL result = ::RemoveDirectory(file_spec.GetCString());
         if (!result)
             error.SetError(::GetLastError(), lldb::eErrorTypeWin32);
     }
@@ -46,7 +53,7 @@ FileSystem::DeleteDirectory(const char *path, bool recurse)
     {
         // SHFileOperation() accepts a list of paths, and so must be double-null-terminated to
         // indicate the end of the list.
-        std::string path_buffer(path);
+        std::string path_buffer{file_spec.GetPath()};
         path_buffer.push_back(0);
 
         SHFILEOPSTRUCT shfos = {0};
@@ -63,15 +70,31 @@ FileSystem::DeleteDirectory(const char *path, bool recurse)
 }
 
 Error
-FileSystem::GetFilePermissions(const char *path, uint32_t &file_permissions)
+FileSystem::GetFilePermissions(const FileSpec &file_spec, uint32_t &file_permissions)
 {
     Error error;
-    error.SetErrorStringWithFormat("%s is not supported on this host", __PRETTY_FUNCTION__);
+    // Beware that Windows's permission model is different from Unix's, and it's
+    // not clear if this API is supposed to check ACLs.  To match the caller's
+    // expectations as closely as possible, we'll use Microsoft's _stat, which
+    // attempts to emulate POSIX stat.  This should be good enough for basic
+    // checks like FileSpec::Readable.
+    struct _stat file_stats;
+    if (::_stat(file_spec.GetCString(), &file_stats) == 0)
+    {
+        // The owner permission bits in "st_mode" currently match the definitions
+        // for the owner file mode bits.
+        file_permissions = file_stats.st_mode & (_S_IREAD | _S_IWRITE | _S_IEXEC);
+    }
+    else
+    {
+        error.SetErrorToErrno();
+    }
+
     return error;
 }
 
 Error
-FileSystem::SetFilePermissions(const char *path, uint32_t file_permissions)
+FileSystem::SetFilePermissions(const FileSpec &file_spec, uint32_t file_permissions)
 {
     Error error;
     error.SetErrorStringWithFormat("%s is not supported on this host", __PRETTY_FUNCTION__);
@@ -91,10 +114,19 @@ FileSystem::GetFileExists(const FileSpec &file_spec)
 }
 
 Error
-FileSystem::Symlink(const char *linkname, const char *target)
+FileSystem::Hardlink(const FileSpec &src, const FileSpec &dst)
 {
     Error error;
-    DWORD attrib = ::GetFileAttributes(target);
+    if (!::CreateHardLink(src.GetCString(), dst.GetCString(), nullptr))
+        error.SetError(::GetLastError(), lldb::eErrorTypeWin32);
+    return error;
+}
+
+Error
+FileSystem::Symlink(const FileSpec &src, const FileSpec &dst)
+{
+    Error error;
+    DWORD attrib = ::GetFileAttributes(dst.GetCString());
     if (attrib == INVALID_FILE_ATTRIBUTES)
     {
         error.SetError(::GetLastError(), lldb::eErrorTypeWin32);
@@ -102,45 +134,56 @@ FileSystem::Symlink(const char *linkname, const char *target)
     }
     bool is_directory = !!(attrib & FILE_ATTRIBUTE_DIRECTORY);
     DWORD flag = is_directory ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
-    BOOL result = ::CreateSymbolicLink(linkname, target, flag);
+    BOOL result = ::CreateSymbolicLink(src.GetCString(), dst.GetCString(), flag);
     if (!result)
         error.SetError(::GetLastError(), lldb::eErrorTypeWin32);
     return error;
 }
 
 Error
-FileSystem::Unlink(const char *path)
+FileSystem::Unlink(const FileSpec &file_spec)
 {
     Error error;
-    BOOL result = ::DeleteFile(path);
+    BOOL result = ::DeleteFile(file_spec.GetCString());
     if (!result)
         error.SetError(::GetLastError(), lldb::eErrorTypeWin32);
     return error;
 }
 
 Error
-FileSystem::Readlink(const char *path, char *buf, size_t buf_len)
+FileSystem::Readlink(const FileSpec &src, FileSpec &dst)
 {
     Error error;
-    HANDLE h = ::CreateFile(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-                            FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    HANDLE h = ::CreateFile(src.GetCString(), GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+            FILE_FLAG_OPEN_REPARSE_POINT, NULL);
     if (h == INVALID_HANDLE_VALUE)
     {
         error.SetError(::GetLastError(), lldb::eErrorTypeWin32);
         return error;
     }
 
+    char buf[PATH_MAX];
     // Subtract 1 from the path length since this function does not add a null terminator.
-    DWORD result = ::GetFinalPathNameByHandle(h, buf, buf_len - 1, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    DWORD result = ::GetFinalPathNameByHandle(h, buf, sizeof(buf) - 1,
+            FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
     if (result == 0)
         error.SetError(::GetLastError(), lldb::eErrorTypeWin32);
+    else
+        dst.SetFile(buf, false);
 
     ::CloseHandle(h);
     return error;
 }
 
 bool
-FileSystem::CalculateMD5(const FileSpec &file_spec, uint64_t &low, uint64_t &high)
+FileSystem::IsLocal(const FileSpec &spec)
 {
+    if (spec)
+    {
+        // TODO: return true if the file is on a locally mounted file system
+        return true;
+    }
+
     return false;
 }

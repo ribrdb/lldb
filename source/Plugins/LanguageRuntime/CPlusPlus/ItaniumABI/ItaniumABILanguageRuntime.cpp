@@ -40,7 +40,7 @@ ItaniumABILanguageRuntime::CouldHaveDynamicValue (ValueObject &in_value)
 {
     const bool check_cxx = true;
     const bool check_objc = false;
-    return in_value.GetClangType().IsPossibleDynamicType (NULL, check_cxx, check_objc);
+    return in_value.GetCompilerType().IsPossibleDynamicType (NULL, check_cxx, check_objc);
 }
 
 bool
@@ -106,7 +106,7 @@ ItaniumABILanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
                 Symbol *symbol = sc.symbol;
                 if (symbol != NULL)
                 {
-                    const char *name = symbol->GetMangled().GetDemangledName().AsCString();
+                    const char *name = symbol->GetMangled().GetDemangledName(lldb::eLanguageTypeC_plus_plus).AsCString();
                     if (name && strstr(name, vtable_demangled_prefix) == name)
                     {
                         Log *log (lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_OBJECT));
@@ -189,7 +189,7 @@ ItaniumABILanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
                                 type_sp = class_types.GetTypeAtIndex(i);
                                 if (type_sp)
                                 {
-                                    if (type_sp->GetClangFullType().IsCXXClassType())
+                                    if (ClangASTContext::IsCXXClassType(type_sp->GetFullCompilerType ()))
                                     {
                                         if (log)
                                             log->Printf ("0x%16.16" PRIx64 ": static-type = '%s' has multiple matching dynamic types, picking this one: uid={0x%" PRIx64 "}, type-name='%s'\n",
@@ -221,8 +221,8 @@ ItaniumABILanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
                         // the value we were handed.
                         if (type_sp)
                         {
-                            if (ClangASTContext::AreTypesSame (in_value.GetClangType(),
-                                                               type_sp->GetClangFullType()))
+                            if (ClangASTContext::AreTypesSame (in_value.GetCompilerType(),
+                                                               type_sp->GetFullCompilerType ()))
                             {
                                 // The dynamic type we found was the same type,
                                 // so we don't have a dynamic type here...
@@ -281,6 +281,46 @@ ItaniumABILanguageRuntime::IsVTableName (const char *name)
         return false;
 }
 
+static std::map<ConstString, std::vector<ConstString> >&
+GetAlternateManglingPrefixes()
+{
+    static std::map<ConstString, std::vector<ConstString> > g_alternate_mangling_prefixes;
+    return g_alternate_mangling_prefixes;
+}
+
+
+size_t
+ItaniumABILanguageRuntime::GetAlternateManglings(const ConstString &mangled, std::vector<ConstString> &alternates)
+{
+    if (!mangled)
+        return static_cast<size_t>(0);
+
+    alternates.clear();
+    const char *mangled_cstr = mangled.AsCString();
+    std::map<ConstString, std::vector<ConstString> >& alternate_mangling_prefixes = GetAlternateManglingPrefixes();
+    for (std::map<ConstString, std::vector<ConstString> >::iterator it = alternate_mangling_prefixes.begin();
+         it != alternate_mangling_prefixes.end();
+         ++it)
+    {
+        const char *prefix_cstr = it->first.AsCString();
+        if (strncmp(mangled_cstr, prefix_cstr, strlen(prefix_cstr)) == 0)
+        {
+            const std::vector<ConstString> &alternate_prefixes = it->second;
+            for (size_t i = 0; i < alternate_prefixes.size(); ++i)
+            {
+                std::string alternate_mangling(alternate_prefixes[i].AsCString());
+                alternate_mangling.append(mangled_cstr + strlen(prefix_cstr));
+
+                alternates.push_back(ConstString(alternate_mangling.c_str()));
+            }
+
+            return alternates.size();
+        }
+    }
+
+    return static_cast<size_t>(0);
+}
+
 //------------------------------------------------------------------
 // Static Functions
 //------------------------------------------------------------------
@@ -304,6 +344,17 @@ ItaniumABILanguageRuntime::Initialize()
     PluginManager::RegisterPlugin (GetPluginNameStatic(),
                                    "Itanium ABI for the C++ language",
                                    CreateInstance);    
+
+    // Alternate manglings for std::basic_string<...>
+    std::vector<ConstString> basic_string_alternates;
+    basic_string_alternates.push_back(ConstString("_ZNSs"));
+    basic_string_alternates.push_back(ConstString("_ZNKSs"));
+    std::map<ConstString, std::vector<ConstString> >& alternate_mangling_prefixes = GetAlternateManglingPrefixes();
+
+    alternate_mangling_prefixes[ConstString("_ZNSbIcSt17char_traits<char>St15allocator<char>E")] =
+        basic_string_alternates;
+    alternate_mangling_prefixes[ConstString("_ZNKSbIcSt17char_traits<char>St15allocator<char>E")] =
+        basic_string_alternates;
 }
 
 void
@@ -369,6 +420,7 @@ ItaniumABILanguageRuntime::CreateExceptionResolver (Breakpoint *bkpt, bool catch
                                                                   exception_names.data(),
                                                                   exception_names.size(),
                                                                   eFunctionNameTypeBase,
+                                                                  eLanguageTypeUnknown,
                                                                   eLazyBoolNo));
 
     return resolver_sp;

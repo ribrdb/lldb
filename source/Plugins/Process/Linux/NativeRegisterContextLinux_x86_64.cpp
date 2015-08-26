@@ -7,17 +7,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if defined(__i386__) || defined(__x86_64__)
+
 #include "NativeRegisterContextLinux_x86_64.h"
 
-#include "lldb/lldb-private-forward.h"
+#include "lldb/Core/Log.h"
 #include "lldb/Core/DataBufferHeap.h"
 #include "lldb/Core/Error.h"
 #include "lldb/Core/RegisterValue.h"
-#include "lldb/Host/common/NativeProcessProtocol.h"
-#include "lldb/Host/common/NativeThreadProtocol.h"
-#include "Plugins/Process/Linux/NativeProcessLinux.h"
+#include "lldb/Host/HostInfo.h"
+
+#include "Plugins/Process/Utility/RegisterContextLinux_i386.h"
+#include "Plugins/Process/Utility/RegisterContextLinux_x86_64.h"
 
 using namespace lldb_private;
+using namespace lldb_private::process_linux;
 
 // ----------------------------------------------------------------------------
 // Private namespace.
@@ -324,12 +328,39 @@ namespace
 #define NT_X86_XSTATE 0x202
 #endif
 
+NativeRegisterContextLinux*
+NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(const ArchSpec& target_arch,
+                                                                 NativeThreadProtocol &native_thread,
+                                                                 uint32_t concrete_frame_idx)
+{
+    return new NativeRegisterContextLinux_x86_64(target_arch, native_thread, concrete_frame_idx);
+}
+
 // ----------------------------------------------------------------------------
 // NativeRegisterContextLinux_x86_64 members.
 // ----------------------------------------------------------------------------
 
-NativeRegisterContextLinux_x86_64::NativeRegisterContextLinux_x86_64 (NativeThreadProtocol &native_thread, uint32_t concrete_frame_idx, RegisterInfoInterface *reg_info_interface_p) :
-    NativeRegisterContextRegisterInfo (native_thread, concrete_frame_idx, reg_info_interface_p),
+static RegisterInfoInterface*
+CreateRegisterInfoInterface(const ArchSpec& target_arch)
+{
+    if (HostInfo::GetArchitecture().GetAddressByteSize() == 4)
+    {
+        // 32-bit hosts run with a RegisterContextLinux_i386 context.
+        return new RegisterContextLinux_i386(target_arch);
+    }
+    else
+    {
+        assert((HostInfo::GetArchitecture().GetAddressByteSize() == 8) &&
+               "Register setting path assumes this is a 64-bit host");
+        // X86_64 hosts know how to work with 64-bit and 32-bit EXEs using the x86_64 register context.
+        return new RegisterContextLinux_x86_64 (target_arch);
+    }
+}
+
+NativeRegisterContextLinux_x86_64::NativeRegisterContextLinux_x86_64 (const ArchSpec& target_arch,
+                                                                      NativeThreadProtocol &native_thread,
+                                                                      uint32_t concrete_frame_idx) :
+    NativeRegisterContextLinux (native_thread, concrete_frame_idx, CreateRegisterInfoInterface(target_arch)),
     m_fpr_type (eFPRTypeNotValid),
     m_fpr (),
     m_iovec (),
@@ -338,7 +369,7 @@ NativeRegisterContextLinux_x86_64::NativeRegisterContextLinux_x86_64 (NativeThre
     m_gpr_x86_64 ()
 {
     // Set up data about ranges of valid registers.
-    switch (reg_info_interface_p->GetTargetArchitecture ().GetMachine ())
+    switch (target_arch.GetMachine ())
     {
         case llvm::Triple::x86:
             m_reg_info.num_registers        = k_num_registers_i386;
@@ -408,7 +439,20 @@ NativeRegisterContextLinux_x86_64::GetRegisterSetCount () const
     return sets;
 }
 
-const lldb_private::RegisterSet *
+uint32_t
+NativeRegisterContextLinux_x86_64::GetUserRegisterCount() const
+{
+    uint32_t count = 0;
+    for (uint32_t set_index = 0; set_index < k_num_register_sets; ++set_index)
+    {
+        const RegisterSet* set = GetRegisterSet(set_index);
+        if (set)
+            count += set->num_registers;
+    }
+    return count;
+}
+
+const RegisterSet *
 NativeRegisterContextLinux_x86_64::GetRegisterSet (uint32_t set_index) const
 {
     if (!IsRegisterSetAvailable (set_index))
@@ -428,33 +472,7 @@ NativeRegisterContextLinux_x86_64::GetRegisterSet (uint32_t set_index) const
     return nullptr;
 }
 
-lldb_private::Error
-NativeRegisterContextLinux_x86_64::ReadRegisterRaw (uint32_t reg_index, RegisterValue &reg_value)
-{
-    Error error;
-    const RegisterInfo *const reg_info = GetRegisterInfoAtIndex (reg_index);
-    if (!reg_info)
-    {
-        error.SetErrorStringWithFormat ("register %" PRIu32 " not found", reg_index);
-        return error;
-    }
-
-    NativeProcessProtocolSP process_sp (m_thread.GetProcess ());
-    if (!process_sp)
-    {
-        error.SetErrorString ("NativeProcessProtocol is NULL");
-        return error;
-    }
-
-    NativeProcessLinux *const process_p = reinterpret_cast<NativeProcessLinux*> (process_sp.get ());
-    return process_p->ReadRegisterValue(m_thread.GetID(),
-                                        reg_info->byte_offset,
-                                        reg_info->name,
-                                        reg_info->byte_size,
-                                        reg_value);
-}
-
-lldb_private::Error
+Error
 NativeRegisterContextLinux_x86_64::ReadRegister (const RegisterInfo *reg_info, RegisterValue &reg_value)
 {
     Error error;
@@ -475,11 +493,9 @@ NativeRegisterContextLinux_x86_64::ReadRegister (const RegisterInfo *reg_info, R
 
     if (IsFPR(reg, GetFPRType()))
     {
-        if (!ReadFPR())
-        {
-            error.SetErrorString ("failed to read floating point register");
+        error = ReadFPR();
+        if (error.Fail())
             return error;
-        }
     }
     else
     {
@@ -565,79 +581,7 @@ NativeRegisterContextLinux_x86_64::ReadRegister (const RegisterInfo *reg_info, R
     return error;
 }
 
-lldb_private::Error
-NativeRegisterContextLinux_x86_64::WriteRegister(const uint32_t reg,
-                                                 const RegisterValue &value)
-{
-    Error error;
-
-    uint32_t reg_to_write = reg;
-    RegisterValue value_to_write = value;
-
-    // Check if this is a subregister of a full register.
-    const RegisterInfo *reg_info = GetRegisterInfoAtIndex(reg);
-    if (reg_info->invalidate_regs && (reg_info->invalidate_regs[0] != LLDB_INVALID_REGNUM))
-    {
-        RegisterValue full_value;
-        uint32_t full_reg = reg_info->invalidate_regs[0];
-        const RegisterInfo *full_reg_info = GetRegisterInfoAtIndex(full_reg);
-
-        // Read the full register.
-        error = ReadRegister(full_reg_info, full_value);
-        if (error.Fail ())
-            return error;
-
-        lldb::ByteOrder byte_order = GetByteOrder();
-        uint8_t dst[RegisterValue::kMaxRegisterByteSize];
-
-        // Get the bytes for the full register.
-        const uint32_t dest_size = full_value.GetAsMemoryData (full_reg_info,
-                                                               dst,
-                                                               sizeof(dst),
-                                                               byte_order,
-                                                               error);
-        if (error.Success() && dest_size)
-        {
-            uint8_t src[RegisterValue::kMaxRegisterByteSize];
-
-            // Get the bytes for the source data.
-            const uint32_t src_size = value.GetAsMemoryData (reg_info, src, sizeof(src), byte_order, error);
-            if (error.Success() && src_size && (src_size < dest_size))
-            {
-                // Copy the src bytes to the destination.
-                memcpy (dst + (reg_info->byte_offset & 0x1), src, src_size);
-                // Set this full register as the value to write.
-                value_to_write.SetBytes(dst, full_value.GetByteSize(), byte_order);
-                value_to_write.SetType(full_reg_info);
-                reg_to_write = full_reg;
-            }
-        }
-    }
-
-
-    NativeProcessProtocolSP process_sp (m_thread.GetProcess ());
-    if (!process_sp)
-    {
-        error.SetErrorString ("NativeProcessProtocol is NULL");
-        return error;
-    }
-
-    const RegisterInfo *const register_to_write_info_p = GetRegisterInfoAtIndex (reg_to_write);
-    assert (register_to_write_info_p && "register to write does not have valid RegisterInfo");
-    if (!register_to_write_info_p)
-    {
-        error.SetErrorStringWithFormat ("NativeRegisterContextLinux_x86_64::%s failed to get RegisterInfo for write register index %" PRIu32, __FUNCTION__, reg_to_write);
-        return error;
-    }
-
-    NativeProcessLinux *const process_p = reinterpret_cast<NativeProcessLinux*> (process_sp.get ());
-    return process_p->WriteRegisterValue(m_thread.GetID(),
-                                         register_to_write_info_p->byte_offset,
-                                         register_to_write_info_p->name,
-                                         value_to_write);
-}
-
-lldb_private::Error
+Error
 NativeRegisterContextLinux_x86_64::WriteRegister (const RegisterInfo *reg_info, const RegisterValue &reg_value)
 {
     assert (reg_info && "reg_info is null");
@@ -647,7 +591,7 @@ NativeRegisterContextLinux_x86_64::WriteRegister (const RegisterInfo *reg_info, 
         return Error ("no lldb regnum for %s", reg_info && reg_info->name ? reg_info->name : "<unknown register>");
 
     if (IsGPR(reg_index))
-        return WriteRegister(reg_index, reg_value);
+        return WriteRegisterRaw(reg_index, reg_value);
 
     if (IsFPR(reg_index, GetFPRType()))
     {
@@ -695,20 +639,21 @@ NativeRegisterContextLinux_x86_64::WriteRegister (const RegisterInfo *reg_info, 
             }
         }
 
-        if (WriteFPR())
+        Error error = WriteFPR();
+        if (error.Fail())
+            return error;
+
+        if (IsAVX(reg_index))
         {
-            if (IsAVX(reg_index))
-            {
-                if (!CopyYMMtoXSTATE(reg_index, GetByteOrder()))
-                    return Error ("CopyYMMtoXSTATE() failed");
-            }
-            return Error ();
+            if (!CopyYMMtoXSTATE(reg_index, GetByteOrder()))
+                return Error ("CopyYMMtoXSTATE() failed");
         }
+        return Error ();
     }
     return Error ("failed - register wasn't recognized to be a GPR or an FPR, write strategy unknown");
 }
 
-lldb_private::Error
+Error
 NativeRegisterContextLinux_x86_64::ReadAllRegisterValues (lldb::DataBufferSP &data_sp)
 {
     Error error;
@@ -720,17 +665,13 @@ NativeRegisterContextLinux_x86_64::ReadAllRegisterValues (lldb::DataBufferSP &da
         return error;
     }
 
-    if (!ReadGPR ())
-    {
-        error.SetErrorString ("ReadGPR() failed");
+    error = ReadGPR();
+    if (error.Fail())
         return error;
-    }
 
-    if (!ReadFPR ())
-    {
-        error.SetErrorString ("ReadFPR() failed");
+    error = ReadFPR();
+    if (error.Fail())
         return error;
-    }
 
     uint8_t *dst = data_sp->GetBytes ();
     if (dst == nullptr)
@@ -765,11 +706,25 @@ NativeRegisterContextLinux_x86_64::ReadAllRegisterValues (lldb::DataBufferSP &da
         assert (false && "how do we save the floating point registers?");
         error.SetErrorString ("unsure how to save the floating point registers");
     }
+    /** The following code is specific to Linux x86 based architectures,
+     *  where the register orig_eax (32 bit)/orig_rax (64 bit) is set to
+     *  -1 to solve the bug 23659, such a setting prevents the automatic
+     *  decrement of the instruction pointer which was causing the SIGILL
+     *  exception.
+     * **/
+
+    RegisterValue value((uint64_t) -1);
+    const RegisterInfo *reg_info = GetRegisterInfoInterface().GetDynamicRegisterInfo("orig_eax");
+    if (reg_info == nullptr)
+        reg_info = GetRegisterInfoInterface().GetDynamicRegisterInfo("orig_rax");
+
+    if (reg_info != nullptr)
+        return DoWriteRegisterValue(reg_info->byte_offset,reg_info->name,value);
 
     return error;
 }
 
-lldb_private::Error
+Error
 NativeRegisterContextLinux_x86_64::WriteAllRegisterValues (const lldb::DataBufferSP &data_sp)
 {
     Error error;
@@ -795,11 +750,9 @@ NativeRegisterContextLinux_x86_64::WriteAllRegisterValues (const lldb::DataBuffe
     }
     ::memcpy (&m_gpr_x86_64, src, GetRegisterInfoInterface ().GetGPRSize ());
 
-    if (!WriteGPR ())
-    {
-        error.SetErrorStringWithFormat ("NativeRegisterContextLinux_x86_64::%s WriteGPR() failed", __FUNCTION__);
+    error = WriteGPR();
+    if (error.Fail())
         return error;
-    }
 
     src += GetRegisterInfoInterface ().GetGPRSize ();
     if (GetFPRType () == eFPRTypeFXSAVE)
@@ -807,11 +760,9 @@ NativeRegisterContextLinux_x86_64::WriteAllRegisterValues (const lldb::DataBuffe
     else if (GetFPRType () == eFPRTypeXSAVE)
         ::memcpy (&m_fpr.xstate.xsave, src, sizeof(m_fpr.xstate.xsave));
 
-    if (!WriteFPR ())
-    {
-        error.SetErrorStringWithFormat ("NativeRegisterContextLinux_x86_64::%s WriteFPR() failed", __FUNCTION__);
+    error = WriteFPR();
+    if (error.Fail())
         return error;
-    }
 
     if (GetFPRType() == eFPRTypeXSAVE)
     {
@@ -845,24 +796,6 @@ NativeRegisterContextLinux_x86_64::IsRegisterSetAvailable (uint32_t set_index) c
     return (set_index < num_sets);
 }
 
-lldb::ByteOrder
-NativeRegisterContextLinux_x86_64::GetByteOrder() const
-{
-    // Get the target process whose privileged thread was used for the register read.
-    lldb::ByteOrder byte_order = lldb::eByteOrderInvalid;
-
-    NativeProcessProtocolSP process_sp (m_thread.GetProcess ());
-    if (!process_sp)
-        return byte_order;
-
-    if (!process_sp->GetByteOrder (byte_order))
-    {
-        // FIXME log here
-    }
-
-    return byte_order;
-}
-
 bool
 NativeRegisterContextLinux_x86_64::IsGPR(uint32_t reg_index) const
 {
@@ -879,7 +812,7 @@ NativeRegisterContextLinux_x86_64::GetFPRType () const
 
         // Try and see if AVX register retrieval works.
         m_fpr_type = eFPRTypeXSAVE;
-        if (!const_cast<NativeRegisterContextLinux_x86_64*> (this)->ReadFPR ())
+        if (const_cast<NativeRegisterContextLinux_x86_64*>(this)->ReadFPR().Fail())
         {
             // Fall back to general floating point with no AVX support.
             m_fpr_type = eFPRTypeFXSAVE;
@@ -905,20 +838,19 @@ NativeRegisterContextLinux_x86_64::IsFPR(uint32_t reg_index, FPRType fpr_type) c
     return generic_fpr;
 }
 
-bool
+Error
 NativeRegisterContextLinux_x86_64::WriteFPR()
 {
-    NativeProcessProtocolSP process_sp (m_thread.GetProcess ());
-    if (!process_sp)
-        return false;
-    NativeProcessLinux *const process_p = reinterpret_cast<NativeProcessLinux*> (process_sp.get ());
-
-    if (GetFPRType() == eFPRTypeFXSAVE)
-        return process_p->WriteFPR (m_thread.GetID (), &m_fpr.xstate.fxsave, sizeof (m_fpr.xstate.fxsave)).Success();
-
-    if (GetFPRType() == eFPRTypeXSAVE)
-        return process_p->WriteRegisterSet (m_thread.GetID (), &m_iovec, sizeof (m_fpr.xstate.xsave), NT_X86_XSTATE).Success();
-    return false;
+    const FPRType fpr_type = GetFPRType ();
+    switch (fpr_type)
+    {
+    case FPRType::eFPRTypeFXSAVE:
+        return NativeRegisterContextLinux::WriteFPR();
+    case FPRType::eFPRTypeXSAVE:
+        return WriteRegisterSet(&m_iovec, sizeof(m_fpr.xstate.xsave), NT_X86_XSTATE);
+    default:
+        return Error("Unrecognized FPR type");
+    }
 }
 
 bool
@@ -988,84 +920,107 @@ NativeRegisterContextLinux_x86_64::CopyYMMtoXSTATE(uint32_t reg, lldb::ByteOrder
     return false; // unsupported or invalid byte order
 }
 
-bool
-NativeRegisterContextLinux_x86_64::ReadFPR ()
+void*
+NativeRegisterContextLinux_x86_64::GetFPRBuffer()
 {
-    NativeProcessProtocolSP process_sp (m_thread.GetProcess ());
-    if (!process_sp)
-        return false;
-    NativeProcessLinux *const process_p = reinterpret_cast<NativeProcessLinux*> (process_sp.get ());
-
     const FPRType fpr_type = GetFPRType ();
     switch (fpr_type)
     {
     case FPRType::eFPRTypeFXSAVE:
-        return process_p->ReadFPR (m_thread.GetID (), &m_fpr.xstate.fxsave, sizeof (m_fpr.xstate.fxsave)).Success();
-
+        return &m_fpr.xstate.fxsave;
     case FPRType::eFPRTypeXSAVE:
-        return process_p->ReadRegisterSet (m_thread.GetID (), &m_iovec, sizeof (m_fpr.xstate.xsave), NT_X86_XSTATE).Success();
-
+        return &m_iovec;
     default:
-        return false;
+        return nullptr;
     }
 }
 
-bool
-NativeRegisterContextLinux_x86_64::ReadGPR()
+size_t
+NativeRegisterContextLinux_x86_64::GetFPRSize()
 {
-    NativeProcessProtocolSP process_sp (m_thread.GetProcess ());
-    if (!process_sp)
-        return false;
-    NativeProcessLinux *const process_p = reinterpret_cast<NativeProcessLinux*> (process_sp.get ());
-
-    return process_p->ReadGPR (m_thread.GetID (), &m_gpr_x86_64, GetRegisterInfoInterface ().GetGPRSize ()).Success();
-}
-
-bool
-NativeRegisterContextLinux_x86_64::WriteGPR()
-{
-    NativeProcessProtocolSP process_sp (m_thread.GetProcess ());
-    if (!process_sp)
-        return false;
-    NativeProcessLinux *const process_p = reinterpret_cast<NativeProcessLinux*> (process_sp.get ());
-
-    return process_p->WriteGPR (m_thread.GetID (), &m_gpr_x86_64, GetRegisterInfoInterface ().GetGPRSize ()).Success();
+    const FPRType fpr_type = GetFPRType ();
+    switch (fpr_type)
+    {
+    case FPRType::eFPRTypeFXSAVE:
+        return sizeof(m_fpr.xstate.fxsave);
+    case FPRType::eFPRTypeXSAVE:
+        return sizeof(m_iovec);
+    default:
+        return 0;
+    }
 }
 
 Error
-NativeRegisterContextLinux_x86_64::IsWatchpointHit(uint8_t wp_index)
+NativeRegisterContextLinux_x86_64::ReadFPR ()
+{
+    const FPRType fpr_type = GetFPRType ();
+    switch (fpr_type)
+    {
+    case FPRType::eFPRTypeFXSAVE:
+        return NativeRegisterContextLinux::ReadFPR();
+    case FPRType::eFPRTypeXSAVE:
+        return ReadRegisterSet(&m_iovec, sizeof(m_fpr.xstate.xsave), NT_X86_XSTATE);
+    default:
+        return Error("Unrecognized FPR type");
+    }
+}
+
+Error
+NativeRegisterContextLinux_x86_64::IsWatchpointHit(uint32_t wp_index, bool &is_hit)
 {
     if (wp_index >= NumSupportedHardwareWatchpoints())
-        return Error ("Watchpoint index out of range");
+        return Error("Watchpoint index out of range");
 
     RegisterValue reg_value;
-    Error error = ReadRegisterRaw(lldb_dr6_x86_64, reg_value);
-    if (error.Fail()) return error;
+    Error error = ReadRegisterRaw(m_reg_info.first_dr + 6, reg_value);
+    if (error.Fail())
+    {
+        is_hit = false;
+        return error;
+    }
 
     uint64_t status_bits = reg_value.GetAsUInt64();
 
-    bool is_hit = status_bits & (1 << wp_index);
-
-    error.SetError (!is_hit, lldb::eErrorTypeInvalid);
+    is_hit = status_bits & (1 << wp_index);
 
     return error;
 }
 
 Error
-NativeRegisterContextLinux_x86_64::IsWatchpointVacant(uint32_t wp_index)
+NativeRegisterContextLinux_x86_64::GetWatchpointHitIndex(uint32_t &wp_index, lldb::addr_t trap_addr) {
+    uint32_t num_hw_wps = NumSupportedHardwareWatchpoints();
+    for (wp_index = 0; wp_index < num_hw_wps; ++wp_index)
+    {
+        bool is_hit;
+        Error error = IsWatchpointHit(wp_index, is_hit);
+        if (error.Fail()) {
+            wp_index = LLDB_INVALID_INDEX32;
+            return error;
+        } else if (is_hit) {
+            return error;
+        }
+    }
+    wp_index = LLDB_INVALID_INDEX32;
+    return Error();
+}
+
+Error
+NativeRegisterContextLinux_x86_64::IsWatchpointVacant(uint32_t wp_index, bool &is_vacant)
 {
     if (wp_index >= NumSupportedHardwareWatchpoints())
         return Error ("Watchpoint index out of range");
 
     RegisterValue reg_value;
-    Error error = ReadRegisterRaw(lldb_dr7_x86_64, reg_value);
-    if (error.Fail()) return error;
+    Error error = ReadRegisterRaw(m_reg_info.first_dr + 7, reg_value);
+    if (error.Fail())
+    {
+        is_vacant = false;
+        return error;
+    }
 
     uint64_t control_bits = reg_value.GetAsUInt64();
 
-    bool is_vacant = !(control_bits & (1 << (2 * wp_index)));
-
-    error.SetError (!is_vacant, lldb::eErrorTypeInvalid);
+    is_vacant = !(control_bits & (1 << (2 * wp_index)));
 
     return error;
 }
@@ -1077,17 +1032,24 @@ NativeRegisterContextLinux_x86_64::SetHardwareWatchpointWithIndex(
     if (wp_index >= NumSupportedHardwareWatchpoints())
         return Error ("Watchpoint index out of range");
 
+    // Read only watchpoints aren't supported on x86_64. Fall back to read/write waitchpoints instead.
+    // TODO: Add logic to detect when a write happens and ignore that watchpoint hit.
+    if (watch_flags == 0x2)
+        watch_flags = 0x3;
+
     if (watch_flags != 0x1 && watch_flags != 0x3)
         return Error ("Invalid read/write bits for watchpoint");
 
     if (size != 1 && size != 2 && size != 4 && size != 8)
         return Error ("Invalid size for watchpoint");
 
-    Error error = IsWatchpointVacant (wp_index);
+    bool is_vacant;
+    Error error = IsWatchpointVacant (wp_index, is_vacant);
     if (error.Fail()) return error;
+    if (!is_vacant) return Error("Watchpoint index not vacant");
 
     RegisterValue reg_value;
-    error = ReadRegisterRaw(lldb_dr7_x86_64, reg_value);
+    error = ReadRegisterRaw(m_reg_info.first_dr + 7, reg_value);
     if (error.Fail()) return error;
 
     // for watchpoints 0, 1, 2, or 3, respectively,
@@ -1109,10 +1071,10 @@ NativeRegisterContextLinux_x86_64::SetHardwareWatchpointWithIndex(
 
     control_bits |= enable_bit | rw_bits | size_bits;
 
-    error = WriteRegister(m_reg_info.first_dr + wp_index, RegisterValue(addr));
+    error = WriteRegisterRaw(m_reg_info.first_dr + wp_index, RegisterValue(addr));
     if (error.Fail()) return error;
 
-    error = WriteRegister(lldb_dr7_x86_64, RegisterValue(control_bits));
+    error = WriteRegisterRaw(m_reg_info.first_dr + 7, RegisterValue(control_bits));
     if (error.Fail()) return error;
 
     error.Clear();
@@ -1129,21 +1091,21 @@ NativeRegisterContextLinux_x86_64::ClearHardwareWatchpoint(uint32_t wp_index)
 
     // for watchpoints 0, 1, 2, or 3, respectively,
     // clear bits 0, 1, 2, or 3 of the debug status register (DR6)
-    Error error = ReadRegisterRaw(lldb_dr6_x86_64, reg_value);
+    Error error = ReadRegisterRaw(m_reg_info.first_dr + 6, reg_value);
     if (error.Fail()) return false;
     uint64_t bit_mask = 1 << wp_index;
     uint64_t status_bits = reg_value.GetAsUInt64() & ~bit_mask;
-    error = WriteRegister(lldb_dr6_x86_64, RegisterValue(status_bits));
+    error = WriteRegisterRaw(m_reg_info.first_dr + 6, RegisterValue(status_bits));
     if (error.Fail()) return false;
 
     // for watchpoints 0, 1, 2, or 3, respectively,
     // clear bits {0-1,16-19}, {2-3,20-23}, {4-5,24-27}, or {6-7,28-31}
     // of the debug control register (DR7)
-    error = ReadRegisterRaw(lldb_dr7_x86_64, reg_value);
+    error = ReadRegisterRaw(m_reg_info.first_dr + 7, reg_value);
     if (error.Fail()) return false;
     bit_mask = (0x3 << (2 * wp_index)) | (0xF << (16 + 4 * wp_index));
     uint64_t control_bits = reg_value.GetAsUInt64() & ~bit_mask;
-    return WriteRegister(lldb_dr7_x86_64, RegisterValue(control_bits)).Success();
+    return WriteRegisterRaw(m_reg_info.first_dr + 7, RegisterValue(control_bits)).Success();
 }
 
 Error
@@ -1152,33 +1114,43 @@ NativeRegisterContextLinux_x86_64::ClearAllHardwareWatchpoints()
     RegisterValue reg_value;
 
     // clear bits {0-4} of the debug status register (DR6)
-    Error error = ReadRegisterRaw(lldb_dr6_x86_64, reg_value);
+    Error error = ReadRegisterRaw(m_reg_info.first_dr + 6, reg_value);
     if (error.Fail()) return error;
     uint64_t bit_mask = 0xF;
     uint64_t status_bits = reg_value.GetAsUInt64() & ~bit_mask;
-    error = WriteRegister(lldb_dr6_x86_64, RegisterValue(status_bits));
+    error = WriteRegisterRaw(m_reg_info.first_dr + 6, RegisterValue(status_bits));
     if (error.Fail()) return error;
 
     // clear bits {0-7,16-31} of the debug control register (DR7)
-    error = ReadRegisterRaw(lldb_dr7_x86_64, reg_value);
+    error = ReadRegisterRaw(m_reg_info.first_dr + 7, reg_value);
     if (error.Fail()) return error;
     bit_mask = 0xFF | (0xFFFF << 16);
     uint64_t control_bits = reg_value.GetAsUInt64() & ~bit_mask;
-    return WriteRegister(lldb_dr7_x86_64, RegisterValue(control_bits));
+    return WriteRegisterRaw(m_reg_info.first_dr + 7, RegisterValue(control_bits));
 }
 
 uint32_t
 NativeRegisterContextLinux_x86_64::SetHardwareWatchpoint(
         lldb::addr_t addr, size_t size, uint32_t watch_flags)
 {
+    Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_WATCHPOINTS));
     const uint32_t num_hw_watchpoints = NumSupportedHardwareWatchpoints();
     for (uint32_t wp_index = 0; wp_index < num_hw_watchpoints; ++wp_index)
-        if (IsWatchpointVacant(wp_index).Success())
+    {
+        bool is_vacant;
+        Error error = IsWatchpointVacant(wp_index, is_vacant);
+        if (is_vacant)
         {
-            if (SetHardwareWatchpointWithIndex(addr, size, watch_flags, wp_index).Fail())
-                continue;
-            return wp_index;
+            error = SetHardwareWatchpointWithIndex(addr, size, watch_flags, wp_index);
+            if (error.Success())
+                return wp_index;
         }
+        if (error.Fail() && log)
+        {
+            log->Printf("NativeRegisterContextLinux_x86_64::%s Error: %s",
+                    __FUNCTION__, error.AsCString());
+        }
+    }
     return LLDB_INVALID_INDEX32;
 }
 
@@ -1199,3 +1171,5 @@ NativeRegisterContextLinux_x86_64::NumSupportedHardwareWatchpoints ()
     // Available debug address registers: dr0, dr1, dr2, dr3
     return 4;
 }
+
+#endif // defined(__i386__) || defined(__x86_64__)

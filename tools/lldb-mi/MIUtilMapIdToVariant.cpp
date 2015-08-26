@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MIUtilMapIdToVariant.cpp
-//
-// Overview:    CMIUtilMapIdToVariant implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MIUtilMapIdToVariant.h"
 
@@ -29,7 +17,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilMapIdToVariant::CMIUtilMapIdToVariant(void)
+CMIUtilMapIdToVariant::CMIUtilMapIdToVariant()
 {
 }
 
@@ -40,7 +28,7 @@ CMIUtilMapIdToVariant::CMIUtilMapIdToVariant(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilMapIdToVariant::~CMIUtilMapIdToVariant(void)
+CMIUtilMapIdToVariant::~CMIUtilMapIdToVariant()
 {
 }
 
@@ -52,7 +40,7 @@ CMIUtilMapIdToVariant::~CMIUtilMapIdToVariant(void)
 // Throws:  None.
 //--
 void
-CMIUtilMapIdToVariant::Clear(void)
+CMIUtilMapIdToVariant::Clear()
 {
     m_mapKeyToVariantValue.clear();
 }
@@ -83,7 +71,7 @@ CMIUtilMapIdToVariant::HaveAlready(const CMIUtilString &vId) const
 // Throws:  None.
 //--
 bool
-CMIUtilMapIdToVariant::IsEmpty(void) const
+CMIUtilMapIdToVariant::IsEmpty() const
 {
     return m_mapKeyToVariantValue.empty();
 }

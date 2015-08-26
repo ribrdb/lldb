@@ -12,16 +12,15 @@ class SynthDataFormatterTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
-    @unittest2.expectedFailure("rdar://15630776 - Summary cannot reference non-synthetic children if synthetic children exist")
     def test_with_dsym_and_run_command(self):
         """Test data formatter commands."""
         self.buildDsym()
         self.data_formatter_commands()
 
     @dwarf_test
-    @unittest2.expectedFailure("rdar://15630776 - Summary cannot reference non-synthetic children if synthetic children exist")
+    @expectedFailureAll("llvm.org/pr23139", oslist=["linux"], compiler="gcc", compiler_version=[">=","4.9"], archs=["x86_64","i386"])
     def test_with_dwarf_and_run_command(self):
         """Test data formatter commands."""
         self.buildDwarf()
@@ -170,7 +169,7 @@ class SynthDataFormatterTestCase(TestBase):
         
         # skip synthetic children
         self.expect('frame variable plenty_of_stuff --synthetic-type no',
-                    substrs = ['some_values = 0x0',
+                    substrs = ['some_values = 0x',
                                'array = 0x',
                                'array_size = 5'])
 
@@ -208,6 +207,12 @@ class SynthDataFormatterTestCase(TestBase):
         self.runCmd("n")
         self.expect('frame variable bag_bag',
                     substrs = ['x.z = 12'])
+
+        self.runCmd('type summary add -e -s "I am always empty but have" EmptyStruct')
+        self.expect('frame variable es', substrs = ["I am always empty but have {}"])
+        self.runCmd('type summary add -e -h -s "I am really empty" EmptyStruct')
+        self.expect('frame variable es', substrs = ["I am really empty"])
+        self.expect('frame variable es', substrs = ["I am really empty {}"], matching=False)
 
 
 if __name__ == '__main__':

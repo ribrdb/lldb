@@ -14,6 +14,7 @@ add_lldb_library(lldbCore
   ConnectionMachPort.cpp
   ConnectionSharedMemory.cpp
   ConstString.cpp
+  CxaDemangle.cpp
   DataBufferHeap.cpp
   DataBufferMemoryMap.cpp
   DataEncoder.cpp
@@ -33,6 +34,7 @@ add_lldb_library(lldbCore
   Language.cpp
   Listener.cpp
   Log.cpp
+  Logging.cpp
   Mangled.cpp
   Module.cpp
   ModuleChild.cpp
@@ -63,6 +65,7 @@ add_lldb_library(lldbCore
   ValueObjectCast.cpp
   ValueObjectChild.cpp
   ValueObjectConstResult.cpp
+  ValueObjectConstResultCast.cpp
   ValueObjectConstResultChild.cpp
   ValueObjectConstResultImpl.cpp
   ValueObjectDynamicValue.cpp

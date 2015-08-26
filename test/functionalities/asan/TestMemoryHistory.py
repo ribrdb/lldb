@@ -16,18 +16,20 @@ class AsanTestCase(TestBase):
     # may not have the debugging API which was recently added, so we're calling
     # self.useBuiltClang() to use clang from the llvm-build directory instead
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
-    @skipIfRemote
     @dsym_test
+    @skipIfRemote
+    @skipUnlessCompilerRt
+    @skipUnlessDarwin
     def test_with_dsym (self):
         compiler = self.findBuiltClang ()
         self.buildDsym (None, compiler)
         self.asan_tests ()
 
+    @dwarf_test
+    @expectedFailureLinux # non-core functionality, need to reenable and fix later (DES 2014.11.07)
     @skipIfFreeBSD # llvm.org/pr21136 runtimes not yet available by default
     @skipIfRemote
-    @expectedFailureLinux # non-core functionality, need to reenable and fix later (DES 2014.11.07)
-    @dwarf_test
+    @skipUnlessCompilerRt
     def test_with_dwarf (self):
         compiler = self.findBuiltClang ()
         self.buildDwarf (None, compiler)
@@ -84,18 +86,18 @@ class AsanTestCase(TestBase):
         history_thread = threads.GetThreadAtIndex(0)
         self.assertTrue(history_thread.num_frames >= 2)
         self.assertEqual(history_thread.frames[1].GetLineEntry().GetFileSpec().GetFilename(), "main.c")
-        self.assertEqual(history_thread.frames[1].GetLineEntry().GetLine(), self.line_malloc)
+        self.assertEqual(history_thread.frames[1].GetLineEntry().GetLine(), self.line_free)
         
         history_thread = threads.GetThreadAtIndex(1)
         self.assertTrue(history_thread.num_frames >= 2)
         self.assertEqual(history_thread.frames[1].GetLineEntry().GetFileSpec().GetFilename(), "main.c")
-        self.assertEqual(history_thread.frames[1].GetLineEntry().GetLine(), self.line_free)
+        self.assertEqual(history_thread.frames[1].GetLineEntry().GetLine(), self.line_malloc)
 
         # let's free the container (SBThreadCollection) and see if the SBThreads still live
         threads = None
         self.assertTrue(history_thread.num_frames >= 2)
         self.assertEqual(history_thread.frames[1].GetLineEntry().GetFileSpec().GetFilename(), "main.c")
-        self.assertEqual(history_thread.frames[1].GetLineEntry().GetLine(), self.line_free)
+        self.assertEqual(history_thread.frames[1].GetLineEntry().GetLine(), self.line_malloc)
 
         # now let's break when an ASan report occurs and try the API then
         self.runCmd("breakpoint set -n __asan_report_error")

@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdArgValFile.h
-//
-// Overview:    CMICmdArgValFile interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // In-house headers:
@@ -34,15 +22,12 @@ class CMICmdArgContext;
 //          interpret the options (context) string to find and validate a matching
 //          argument and so extract a value from it .
 //          Based on the Interpreter pattern.
-// Gotchas: None.
-// Authors: Illya Rudkin 15/04/2014.
-// Changes: None.
 //--
 class CMICmdArgValFile : public CMICmdArgValBaseTemplate<CMIUtilString>
 {
     // Methods:
   public:
-    /* ctor */ CMICmdArgValFile(void);
+    /* ctor */ CMICmdArgValFile();
     /* ctor */ CMICmdArgValFile(const CMIUtilString &vrArgName, const bool vbMandatory, const bool vbHandleByCmd);
     //
     bool IsFilePath(const CMIUtilString &vrFileNamePath) const;
@@ -51,9 +36,9 @@ class CMICmdArgValFile : public CMICmdArgValBaseTemplate<CMIUtilString>
     // Overridden:
   public:
     // From CMICmdArgValBase
-    /* dtor */ virtual ~CMICmdArgValFile(void);
+    /* dtor */ ~CMICmdArgValFile() override;
     // From CMICmdArgSet::IArg
-    virtual bool Validate(CMICmdArgContext &vwArgContext);
+    bool Validate(CMICmdArgContext &vwArgContext) override;
 
     // Methods:
   private:

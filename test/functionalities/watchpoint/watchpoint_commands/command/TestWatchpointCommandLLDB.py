@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test 'watchpoint command'.
 """
 
@@ -22,10 +22,10 @@ class WatchpointLLDBCommandTestCase(TestBase):
         # And the watchpoint variable declaration line number.
         self.decl = line_number(self.source, '// Watchpoint variable declaration.')
         # Build dictionary to have unique executable names for each test method.
-        self.exe_name = self.testMethodName
+        self.exe_name = 'a%d.out' % self.test_number
         self.d = {'CXX_SOURCES': self.source, 'EXE': self.exe_name}
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_watchpoint_command_with_dsym(self):
         """Test 'watchpoint command'."""
@@ -34,13 +34,15 @@ class WatchpointLLDBCommandTestCase(TestBase):
         self.watchpoint_command()
 
     @dwarf_test
+    @expectedFailureAndroid(archs=['arm', 'aarch64']) # Watchpoints not supported
+    @expectedFailureWindows("llvm.org/pr24446") # WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows
     def test_watchpoint_command_with_dwarf(self):
         """Test 'watchpoint command'."""
         self.buildDwarf(dictionary=self.d)
         self.setTearDownCleanup(dictionary=self.d)
         self.watchpoint_command()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_watchpoint_command_can_disable_a_watchpoint_with_dsym(self):
         """Test that 'watchpoint command' action can disable a watchpoint after it is triggered."""
@@ -49,6 +51,8 @@ class WatchpointLLDBCommandTestCase(TestBase):
         self.watchpoint_command_can_disable_a_watchpoint()
 
     @dwarf_test
+    @expectedFailureAndroid(archs=['arm', 'aarch64']) # Watchpoints not supported
+    @expectedFailureWindows("llvm.org/pr24446") # WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows
     def test_watchpoint_command_can_disable_a_watchpoint_with_dwarf(self):
         """Test that 'watchpoint command' action can disable a watchpoint after it is triggered."""
         self.buildDwarf(dictionary=self.d)

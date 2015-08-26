@@ -23,6 +23,7 @@ class HelloWatchpointTestCase(TestBase):
         self.hello_watchpoint()
 
     @dwarf_test
+    @expectedFailureAndroid(archs=['arm', 'aarch64']) # Watchpoints not supported
     def test_hello_watchpoint_with_dwarf_using_watchpoint_set(self):
         """Test a simple sequence of watchpoint creation and watchpoint hit."""
         self.buildDwarf(dictionary=self.d)
@@ -38,8 +39,7 @@ class HelloWatchpointTestCase(TestBase):
         self.line = line_number(self.source, '// Set break point at this line.')
         # And the watchpoint variable declaration line number.
         self.decl = line_number(self.source, '// Watchpoint variable declaration.')
-        # Build dictionary to have unique executable names for each test method.
-        self.exe_name = self.testMethodName
+        self.exe_name = 'a.out'
         self.d = {'C_SOURCES': self.source, 'EXE': self.exe_name}
 
     def hello_watchpoint(self):

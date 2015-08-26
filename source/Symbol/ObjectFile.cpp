@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/lldb-private.h"
-#include "lldb/lldb-private-log.h"
 #include "lldb/Core/DataBuffer.h"
 #include "lldb/Core/DataBufferHeap.h"
 #include "lldb/Core/Log.h"
@@ -329,7 +328,7 @@ ObjectFile::GetAddressClass (addr_t file_addr)
         {
             if (symbol->ValueIsAddress())
             {
-                const SectionSP section_sp (symbol->GetAddress().GetSection());
+                const SectionSP section_sp (symbol->GetAddressRef().GetSection());
                 if (section_sp)
                 {
                     const SectionType section_type = section_sp->GetType();
@@ -355,6 +354,7 @@ ObjectFile::GetAddressClass (addr_t file_addr)
                         return eAddressClassData;
                     case eSectionTypeDebug:
                     case eSectionTypeDWARFDebugAbbrev:
+                    case eSectionTypeDWARFDebugAddr:
                     case eSectionTypeDWARFDebugAranges:
                     case eSectionTypeDWARFDebugFrame:
                     case eSectionTypeDWARFDebugInfo:
@@ -365,6 +365,7 @@ ObjectFile::GetAddressClass (addr_t file_addr)
                     case eSectionTypeDWARFDebugPubTypes:
                     case eSectionTypeDWARFDebugRanges:
                     case eSectionTypeDWARFDebugStr:
+                    case eSectionTypeDWARFDebugStrOffsets:
                     case eSectionTypeDWARFAppleNames:
                     case eSectionTypeDWARFAppleTypes:
                     case eSectionTypeDWARFAppleNamespaces:

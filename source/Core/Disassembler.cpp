@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/Core/Disassembler.h"
 
 // C Includes
@@ -30,7 +28,6 @@
 #include "lldb/Interpreter/OptionValueDictionary.h"
 #include "lldb/Interpreter/OptionValueString.h"
 #include "lldb/Interpreter/OptionValueUInt64.h"
-#include "lldb/Symbol/ClangNamespaceDecl.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -421,6 +418,47 @@ Disassembler::PrintInstructions
     }
     const uint32_t scope = eSymbolContextLineEntry | eSymbolContextFunction | eSymbolContextSymbol;
     const bool use_inline_block_range = false;
+
+    const FormatEntity::Entry *disassembly_format = NULL;
+    FormatEntity::Entry format;
+    if (exe_ctx.HasTargetScope())
+    {
+        disassembly_format = exe_ctx.GetTargetRef().GetDebugger().GetDisassemblyFormat ();
+    }
+    else
+    {
+        FormatEntity::Parse("${addr}: ", format);
+        disassembly_format = &format;
+    }
+
+    // First pass: step through the list of instructions, 
+    // find how long the initial addresses strings are, insert padding 
+    // in the second pass so the opcodes all line up nicely.
+    size_t address_text_size = 0;
+    for (size_t i = 0; i < num_instructions_found; ++i)
+    {
+        Instruction *inst = disasm_ptr->GetInstructionList().GetInstructionAtIndex (i).get();
+        if (inst)
+        {
+            const Address &addr = inst->GetAddress();
+            ModuleSP module_sp (addr.GetModule());
+            if (module_sp)
+            {
+                const uint32_t resolve_mask = eSymbolContextFunction | eSymbolContextSymbol;
+                uint32_t resolved_mask = module_sp->ResolveSymbolContextForAddress(addr, resolve_mask, sc);
+                if (resolved_mask)
+                {
+                    StreamString strmstr;
+                    Debugger::FormatDisassemblerAddress (disassembly_format, &sc, NULL, &exe_ctx, &addr, strmstr);
+                    size_t cur_line = strmstr.GetSizeOfLastLine();
+                    if (cur_line > address_text_size)
+                        address_text_size = cur_line;
+                }
+                sc.Clear(false);
+            }
+        }
+    }
+
     for (size_t i = 0; i < num_instructions_found; ++i)
     {
         Instruction *inst = disasm_ptr->GetInstructionList().GetInstructionAtIndex (i).get();
@@ -448,7 +486,7 @@ Disassembler::PrintInstructions
                                 if (offset != 0)
                                     strm.EOL();
                                 
-                                sc.DumpStopContext(&strm, exe_ctx.GetProcessPtr(), addr, false, true, false, false);
+                                sc.DumpStopContext(&strm, exe_ctx.GetProcessPtr(), addr, false, true, false, false, true);
                                 strm.EOL();
                                 
                                 if (sc.comp_unit && sc.line_entry.IsValid())
@@ -471,7 +509,7 @@ Disassembler::PrintInstructions
             }
 
             const bool show_bytes = (options & eOptionShowBytes) != 0;
-            inst->Dump (&strm, max_opcode_byte_size, true, show_bytes, &exe_ctx, &sc, &prev_sc, NULL);
+            inst->Dump (&strm, max_opcode_byte_size, true, show_bytes, &exe_ctx, &sc, &prev_sc, NULL, address_text_size);
             strm.EOL();            
         }
         else
@@ -509,7 +547,7 @@ Disassembler::Disassemble
         }
         else if (sc.symbol && sc.symbol->ValueIsAddress())
         {
-            range.GetBaseAddress() = sc.symbol->GetAddress();
+            range.GetBaseAddress() = sc.symbol->GetAddressRef();
             range.SetByteSize (sc.symbol->GetByteSize());
         }
         else
@@ -561,7 +599,8 @@ Instruction::Dump (lldb_private::Stream *s,
                    const ExecutionContext* exe_ctx,
                    const SymbolContext *sym_ctx,
                    const SymbolContext *prev_sym_ctx,
-                   const FormatEntity::Entry *disassembly_addr_format)
+                   const FormatEntity::Entry *disassembly_addr_format,
+                   size_t max_address_text_size)
 {
     size_t opcode_column_width = 7;
     const size_t operand_column_width = 25;
@@ -573,6 +612,7 @@ Instruction::Dump (lldb_private::Stream *s,
     if (show_address)
     {
         Debugger::FormatDisassemblerAddress (disassembly_addr_format, sym_ctx, prev_sym_ctx, exe_ctx, &m_address, ss);
+        ss.FillLastLineToColumn (max_address_text_size, ' ');
     }
     
     if (show_bytes)
@@ -683,7 +723,7 @@ Instruction::ReadArray (FILE *in_file, Stream *out_stream, OptionValue::Type dat
             {
             case OptionValue::eTypeUInt64:
                 data_value_sp.reset (new OptionValueUInt64 (0, 0));
-                data_value_sp->SetValueFromCString (value.c_str());
+                data_value_sp->SetValueFromString (value);
                 break;
             // Other types can be added later as needed.
             default:
@@ -791,7 +831,7 @@ Instruction::ReadDictionary (FILE *in_file, Stream *out_stream)
             else if ((value[0] == '0') && (value[1] == 'x'))
             {
                 value_sp.reset (new OptionValueUInt64 (0, 0));
-                value_sp->SetValueFromCString (value.c_str());
+                value_sp->SetValueFromString (value);
             }
             else
             {
@@ -999,7 +1039,7 @@ InstructionList::Dump (Stream *s,
     {
         if (pos != begin)
             s->EOL();
-        (*pos)->Dump(s, max_opcode_byte_size, show_address, show_bytes, exe_ctx, NULL, NULL, disassembly_format);
+        (*pos)->Dump(s, max_opcode_byte_size, show_address, show_bytes, exe_ctx, NULL, NULL, disassembly_format, 0);
     }
 }
 
@@ -1018,17 +1058,64 @@ InstructionList::Append (lldb::InstructionSP &inst_sp)
 }
 
 uint32_t
-InstructionList::GetIndexOfNextBranchInstruction(uint32_t start) const
+InstructionList::GetIndexOfNextBranchInstruction(uint32_t start, Target &target) const
 {
     size_t num_instructions = m_instructions.size();
     
     uint32_t next_branch = UINT32_MAX;
-    for (size_t i = start; i < num_instructions; i++)
+    size_t i;
+    for (i = start; i < num_instructions; i++)
     {
         if (m_instructions[i]->DoesBranch())
         {
             next_branch = i;
             break;
+        }
+    }
+
+    // Hexagon needs the first instruction of the packet with the branch.
+    // Go backwards until we find an instruction marked end-of-packet, or
+    // until we hit start.
+    if (target.GetArchitecture().GetTriple().getArch() == llvm::Triple::hexagon)
+    {
+        // If we didn't find a branch, find the last packet start.
+        if (next_branch == UINT32_MAX)
+        {
+            i = num_instructions - 1;
+        }
+
+        while (i > start)
+        {
+            --i;
+
+            Error error;
+            uint32_t inst_bytes;
+            bool prefer_file_cache = false; // Read from process if process is running
+            lldb::addr_t load_addr = LLDB_INVALID_ADDRESS;
+            target.ReadMemory(m_instructions[i]->GetAddress(),
+                              prefer_file_cache,
+                              &inst_bytes,
+                              sizeof(inst_bytes),
+                              error,
+                              &load_addr);
+            // If we have an error reading memory, return start
+            if (!error.Success())
+                return start;
+            // check if this is the last instruction in a packet
+            // bits 15:14 will be 11b or 00b for a duplex
+            if (((inst_bytes & 0xC000) == 0xC000) ||
+                ((inst_bytes & 0xC000) == 0x0000))
+            {
+                // instruction after this should be the start of next packet
+                next_branch = i + 1;
+                break;
+            }
+        }
+
+        if (next_branch == UINT32_MAX)
+        {
+            // We couldn't find the previous packet, so return start
+            next_branch = start;
         }
     }
     return next_branch;
@@ -1176,7 +1263,7 @@ Disassembler::Disassembler(const ArchSpec& arch, const char *flavor) :
     // If this is an arm variant that can only include thumb (T16, T32)
     // instructions, force the arch triple to be "thumbv.." instead of
     // "armv..."
-    if (arch.GetTriple().getArch() == llvm::Triple::arm
+    if ((arch.GetTriple().getArch() == llvm::Triple::arm || arch.GetTriple().getArch() == llvm::Triple::thumb)
         && (arch.GetCore() == ArchSpec::Core::eCore_arm_armv7m
             || arch.GetCore() == ArchSpec::Core::eCore_arm_armv7em
             || arch.GetCore() == ArchSpec::Core::eCore_arm_armv6m))

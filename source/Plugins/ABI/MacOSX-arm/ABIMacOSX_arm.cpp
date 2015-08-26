@@ -28,7 +28,7 @@
 #include "llvm/ADT/Triple.h"
 
 #include "Utility/ARM_DWARF_Registers.h"
-#include "Utility/ARM_GCC_Registers.h"
+#include "Utility/ARM_Stabs_Registers.h"
 #include "Plugins/Process/Utility/ARMDefines.h"
 
 #include <vector>
@@ -38,7 +38,7 @@ using namespace lldb_private;
 
 static RegisterInfo g_register_infos[] =
 {
-    //  NAME       ALT       SZ OFF ENCODING         FORMAT          COMPILER                DWARF               GENERIC                     GDB                     LLDB NATIVE            VALUE REGS    INVALIDATE REGS
+    //  NAME       ALT       SZ OFF ENCODING         FORMAT          EH_FRAME                DWARF               GENERIC                     STABS                   LLDB NATIVE            VALUE REGS    INVALIDATE REGS
     //  ========== =======   == === =============    ============    ======================= =================== =========================== ======================= ====================== ==========    ===============
     {   "r0",      "arg1",    4, 0, eEncodingUint    , eFormatHex,   { gcc_r0,               dwarf_r0,           LLDB_REGNUM_GENERIC_ARG1,   gdb_arm_r0,             LLDB_INVALID_REGNUM },      NULL,              NULL},
     {   "r1",      "arg2",    4, 0, eEncodingUint    , eFormatHex,   { gcc_r1,               dwarf_r1,           LLDB_REGNUM_GENERIC_ARG2,   gdb_arm_r1,             LLDB_INVALID_REGNUM },      NULL,              NULL},
@@ -184,13 +184,19 @@ ABIMacOSX_arm::CreateInstance (const ArchSpec &arch)
 {
     static ABISP g_abi_sp;
     const llvm::Triple::ArchType arch_type = arch.GetTriple().getArch();
-    if ((arch_type == llvm::Triple::arm) ||
-        (arch_type == llvm::Triple::thumb))
+    const llvm::Triple::VendorType vendor_type = arch.GetTriple().getVendor();
+
+    if (vendor_type == llvm::Triple::Apple)
     {
-        if (!g_abi_sp)
-            g_abi_sp.reset (new ABIMacOSX_arm);
-        return g_abi_sp;
+        if ((arch_type == llvm::Triple::arm) ||
+            (arch_type == llvm::Triple::thumb))
+        {
+            if (!g_abi_sp)
+                g_abi_sp.reset (new ABIMacOSX_arm);
+            return g_abi_sp;
+        }
     }
+
     return ABISP();
 }
 
@@ -327,18 +333,18 @@ ABIMacOSX_arm::GetArgumentValues (Thread &thread,
         if (!value)
             return false;
         
-        ClangASTType clang_type = value->GetClangType();
+        CompilerType clang_type = value->GetCompilerType();
         if (clang_type)
         {
             bool is_signed = false;
             size_t bit_width = 0;
             if (clang_type.IsIntegerType (is_signed))
             {
-                bit_width = clang_type.GetBitSize(nullptr);
+                bit_width = clang_type.GetBitSize(&thread);
             }
             else if (clang_type.IsPointerOrReferenceType ())
             {
-                bit_width = clang_type.GetBitSize(nullptr);
+                bit_width = clang_type.GetBitSize(&thread);
             }
             else
             {
@@ -410,7 +416,7 @@ ABIMacOSX_arm::GetArgumentValues (Thread &thread,
 
 ValueObjectSP
 ABIMacOSX_arm::GetReturnValueObjectImpl (Thread &thread,
-                                         lldb_private::ClangASTType &clang_type) const
+                                         lldb_private::CompilerType &clang_type) const
 {
     Value value;
     ValueObjectSP return_valobj_sp;
@@ -418,12 +424,13 @@ ABIMacOSX_arm::GetReturnValueObjectImpl (Thread &thread,
     if (!clang_type)
         return return_valobj_sp;
     
-    clang::ASTContext *ast_context = clang_type.GetASTContext();
+    ClangASTContext* ast = clang_type.GetTypeSystem()->AsClangASTContext();
+    clang::ASTContext *ast_context = ast ? ast->getASTContext() : nullptr;
     if (!ast_context)
         return return_valobj_sp;
 
     //value.SetContext (Value::eContextTypeClangType, clang_type.GetOpaqueQualType());
-    value.SetClangType (clang_type);
+    value.SetCompilerType (clang_type);
             
     RegisterContext *reg_ctx = thread.GetRegisterContext().get();
     if (!reg_ctx)
@@ -437,7 +444,7 @@ ABIMacOSX_arm::GetReturnValueObjectImpl (Thread &thread,
     const RegisterInfo *r0_reg_info = reg_ctx->GetRegisterInfoByName("r0", 0);
     if (clang_type.IsIntegerType (is_signed))
     {
-        size_t bit_width = clang_type.GetBitSize(nullptr);
+        size_t bit_width = clang_type.GetBitSize(&thread);
         
         switch (bit_width)
         {
@@ -504,7 +511,7 @@ ABIMacOSX_arm::SetReturnValueObject(lldb::StackFrameSP &frame_sp, lldb::ValueObj
         return error;
     }
     
-    ClangASTType clang_type = new_value_sp->GetClangType();
+    CompilerType clang_type = new_value_sp->GetCompilerType();
     if (!clang_type)
     {
         error.SetErrorString ("Null clang type for return value.");
@@ -587,7 +594,7 @@ ABIMacOSX_arm::CreateFunctionEntryUnwindPlan (UnwindPlan &unwind_plan)
     UnwindPlan::RowSP row(new UnwindPlan::Row);
     
     // Our Call Frame Address is the stack pointer value
-    row->SetCFARegister (sp_reg_num);
+    row->GetCFAValue().SetIsRegisterPlusOffset (sp_reg_num, 0);
     
     // The previous PC is in the LR
     row->SetRegisterLocationToRegister(pc_reg_num, lr_reg_num, true);
@@ -613,8 +620,7 @@ ABIMacOSX_arm::CreateDefaultUnwindPlan (UnwindPlan &unwind_plan)
     UnwindPlan::RowSP row(new UnwindPlan::Row);
     const int32_t ptr_size = 4;
     
-    row->SetCFARegister (fp_reg_num);
-    row->SetCFAOffset (2 * ptr_size);
+    row->GetCFAValue().SetIsRegisterPlusOffset (fp_reg_num, 2 * ptr_size);
     row->SetOffset (0);
     
     row->SetRegisterLocationToAtCFAPlusOffset(fp_reg_num, ptr_size * -2, true);

@@ -61,7 +61,7 @@ public:
     DeepCopy () const;
     
     virtual Error
-    SetValueFromCString (const char *value, VarSetOperationType op = eVarSetOperationAssign);
+    SetValueFromString (llvm::StringRef value, VarSetOperationType op = eVarSetOperationAssign);
 
     virtual void
     DumpValue (const ExecutionContext *exe_ctx,
@@ -170,6 +170,9 @@ public:
 
     OptionValueArch *
     GetPropertyAtIndexAsOptionValueArch (const ExecutionContext *exe_ctx, uint32_t idx) const;
+
+    OptionValueLanguage *
+    GetPropertyAtIndexAsOptionValueLanguage (const ExecutionContext *exe_ctx, uint32_t idx) const;
 
     bool
     GetPropertyAtIndexAsArgs (const ExecutionContext *exe_ctx, uint32_t idx, Args &args) const;

@@ -15,7 +15,6 @@
 #include "lldb/lldb-private.h"
 #include "lldb/Core/ModuleChild.h"
 #include "lldb/Core/PluginInterface.h"
-#include "lldb/Symbol/ClangNamespaceDecl.h"
 #include "lldb/Symbol/TypeList.h"
 
 
@@ -66,6 +65,10 @@ public:
     virtual bool
     ParseCompileUnitSupportFiles (const SymbolContext& sc,
                                   FileSpecList& support_files);
+    
+    virtual bool
+    ParseImportedModules (const SymbolContext &sc,
+                          std::vector<ConstString> &imported_modules);
 
     virtual size_t
     ParseFunctionBlocks (const SymbolContext& sc);
@@ -93,7 +96,7 @@ public:
 
     virtual size_t
     FindGlobalVariables (const ConstString &name,
-                         const ClangNamespaceDecl *namespace_decl,
+                         const CompilerDeclContext *parent_decl_ctx,
                          bool append,
                          size_t max_matches,
                          VariableList& variables);
@@ -106,7 +109,7 @@ public:
 
     virtual size_t
     FindFunctions (const ConstString &name,
-                   const ClangNamespaceDecl *namespace_decl,
+                   const CompilerDeclContext *parent_decl_ctx,
                    uint32_t name_type_mask,
                    bool include_inlines,
                    bool append,
@@ -121,15 +124,15 @@ public:
     virtual size_t
     FindTypes (const SymbolContext& sc, 
                const ConstString &name,
-               const ClangNamespaceDecl *namespace_decl, 
+               const CompilerDeclContext *parent_decl_ctx, 
                bool append, 
                size_t max_matches,
                TypeList& types);
 
-    virtual ClangNamespaceDecl
+    virtual CompilerDeclContext
     FindNamespace (const SymbolContext& sc, 
                    const ConstString &name,
-                   const ClangNamespaceDecl *parent_namespace_decl);
+                   const CompilerDeclContext *parent_decl_ctx);
     
     virtual size_t
     GetNumCompileUnits();
@@ -163,6 +166,9 @@ public:
     {
         return m_sym_file_ap.get();
     }
+
+    FileSpec
+    GetMainFileSpec() const;
 
     // Get module unified section list symbol table.
     virtual Symtab *

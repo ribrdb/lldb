@@ -29,11 +29,14 @@ class LanguageRuntime :
     public PluginInterface
 {
 public:
-    virtual
-    ~LanguageRuntime();
+
+    ~LanguageRuntime() override;
     
     static LanguageRuntime* 
     FindPlugin (Process *process, lldb::LanguageType language);
+
+    static void
+    InitializeCommands (CommandObject* parent);
     
     virtual lldb::LanguageType
     GetLanguageType () const = 0;
@@ -80,16 +83,36 @@ public:
     
     static lldb::BreakpointSP
     CreateExceptionBreakpoint (Target &target,
-                               lldb::LanguageType language, 
+                               lldb::LanguageType language,
                                bool catch_bp, 
                                bool throw_bp, 
                                bool is_internal = false);
-                            
+
+    static Breakpoint::BreakpointPreconditionSP
+    CreateExceptionPrecondition (lldb::LanguageType language,
+                                 bool catch_bp,
+                                 bool throw_bp);
+
     static lldb::LanguageType
     GetLanguageTypeFromString (const char *string);
     
     static const char *
     GetNameForLanguageType (lldb::LanguageType language);
+
+    static void
+    PrintAllLanguages (Stream &s, const char *prefix, const char *suffix);
+
+    static bool
+    LanguageIsCPlusPlus (lldb::LanguageType language);
+    
+    static bool
+    LanguageIsObjC (lldb::LanguageType language);
+    
+    static bool
+    LanguageIsC (lldb::LanguageType language);
+    
+    static bool
+    LanguageIsPascal (lldb::LanguageType language);
     
     Process *
     GetProcess()
@@ -104,7 +127,7 @@ public:
     CreateExceptionSearchFilter ();
     
     virtual bool
-    GetTypeBitSize (const ClangASTType& clang_type,
+    GetTypeBitSize (const CompilerType& clang_type,
                     uint64_t &size)
     {
         return false;
@@ -116,6 +139,11 @@ public:
         return false;
     }
 
+    virtual void
+    ModulesDidLoad (const ModuleList &module_list)
+    {
+    }
+
 protected:
     //------------------------------------------------------------------
     // Classes that inherit from LanguageRuntime can see and modify these
@@ -124,9 +152,10 @@ protected:
     LanguageRuntime(Process *process);
     Process *m_process;
 private:
+
     DISALLOW_COPY_AND_ASSIGN (LanguageRuntime);
 };
 
 } // namespace lldb_private
 
-#endif  // liblldb_LanguageRuntime_h_
+#endif // liblldb_LanguageRuntime_h_

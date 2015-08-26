@@ -14,8 +14,9 @@ class ObjCNewSyntaxTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
+    @expectedFailureDarwin # expr -- @((char*)"Hello world" + 6) cannot box a string value because NSString has not been declared
     def test_expr_with_dsym(self):
         self.buildDsym()
         self.expr()
@@ -23,6 +24,7 @@ class ObjCNewSyntaxTestCase(TestBase):
     @dwarf_test
     @skipIfFreeBSD
     @skipIfLinux
+    @expectedFailureDarwin # expr -- @((char*)"Hello world" + 6) cannot box a string value because NSString has not been declared
     def test_expr_with_dwarf(self):
         self.buildDwarf()
         self.expr()

@@ -30,8 +30,6 @@
 #include "lldb/Host/Endian.h"
 #include "lldb/Host/Host.h"
 
-#include "lldb/lldb-private-log.h"
-
 #include "lldb/Target/ABI.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
@@ -39,6 +37,8 @@
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/StackID.h"
 #include "lldb/Target/Thread.h"
+
+#include "Plugins/SymbolFile/DWARF/DWARFCompileUnit.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -198,6 +198,7 @@ DW_OP_value_to_name (uint32_t val)
     case 0x98: return "DW_OP_call2";
     case 0x99: return "DW_OP_call4";
     case 0x9a: return "DW_OP_call_ref";
+    case 0xfb: return "DW_OP_GNU_addr_index";
 //    case DW_OP_APPLE_array_ref: return "DW_OP_APPLE_array_ref";
 //    case DW_OP_APPLE_extern: return "DW_OP_APPLE_extern";
     case DW_OP_APPLE_uninit: return "DW_OP_APPLE_uninit";
@@ -221,9 +222,10 @@ DW_OP_value_to_name (uint32_t val)
 //----------------------------------------------------------------------
 // DWARFExpression constructor
 //----------------------------------------------------------------------
-DWARFExpression::DWARFExpression() :
+DWARFExpression::DWARFExpression(DWARFCompileUnit* dwarf_cu) :
     m_module_wp(),
     m_data(),
+    m_dwarf_cu(dwarf_cu),
     m_reg_kind (eRegisterKindDWARF),
     m_loclist_slide (LLDB_INVALID_ADDRESS)
 {
@@ -232,15 +234,21 @@ DWARFExpression::DWARFExpression() :
 DWARFExpression::DWARFExpression(const DWARFExpression& rhs) :
     m_module_wp(rhs.m_module_wp),
     m_data(rhs.m_data),
+    m_dwarf_cu(rhs.m_dwarf_cu),
     m_reg_kind (rhs.m_reg_kind),
     m_loclist_slide(rhs.m_loclist_slide)
 {
 }
 
 
-DWARFExpression::DWARFExpression(lldb::ModuleSP module_sp, const DataExtractor& data, lldb::offset_t data_offset, lldb::offset_t data_length) :
+DWARFExpression::DWARFExpression(lldb::ModuleSP module_sp,
+                                 const DataExtractor& data,
+                                 DWARFCompileUnit* dwarf_cu,
+                                 lldb::offset_t data_offset,
+                                 lldb::offset_t data_length) :
     m_module_wp(),
     m_data(data, data_offset, data_length),
+    m_dwarf_cu(dwarf_cu),
     m_reg_kind (eRegisterKindDWARF),
     m_loclist_slide(LLDB_INVALID_ADDRESS)
 {
@@ -611,7 +619,6 @@ DWARFExpression::DumpLocation (Stream *s, lldb::offset_t offset, lldb::offset_t 
         case DW_OP_call_ref:                                                // 0x9a DWARF3 1 4- or 8-byte offset of DIE
             s->Printf("DW_OP_call_ref(0x%8.8" PRIx64 ")", m_data.GetAddress(&offset));
             break;
-//      case DW_OP_form_tls_address: s << "form_tls_address"; break;        // 0x9b DWARF3
 //      case DW_OP_call_frame_cfa: s << "call_frame_cfa"; break;            // 0x9c DWARF3
 //      case DW_OP_bit_piece:                                               // 0x9d DWARF3 2
 //          s->Printf("DW_OP_bit_piece(0x%x, 0x%x)", m_data.GetULEB128(&offset), m_data.GetULEB128(&offset));
@@ -624,6 +631,12 @@ DWARFExpression::DumpLocation (Stream *s, lldb::offset_t offset, lldb::offset_t 
 //        case DW_OP_APPLE_array_ref:
 //            s->PutCString("DW_OP_APPLE_array_ref");
 //            break;
+        case DW_OP_form_tls_address:
+            s->PutCString("DW_OP_form_tls_address");  // 0x9b
+            break;
+        case DW_OP_GNU_addr_index:                                          // 0xfb
+            s->Printf("DW_OP_GNU_addr_index(0x%" PRIx64 ")", m_data.GetULEB128(&offset));
+            break;
         case DW_OP_GNU_push_tls_address:
             s->PutCString("DW_OP_GNU_push_tls_address");  // 0xe0
             break;
@@ -1027,6 +1040,7 @@ GetOpcodeDataSize (const DataExtractor &data, const lldb::offset_t data_offset, 
         case DW_OP_regx:        // 0x90 1 ULEB128 register
         case DW_OP_fbreg:       // 0x91 1 SLEB128 offset
         case DW_OP_piece:       // 0x93 1 ULEB128 size of piece addressed
+        case DW_OP_GNU_addr_index: // 0xfb 1 ULEB128 index
             data.Skip_LEB128(&offset); 
             return offset - data_offset;   
             
@@ -1051,7 +1065,8 @@ GetOpcodeDataSize (const DataExtractor &data, const lldb::offset_t data_offset, 
 }
 
 lldb::addr_t
-DWARFExpression::GetLocation_DW_OP_addr (uint32_t op_addr_idx, bool &error) const
+DWARFExpression::GetLocation_DW_OP_addr (uint32_t op_addr_idx,
+                                         bool &error) const
 {
     error = false;
     if (IsLocationList())
@@ -1067,6 +1082,25 @@ DWARFExpression::GetLocation_DW_OP_addr (uint32_t op_addr_idx, bool &error) cons
             const lldb::addr_t op_file_addr = m_data.GetAddress(&offset);
             if (curr_op_addr_idx == op_addr_idx)
                 return op_file_addr;
+            else
+                ++curr_op_addr_idx;
+        }
+        else if (op == DW_OP_GNU_addr_index)
+        {
+            uint64_t index = m_data.GetULEB128(&offset);
+            if (curr_op_addr_idx == op_addr_idx)
+            {
+                if (!m_dwarf_cu)
+                {
+                    error = true;
+                    break;
+                }
+
+                uint32_t index_size = m_dwarf_cu->GetAddressByteSize();
+                dw_offset_t addr_base = m_dwarf_cu->GetAddrBase();
+                lldb::offset_t offset = addr_base + index * index_size;
+                return m_dwarf_cu->GetSymbolFileDWARF()->get_debug_addr_data().GetMaxU64(&offset, index_size);
+            }
             else
                 ++curr_op_addr_idx;
         }
@@ -1104,7 +1138,7 @@ DWARFExpression::Update_DW_OP_addr (lldb::addr_t file_addr)
             
             // So first we copy the data into a heap buffer
             std::unique_ptr<DataBufferHeap> head_data_ap (new DataBufferHeap (m_data.GetDataStart(),
-                                                                             m_data.GetByteSize()));
+                                                                              m_data.GetByteSize()));
             
             // Make en encoder so we can write the address into the buffer using
             // the correct byte order (endianness)
@@ -1310,7 +1344,19 @@ DWARFExpression::Evaluate
 
                     if (length > 0 && lo_pc <= pc && pc < hi_pc)
                     {
-                        return DWARFExpression::Evaluate (exe_ctx, expr_locals, decl_map, reg_ctx, module_sp, m_data, offset, length, m_reg_kind, initial_value_ptr, result, error_ptr);
+                        return DWARFExpression::Evaluate (exe_ctx,
+                                                          expr_locals,
+                                                          decl_map,
+                                                          reg_ctx,
+                                                          module_sp,
+                                                          m_data,
+                                                          m_dwarf_cu,
+                                                          offset,
+                                                          length,
+                                                          m_reg_kind,
+                                                          initial_value_ptr,
+                                                          result,
+                                                          error_ptr);
                     }
                     offset += length;
                 }
@@ -1322,7 +1368,19 @@ DWARFExpression::Evaluate
     }
 
     // Not a location list, just a single expression.
-    return DWARFExpression::Evaluate (exe_ctx, expr_locals, decl_map, reg_ctx, module_sp, m_data, 0, m_data.GetByteSize(), m_reg_kind, initial_value_ptr, result, error_ptr);
+    return DWARFExpression::Evaluate (exe_ctx,
+                                      expr_locals,
+                                      decl_map,
+                                      reg_ctx,
+                                      module_sp,
+                                      m_data,
+                                      m_dwarf_cu,
+                                      0,
+                                      m_data.GetByteSize(),
+                                      m_reg_kind,
+                                      initial_value_ptr,
+                                      result,
+                                      error_ptr);
 }
 
 
@@ -1336,6 +1394,7 @@ DWARFExpression::Evaluate
     RegisterContext *reg_ctx,
     lldb::ModuleSP module_sp,
     const DataExtractor& opcodes,
+    DWARFCompileUnit* dwarf_cu,
     const lldb::offset_t opcodes_offset,
     const lldb::offset_t opcodes_length,
     const lldb::RegisterKind reg_kind,
@@ -2897,17 +2956,24 @@ DWARFExpression::Evaluate
             break;
 
         //----------------------------------------------------------------------
-        // OPCODE: DW_OP_GNU_push_tls_address
+        // OPCODE: DW_OP_form_tls_address (or the old pre-DWARFv3 vendor extension opcode, DW_OP_GNU_push_tls_address)
         // OPERANDS: none
         // DESCRIPTION: Pops a TLS offset from the stack, converts it to
-        // an absolute value, and pushes it back on.
+        // an address in the current thread's thread-local storage block, 
+        // and pushes it on the stack.
         //----------------------------------------------------------------------
+        case DW_OP_form_tls_address:
         case DW_OP_GNU_push_tls_address:
             {
                 if (stack.size() < 1)
                 {
                     if (error_ptr)
-                        error_ptr->SetErrorString("DW_OP_GNU_push_tls_address needs an argument.");
+                    {
+                        if (op == DW_OP_form_tls_address)
+                            error_ptr->SetErrorString("DW_OP_form_tls_address needs an argument.");
+                        else
+                            error_ptr->SetErrorString("DW_OP_GNU_push_tls_address needs an argument.");
+                    }
                     return false;
                 }
 
@@ -2940,6 +3006,32 @@ DWARFExpression::Evaluate
                 Scalar tmp = stack.back().ResolveValue(exe_ctx);
                 stack.back() = tmp + tls_addr;
                 stack.back().SetValueType (Value::eValueTypeLoadAddress);
+            }
+            break;
+
+        //----------------------------------------------------------------------
+        // OPCODE: DW_OP_GNU_addr_index
+        // OPERANDS: 1
+        //      ULEB128: index to the .debug_addr section
+        // DESCRIPTION: Pushes an address to the stack from the .debug_addr
+        // section with the base address specified by the DW_AT_addr_base
+        // attribute and the 0 based index is the ULEB128 encoded index.
+        //----------------------------------------------------------------------
+        case DW_OP_GNU_addr_index:
+            {
+                if (!dwarf_cu)
+                {
+                    if (error_ptr)
+                        error_ptr->SetErrorString ("DW_OP_GNU_addr_index found without a compile being specified");
+                    return false;
+                }
+                uint64_t index = opcodes.GetULEB128(&offset);
+                uint32_t index_size = dwarf_cu->GetAddressByteSize();
+                dw_offset_t addr_base = dwarf_cu->GetAddrBase();
+                lldb::offset_t offset = addr_base + index * index_size;
+                uint64_t value = dwarf_cu->GetSymbolFileDWARF()->get_debug_addr_data().GetMaxU64(&offset, index_size);
+                stack.push_back(Scalar(value));
+                stack.back().SetValueType(Value::eValueTypeFileAddress);
             }
             break;
 

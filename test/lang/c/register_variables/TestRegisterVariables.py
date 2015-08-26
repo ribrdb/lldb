@@ -17,8 +17,9 @@ class RegisterVariableTestCase(TestBase):
         self.buildDsym()
         self.const_variable()
 
-    @expectedFailureClang
     @dwarf_test
+    @expectedFailureClang(None, ['<', '3.5'])
+    @expectedFailureGcc(None, ['is', '4.8.2'])
     def test_with_dwarf_and_run_command(self):
         """Test expressions on register values."""
         self.buildDwarf()

@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdInvoker.cpp
-//
-// Overview:    CMICmdInvoker implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmdInvoker.h"
 #include "MICmdBase.h"
@@ -34,7 +22,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdInvoker::CMICmdInvoker(void)
+CMICmdInvoker::CMICmdInvoker()
     : m_rStreamOut(CMICmnStreamStdout::Instance())
 {
 }
@@ -46,7 +34,7 @@ CMICmdInvoker::CMICmdInvoker(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdInvoker::~CMICmdInvoker(void)
+CMICmdInvoker::~CMICmdInvoker()
 {
     Shutdown();
 }
@@ -60,7 +48,7 @@ CMICmdInvoker::~CMICmdInvoker(void)
 // Throws:  None.
 //--
 bool
-CMICmdInvoker::Initialize(void)
+CMICmdInvoker::Initialize()
 {
     m_clientUsageRefCnt++;
 
@@ -81,7 +69,7 @@ CMICmdInvoker::Initialize(void)
 // Throws:  None.
 //--
 bool
-CMICmdInvoker::Shutdown(void)
+CMICmdInvoker::Shutdown()
 {
     if (--m_clientUsageRefCnt > 0)
         return MIstatus::success;
@@ -104,7 +92,7 @@ CMICmdInvoker::Shutdown(void)
 // Throws:  None.
 //--
 void
-CMICmdInvoker::CmdDeleteAll(void)
+CMICmdInvoker::CmdDeleteAll()
 {
     CMICmdMgr &rMgr = CMICmdMgr::Instance();
     MapCmdIdToCmd_t::const_iterator it = m_mapCmdIdToCmd.begin();
@@ -188,7 +176,7 @@ CMICmdInvoker::CmdAdd(const CMICmdBase &vCmd)
 //++ ------------------------------------------------------------------------------------
 // Details: Having previously had the potential command validated and found valid now
 //          get the command executed.
-//          If the Functionalityity returns MIstatus::failure call GetErrorDescription().
+//          If the Functionality returns MIstatus::failure call GetErrorDescription().
 //          This function is used by the application's main thread.
 // Type:    Method.
 // Args:    vCmd    - (RW) Command object.
@@ -232,7 +220,7 @@ CMICmdInvoker::CmdExecute(CMICmdBase &vCmd)
 
 //++ ------------------------------------------------------------------------------------
 // Details: Called when a command has finished its Execution() work either synchronously
-//          because the command executed was the type a non event type or asynchronoulsy
+//          because the command executed was the type a non event type or asynchronously
 //          via the command's callback (because of an SB Listener event). Needs to be called
 //          so that *this invoker call do some house keeping and then proceed to call
 //          the command's Acknowledge() function.

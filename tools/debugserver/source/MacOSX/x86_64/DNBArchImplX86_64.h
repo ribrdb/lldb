@@ -40,8 +40,8 @@ public:
 
     static  void            Initialize();
     
-    virtual bool            GetRegisterValue(int set, int reg, DNBRegisterValue *value);
-    virtual bool            SetRegisterValue(int set, int reg, const DNBRegisterValue *value);
+    virtual bool            GetRegisterValue(uint32_t set, uint32_t reg, DNBRegisterValue *value);
+    virtual bool            SetRegisterValue(uint32_t set, uint32_t reg, const DNBRegisterValue *value);
     virtual nub_size_t      GetRegisterContext (void *buf, nub_size_t buf_len);
     virtual nub_size_t      SetRegisterContext (const void *buf, nub_size_t buf_len);
     virtual uint32_t        SaveRegisterState ();
@@ -227,7 +227,7 @@ protected:
     static DNBArchProtocol *
     Create (MachThread *thread);
     
-    static const uint8_t * const
+    static const uint8_t *
     SoftwareBreakpointOpcode (nub_size_t byte_size);
 
     static const DNBRegisterSetInfo *

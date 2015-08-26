@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "PlatformKalimba.h"
 #include "lldb/Host/Config.h"
 
@@ -76,6 +74,8 @@ PlatformKalimba::GetPluginName()
 void
 PlatformKalimba::Initialize ()
 {
+    Platform::Initialize ();
+
     if (g_initialize_count++ == 0)
     {
         PluginManager::RegisterPlugin(PlatformKalimba::GetPluginNameStatic(false),
@@ -94,6 +94,8 @@ PlatformKalimba::Terminate ()
             PluginManager::UnregisterPlugin (PlatformKalimba::CreateInstance);
         }
     }
+
+    Platform::Terminate ();
 }
 
 Error
@@ -320,21 +322,3 @@ PlatformKalimba::CalculateTrapHandlerSymbolNames ()
 {   
     // TODO Research this sometime.
 }   
-
-Error
-PlatformKalimba::LaunchNativeProcess (
-    ProcessLaunchInfo &,
-    lldb_private::NativeProcessProtocol::NativeDelegate &,
-    NativeProcessProtocolSP &)
-{
-    return Error();
-}
-
-Error
-PlatformKalimba::AttachNativeProcess (lldb::pid_t,
-                                    lldb_private::NativeProcessProtocol::NativeDelegate &,
-                                    NativeProcessProtocolSP &)
-{
-    return Error();
-}
-

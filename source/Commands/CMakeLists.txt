@@ -6,6 +6,7 @@ add_lldb_library(lldbCommands
   CommandObjectArgs.cpp
   CommandObjectBreakpoint.cpp
   CommandObjectBreakpointCommand.cpp
+  CommandObjectBugreport.cpp
   CommandObjectCommands.cpp
   CommandObjectDisassemble.cpp
   CommandObjectExpression.cpp
@@ -29,4 +30,5 @@ add_lldb_library(lldbCommands
   CommandObjectVersion.cpp
   CommandObjectWatchpoint.cpp
   CommandObjectWatchpointCommand.cpp
+  CommandObjectLanguage.cpp
   )

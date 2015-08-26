@@ -14,9 +14,12 @@
 #include "lldb/Host/common/NativeThreadProtocol.h"
 
 #include <map>
+#include <memory>
+#include <string>
 
-namespace lldb_private
-{
+namespace lldb_private {
+namespace process_linux {
+
     class NativeProcessLinux;
 
     class NativeThreadLinux : public NativeThreadProtocol
@@ -52,16 +55,13 @@ namespace lldb_private
         // Interface for friend classes
         // ---------------------------------------------------------------------
         void
-        SetLaunching ();
-
-        void
         SetRunning ();
 
         void
         SetStepping ();
 
         void
-        SetStoppedBySignal (uint32_t signo);
+        SetStoppedBySignal(uint32_t signo, const siginfo_t *info = nullptr);
 
         /// Return true if the thread is stopped.
         /// If stopped by a signal, indicate the signo in the signo argument.
@@ -76,7 +76,7 @@ namespace lldb_private
         SetStoppedByBreakpoint ();
 
         void
-        SetStoppedByWatchpoint ();
+        SetStoppedByWatchpoint (uint32_t wp_index);
 
         bool
         IsStoppedAtBreakpoint ();
@@ -88,13 +88,13 @@ namespace lldb_private
         SetStoppedByTrace ();
 
         void
-        SetCrashedWithException (const siginfo_t& info);
-
-        void
-        SetSuspended ();
+        SetStoppedWithNoReason ();
 
         void
         SetExited ();
+
+        Error
+        RequestStop ();
 
         // ---------------------------------------------------------------------
         // Private interface
@@ -112,6 +112,9 @@ namespace lldb_private
         using WatchpointIndexMap = std::map<lldb::addr_t, uint32_t>;
         WatchpointIndexMap m_watchpoint_index_map;
     };
-}
+
+    typedef std::shared_ptr<NativeThreadLinux> NativeThreadLinuxSP;
+} // namespace process_linux
+} // namespace lldb_private
 
 #endif // #ifndef liblldb_NativeThreadLinux_H_

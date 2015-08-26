@@ -12,7 +12,7 @@ Same idea holds for LLDB_ARCH environment variable, which maps to the ARCH make
 variable.
 """
 
-import os
+import os, sys
 import platform
 import lldbtest
 
@@ -78,8 +78,14 @@ def getCmdLine(d):
     # If d is None or an empty mapping, just return an empty string.
     if not d:
         return ""
+    pattern = '%s="%s"' if "win32" in sys.platform else "%s='%s'"
 
-    cmdline = " ".join(["%s='%s'" % (k, v) for k, v in d.items()])
+    def setOrAppendVariable(k, v):
+        append_vars = ["CFLAGS_EXTRAS", "LD_EXTRAS"]
+        if k in append_vars and os.environ.has_key(k):
+            v = os.environ[k] + " " + v
+        return pattern % (k, v)
+    cmdline = " ".join([setOrAppendVariable(k, v) for k, v in d.items()])
 
     return cmdline
 

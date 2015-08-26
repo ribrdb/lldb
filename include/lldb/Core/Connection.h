@@ -58,7 +58,7 @@ public:
     ///
     /// @param[out] error_ptr
     ///     A pointer to an error object that should be given an
-    ///     approriate error value if this method returns false. This
+    ///     appropriate error value if this method returns false. This
     ///     value can be NULL if the error value should be ignored.
     ///
     /// @return
@@ -77,7 +77,7 @@ public:
     ///
     /// @param[out] error_ptr
     ///     A pointer to an error object that should be given an
-    ///     approriate error value if this method returns false. This
+    ///     appropriate error value if this method returns false. This
     ///     value can be NULL if the error value should be ignored.
     ///
     /// @return
@@ -111,9 +111,16 @@ public:
     ///     The number of bytes to attempt to read, and also the max
     ///     number of bytes that can be placed into \a dst.
     ///
+    /// @param[in] timeout_usec
+    ///     The number of microseconds to wait for the data.
+    ///
+    /// @param[out] status
+    ///     On return, indicates whether the call was successful or terminated
+    ///     due to some error condition.
+    ///
     /// @param[out] error_ptr
     ///     A pointer to an error object that should be given an
-    ///     approriate error value if this method returns zero. This
+    ///     appropriate error value if this method returns zero. This
     ///     value can be NULL if the error value should be ignored.
     ///
     /// @return
@@ -144,7 +151,7 @@ public:
     ///
     /// @param[out] error_ptr
     ///     A pointer to an error object that should be given an
-    ///     approriate error value if this method returns zero. This
+    ///     appropriate error value if this method returns zero. This
     ///     value can be NULL if the error value should be ignored.
     ///
     /// @return
@@ -163,6 +170,36 @@ public:
     //------------------------------------------------------------------
     virtual std::string
     GetURI() = 0;
+
+    //------------------------------------------------------------------
+    /// Interrupts an ongoing Read() operation.
+    ///
+    /// If there is an ongoing read operation in another thread, this operation
+    /// return with status == eConnectionStatusInterrupted. Note that if there
+    /// data waiting to be read and an interrupt request is issued, the Read()
+    /// function will return the data immediately without processing the
+    /// interrupt request (which will remain queued for the next Read()
+    /// operation).
+    ///
+    /// @return
+    ///     Returns true is the interrupt request was successful.
+    //------------------------------------------------------------------
+    virtual bool
+    InterruptRead() = 0;
+
+    //------------------------------------------------------------------
+    /// Returns the underlying IOObject used by the Connection.
+    ///
+    /// The IOObject can be used to wait for data to become available
+    /// on the connection. If the Connection does not use IOObjects (and
+    /// hence does not support waiting) this function should return a
+    /// null pointer.
+    ///
+    /// @return
+    ///     The underlying IOObject used for reading.
+    //------------------------------------------------------------------
+    virtual lldb::IOObjectSP
+    GetReadObject() { return lldb::IOObjectSP(); }
 
 private:
     //------------------------------------------------------------------

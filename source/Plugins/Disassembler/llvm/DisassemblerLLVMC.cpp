@@ -415,7 +415,7 @@ protected:
 
 
 
-DisassemblerLLVMC::LLVMCDisassembler::LLVMCDisassembler (const char *triple, unsigned flavor, DisassemblerLLVMC &owner):
+DisassemblerLLVMC::LLVMCDisassembler::LLVMCDisassembler (const char *triple, const char *cpu, const char *features_str, unsigned flavor, DisassemblerLLVMC &owner):
     m_is_valid(true)
 {
     std::string Error;
@@ -429,9 +429,7 @@ DisassemblerLLVMC::LLVMCDisassembler::LLVMCDisassembler (const char *triple, uns
     m_instr_info_ap.reset(curr_target->createMCInstrInfo());
     m_reg_info_ap.reset (curr_target->createMCRegInfo(triple));
 
-    std::string features_str;
-
-    m_subtarget_info_ap.reset(curr_target->createMCSubtargetInfo(triple, "",
+    m_subtarget_info_ap.reset(curr_target->createMCSubtargetInfo(triple, cpu,
                                                                 features_str));
 
     std::unique_ptr<llvm::MCRegisterInfo> reg_info(curr_target->createMCRegInfo(triple));
@@ -469,11 +467,11 @@ DisassemblerLLVMC::LLVMCDisassembler::LLVMCDisassembler (const char *triple, uns
             asm_printer_variant = flavor;
         }
 
-        m_instr_printer_ap.reset(curr_target->createMCInstPrinter(asm_printer_variant,
+        m_instr_printer_ap.reset(curr_target->createMCInstPrinter(llvm::Triple{triple},
+                                                                  asm_printer_variant,
                                                                   *m_asm_info_ap.get(),
                                                                   *m_instr_info_ap.get(),
-                                                                  *m_reg_info_ap.get(),
-                                                                  *m_subtarget_info_ap.get()));
+                                                                  *m_reg_info_ap.get()));
         if (m_instr_printer_ap.get() == NULL)
         {
             m_disasm_ap.reset();
@@ -518,8 +516,8 @@ DisassemblerLLVMC::LLVMCDisassembler::PrintMCInst (llvm::MCInst &mc_inst,
     llvm::StringRef unused_annotations;
     llvm::SmallString<64> inst_string;
     llvm::raw_svector_ostream inst_stream(inst_string);
-    m_instr_printer_ap->printInst (&mc_inst, inst_stream, unused_annotations);
-    inst_stream.flush();
+    m_instr_printer_ap->printInst (&mc_inst, inst_stream, unused_annotations,
+                                   *m_subtarget_info_ap);
     const size_t output_size = std::min(dst_len - 1, inst_string.size());
     std::memcpy(dst, inst_string.data(), output_size);
     dst[output_size] = '\0';
@@ -533,8 +531,8 @@ DisassemblerLLVMC::LLVMCDisassembler::SetStyle (bool use_hex_immed, HexImmediate
     m_instr_printer_ap->setPrintImmHex(use_hex_immed);
     switch(hex_style)
     {
-    case eHexStyleC:      m_instr_printer_ap->setPrintImmHex(llvm::HexStyle::C); break;
-    case eHexStyleAsm:    m_instr_printer_ap->setPrintImmHex(llvm::HexStyle::Asm); break;
+    case eHexStyleC:      m_instr_printer_ap->setPrintHexStyle(llvm::HexStyle::C); break;
+    case eHexStyleAsm:    m_instr_printer_ap->setPrintHexStyle(llvm::HexStyle::Asm); break;
     }
 }
 
@@ -606,7 +604,7 @@ DisassemblerLLVMC::DisassemblerLLVMC (const ArchSpec &arch, const char *flavor_s
     }
 
     ArchSpec thumb_arch(arch);
-    if (arch.GetTriple().getArch() == llvm::Triple::arm)
+    if (arch.GetTriple().getArch() == llvm::Triple::arm || arch.GetTriple().getArch() == llvm::Triple::thumb)
     {
         std::string thumb_arch_name (thumb_arch.GetTriple().getArchName().str());
         // Replace "arm" with "thumb" so we get all thumb variants correct
@@ -628,7 +626,7 @@ DisassemblerLLVMC::DisassemblerLLVMC (const ArchSpec &arch, const char *flavor_s
     // Handle the Cortex-M0 (armv6m) the same; the ISA is a subset of the T and T32
     // instructions defined in ARMv7-A.
 
-    if (arch.GetTriple().getArch() == llvm::Triple::arm
+    if ((arch.GetTriple().getArch() == llvm::Triple::arm || arch.GetTriple().getArch() == llvm::Triple::thumb)
         && (arch.GetCore() == ArchSpec::Core::eCore_arm_armv7m
             || arch.GetCore() == ArchSpec::Core::eCore_arm_armv7em
             || arch.GetCore() == ArchSpec::Core::eCore_arm_armv6m))
@@ -636,7 +634,62 @@ DisassemblerLLVMC::DisassemblerLLVMC (const ArchSpec &arch, const char *flavor_s
         triple = thumb_arch.GetTriple().getTriple().c_str();
     }
 
-    m_disasm_ap.reset (new LLVMCDisassembler(triple, flavor, *this));
+    const char *cpu = "";
+    
+    switch (arch.GetCore())
+    {
+        case ArchSpec::eCore_mips32:
+        case ArchSpec::eCore_mips32el:
+            cpu = "mips32"; break;
+        case ArchSpec::eCore_mips32r2:
+        case ArchSpec::eCore_mips32r2el:
+            cpu = "mips32r2"; break;
+        case ArchSpec::eCore_mips32r3:
+        case ArchSpec::eCore_mips32r3el:
+            cpu = "mips32r3"; break;
+        case ArchSpec::eCore_mips32r5:
+        case ArchSpec::eCore_mips32r5el:
+            cpu = "mips32r5"; break;
+        case ArchSpec::eCore_mips32r6:
+        case ArchSpec::eCore_mips32r6el:
+            cpu = "mips32r6"; break;
+        case ArchSpec::eCore_mips64:
+        case ArchSpec::eCore_mips64el:
+            cpu = "mips64"; break;
+        case ArchSpec::eCore_mips64r2:
+        case ArchSpec::eCore_mips64r2el:
+            cpu = "mips64r2"; break;
+        case ArchSpec::eCore_mips64r3:
+        case ArchSpec::eCore_mips64r3el:
+            cpu = "mips64r3"; break;
+        case ArchSpec::eCore_mips64r5:
+        case ArchSpec::eCore_mips64r5el:
+            cpu = "mips64r5"; break;
+        case ArchSpec::eCore_mips64r6:
+        case ArchSpec::eCore_mips64r6el:
+            cpu = "mips64r6"; break;
+        default:
+            cpu = ""; break;
+    }
+
+    std::string features_str = "";
+    if (arch.GetTriple().getArch() == llvm::Triple::mips || arch.GetTriple().getArch() == llvm::Triple::mipsel
+        || arch.GetTriple().getArch() == llvm::Triple::mips64 || arch.GetTriple().getArch() == llvm::Triple::mips64el)
+    {
+        uint32_t arch_flags = arch.GetFlags ();
+        if (arch_flags & ArchSpec::eMIPSAse_msa)
+            features_str += "+msa,";
+        if (arch_flags & ArchSpec::eMIPSAse_dsp)
+            features_str += "+dsp,";
+        if (arch_flags & ArchSpec::eMIPSAse_dspr2)
+            features_str += "+dspr2,";
+        if (arch_flags & ArchSpec::eMIPSAse_mips16)
+            features_str += "+mips16,";
+        if (arch_flags & ArchSpec::eMIPSAse_micromips)
+            features_str += "+micromips,";
+    }
+    
+    m_disasm_ap.reset (new LLVMCDisassembler(triple, cpu, features_str.c_str(), flavor, *this));
     if (!m_disasm_ap->IsValid())
     {
         // We use m_disasm_ap.get() to tell whether we are valid or not, so if this isn't good for some reason,
@@ -645,10 +698,10 @@ DisassemblerLLVMC::DisassemblerLLVMC (const ArchSpec &arch, const char *flavor_s
     }
 
     // For arm CPUs that can execute arm or thumb instructions, also create a thumb instruction disassembler.
-    if (arch.GetTriple().getArch() == llvm::Triple::arm)
+    if (arch.GetTriple().getArch() == llvm::Triple::arm || arch.GetTriple().getArch() == llvm::Triple::thumb)
     {
         std::string thumb_triple(thumb_arch.GetTriple().getTriple());
-        m_alternate_disasm_ap.reset(new LLVMCDisassembler(thumb_triple.c_str(), flavor, *this));
+        m_alternate_disasm_ap.reset(new LLVMCDisassembler(thumb_triple.c_str(), "", "", flavor, *this));
         if (!m_alternate_disasm_ap->IsValid())
         {
             m_disasm_ap.reset();
@@ -792,25 +845,63 @@ const char *DisassemblerLLVMC::SymbolLookup (uint64_t value,
             //std::string remove_this_prior_to_checkin;
             Target *target = m_exe_ctx ? m_exe_ctx->GetTargetPtr() : NULL;
             Address value_so_addr;
+            Address pc_so_addr;
             if (m_inst->UsingFileAddress())
             {
                 ModuleSP module_sp(m_inst->GetAddress().GetModule());
                 if (module_sp)
+                {
                     module_sp->ResolveFileAddress(value, value_so_addr);
+                    module_sp->ResolveFileAddress(pc, pc_so_addr);
+                }
             }
             else if (target && !target->GetSectionLoadList().IsEmpty())
             {
                 target->GetSectionLoadList().ResolveLoadAddress(value, value_so_addr);
+                target->GetSectionLoadList().ResolveLoadAddress(pc, pc_so_addr);
+            }
+
+            SymbolContext sym_ctx;
+            const uint32_t resolve_scope = eSymbolContextFunction | eSymbolContextSymbol;
+            if (pc_so_addr.IsValid() && pc_so_addr.GetModule())
+            {
+                pc_so_addr.GetModule()->ResolveSymbolContextForAddress (pc_so_addr, resolve_scope, sym_ctx);
             }
 
             if (value_so_addr.IsValid() && value_so_addr.GetSection())
             {
                 StreamString ss;
 
-                value_so_addr.Dump (&ss,
-                                    target,
-                                    Address::DumpStyleResolvedDescriptionNoFunctionArguments,
-                                    Address::DumpStyleSectionNameOffset);
+                bool format_omitting_current_func_name = false;
+                if (sym_ctx.symbol || sym_ctx.function)
+                {
+                    AddressRange range;
+                    if (sym_ctx.GetAddressRange (resolve_scope, 0, false, range) 
+                        && range.GetBaseAddress().IsValid() 
+                        && range.ContainsLoadAddress (value_so_addr, target))
+                    {
+                        format_omitting_current_func_name = true;
+                    }
+                }
+                
+                // If the "value" address (the target address we're symbolicating)
+                // is inside the same SymbolContext as the current instruction pc
+                // (pc_so_addr), don't print the full function name - just print it
+                // with DumpStyleNoFunctionName style, e.g. "<+36>".
+                if (format_omitting_current_func_name)
+                {
+                    value_so_addr.Dump (&ss,
+                                        target,
+                                        Address::DumpStyleNoFunctionName,
+                                        Address::DumpStyleSectionNameOffset);
+                }
+                else
+                {
+                    value_so_addr.Dump (&ss,
+                                        target,
+                                        Address::DumpStyleResolvedDescriptionNoFunctionArguments,
+                                        Address::DumpStyleSectionNameOffset);
+                }
 
                 if (!ss.GetString().empty())
                 {

@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MIUtilFileStd.cpp
-//
-// Overview:    CMIUtilFileStd implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // Third party headers
 #include <stdio.h>
 #include <assert.h>
@@ -36,7 +24,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilFileStd::CMIUtilFileStd(void)
+CMIUtilFileStd::CMIUtilFileStd()
     : m_fileNamePath(CMIUtilString())
     , m_pFileHandle(nullptr)
 #if defined(_MSC_VER)
@@ -55,7 +43,7 @@ CMIUtilFileStd::CMIUtilFileStd(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilFileStd::~CMIUtilFileStd(void)
+CMIUtilFileStd::~CMIUtilFileStd()
 {
     Close();
 }
@@ -159,7 +147,7 @@ CMIUtilFileStd::Write(const CMIUtilString &vData)
 // Throws:  None.
 //--
 bool
-CMIUtilFileStd::Write(const MIchar *vpData, const MIuint vCharCnt)
+CMIUtilFileStd::Write(const char *vpData, const MIuint vCharCnt)
 {
     if (vCharCnt == 0)
         return MIstatus::success;
@@ -195,7 +183,7 @@ CMIUtilFileStd::Write(const MIchar *vpData, const MIuint vCharCnt)
 // Throws:  None.
 //--
 void
-CMIUtilFileStd::Close(void)
+CMIUtilFileStd::Close()
 {
     if (m_pFileHandle == nullptr)
         return;
@@ -214,7 +202,7 @@ CMIUtilFileStd::Close(void)
 // Throws:  None.
 //--
 bool
-CMIUtilFileStd::IsOk(void) const
+CMIUtilFileStd::IsOk() const
 {
     return !m_bFileError;
 }
@@ -252,7 +240,7 @@ CMIUtilFileStd::IsFileExist(const CMIUtilString &vFileNamePath) const
 // Throws:  None.
 //--
 const CMIUtilString &
-CMIUtilFileStd::GetLineReturn(void) const
+CMIUtilFileStd::GetLineReturn() const
 {
     return m_constCharNewLine;
 }
@@ -266,11 +254,11 @@ CMIUtilFileStd::GetLineReturn(void) const
 // Throws:  None.
 //--
 CMIUtilString
-CMIUtilFileStd::StripOffFileName(const CMIUtilString &vDirectoryPath) const
+CMIUtilFileStd::StripOffFileName(const CMIUtilString &vDirectoryPath)
 {
-    const MIint nPos = vDirectoryPath.rfind('\\');
-    MIint nPos2 = vDirectoryPath.rfind('/');
-    if ((nPos == (MIint)std::string::npos) && (nPos2 == (MIint)std::string::npos))
+    const size_t nPos = vDirectoryPath.rfind('\\');
+    size_t nPos2 = vDirectoryPath.rfind('/');
+    if ((nPos == std::string::npos) && (nPos2 == std::string::npos))
         return vDirectoryPath;
 
     if (nPos > nPos2)
@@ -281,15 +269,15 @@ CMIUtilFileStd::StripOffFileName(const CMIUtilString &vDirectoryPath) const
 }
 
 //++ ------------------------------------------------------------------------------------
-// Details: Return either backslash or forward slash appropriate to the OS this applilcation
+// Details: Return either backslash or forward slash appropriate to the OS this application
 //          is running on.
 // Type:    Static method.
 // Args:    None.
-// Return:  MIchar - '/' or '\' character.
+// Return:  char - '/' or '\' character.
 // Throws:  None.
 //--
-MIchar
-CMIUtilFileStd::GetSlash(void)
+char
+CMIUtilFileStd::GetSlash()
 {
 #if !defined(_MSC_VER)
     return '/';

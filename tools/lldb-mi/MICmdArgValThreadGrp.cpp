@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdArgValThreadGrp.cpp
-//
-// Overview:    CMICmdArgValThreadGrp implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmdArgValThreadGrp.h"
 #include "MICmdArgContext.h"
@@ -30,7 +18,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValThreadGrp::CMICmdArgValThreadGrp(void)
+CMICmdArgValThreadGrp::CMICmdArgValThreadGrp()
     : m_nThreadGrp(0)
 {
 }
@@ -57,7 +45,7 @@ CMICmdArgValThreadGrp::CMICmdArgValThreadGrp(const CMIUtilString &vrArgName, con
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValThreadGrp::~CMICmdArgValThreadGrp(void)
+CMICmdArgValThreadGrp::~CMICmdArgValThreadGrp()
 {
 }
 
@@ -74,7 +62,7 @@ bool
 CMICmdArgValThreadGrp::Validate(CMICmdArgContext &vwArgContext)
 {
     if (vwArgContext.IsEmpty())
-        return MIstatus::success;
+        return m_bMandatory ? MIstatus::failure : MIstatus::success;
 
     if (vwArgContext.GetNumberArgsPresent() == 1)
     {
@@ -170,7 +158,7 @@ CMICmdArgValThreadGrp::ExtractNumber(const CMIUtilString &vrTxt)
 // Throws:  None.
 //--
 MIuint
-CMICmdArgValThreadGrp::GetNumber(void) const
+CMICmdArgValThreadGrp::GetNumber() const
 {
     return m_nThreadGrp;
 }

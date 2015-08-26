@@ -6,11 +6,6 @@
 	Overview: 		Creates SWIG Python C++ Script Bridge wrapper code. This
 					script is called by build-swig-wrapper-classes.py in turn.
 					
-	Environment:	OS:			Windows Vista or newer, LINUX, OSX.
-					IDE: 	    Visual Studio 2013 Plugin Python Tools (PTVS)
-					Script:		Python 2.6/2.7.5 x64
-					Other:		SWIG 2.0.11
-
 	Gotchas:		Python debug complied pythonXX_d.lib is required for SWIG
 					to build correct LLDBWrapperPython.cpp in order for Visual
 					Studio to compile successfully. The release version of the 
@@ -81,6 +76,7 @@ def get_header_files( vDictArgs ):
 						"/include/lldb/lldb-forward-rtti.h",
 						"/include/lldb/lldb-types.h",
 						"/include/lldb/API/SBAddress.h",
+            "/include/lldb/API/SBAttachInfo.h",
 						"/include/lldb/API/SBBlock.h",
 						"/include/lldb/API/SBBreakpoint.h",
 						"/include/lldb/API/SBBreakpointLocation.h",
@@ -101,7 +97,8 @@ def get_header_files( vDictArgs ):
 						"/include/lldb/API/SBInputReader.h",
 						"/include/lldb/API/SBInstruction.h",
 						"/include/lldb/API/SBInstructionList.h",
-            "/include/lldb/API/SBLaunchInfo.h",
+						"/include/lldb/API/SBLanguageRuntime.h",
+						"/include/lldb/API/SBLaunchInfo.h",
 						"/include/lldb/API/SBLineEntry.h",
 						"/include/lldb/API/SBListener.h",
 						"/include/lldb/API/SBModule.h",
@@ -156,52 +153,54 @@ def get_header_files( vDictArgs ):
 #--
 def get_interface_files( vDictArgs ):
 	dbg = utilsDebug.CDebugFnVerbose( "Python script get_interface_files()" );
-	listIFaceFiles = [ 	"/scripts/Python/interface/SBAddress.i",
-						"/scripts/Python/interface/SBBlock.i",
-						"/scripts/Python/interface/SBBreakpoint.i",
-						"/scripts/Python/interface/SBBreakpointLocation.i",
-						"/scripts/Python/interface/SBBroadcaster.i",
-						"/scripts/Python/interface/SBCommandInterpreter.i",
-						"/scripts/Python/interface/SBCommandReturnObject.i",
-						"/scripts/Python/interface/SBCommunication.i",
-						"/scripts/Python/interface/SBCompileUnit.i",
-						"/scripts/Python/interface/SBData.i",
-						"/scripts/Python/interface/SBDebugger.i",
-						"/scripts/Python/interface/SBDeclaration.i",
-						"/scripts/Python/interface/SBError.i",
-						"/scripts/Python/interface/SBEvent.i",
-						"/scripts/Python/interface/SBExpressionOptions.i",
-						"/scripts/Python/interface/SBFileSpec.i",
-						"/scripts/Python/interface/SBFrame.i",
-						"/scripts/Python/interface/SBFunction.i",
-						"/scripts/Python/interface/SBHostOS.i",
-						"/scripts/Python/interface/SBInputReader.i",
-						"/scripts/Python/interface/SBInstruction.i",
-						"/scripts/Python/interface/SBInstructionList.i",
-            "/scripts/Python/interface/SBLaunchInfo.i",
-						"/scripts/Python/interface/SBLineEntry.i",
-						"/scripts/Python/interface/SBListener.i",
-						"/scripts/Python/interface/SBModule.i",
-						"/scripts/Python/interface/SBModuleSpec.i",
-						"/scripts/Python/interface/SBProcess.i",
-						"/scripts/Python/interface/SBSourceManager.i",
-						"/scripts/Python/interface/SBStream.i",
-						"/scripts/Python/interface/SBStringList.i",
-						"/scripts/Python/interface/SBSymbol.i",
-						"/scripts/Python/interface/SBSymbolContext.i",
-						"/scripts/Python/interface/SBTarget.i",
-						"/scripts/Python/interface/SBThread.i",
-						"/scripts/Python/interface/SBThreadCollection.i",
-						"/scripts/Python/interface/SBType.i",
-						"/scripts/Python/interface/SBTypeCategory.i",
-						"/scripts/Python/interface/SBTypeFilter.i",
-						"/scripts/Python/interface/SBTypeFormat.i",
-						"/scripts/Python/interface/SBTypeNameSpecifier.i",
-						"/scripts/Python/interface/SBTypeSummary.i",
-						"/scripts/Python/interface/SBTypeSynthetic.i",
-						"/scripts/Python/interface/SBValue.i",
-						"/scripts/Python/interface/SBValueList.i",
-						"/scripts/Python/interface/SBWatchpoint.i" ];	
+	listIFaceFiles = [ 	"/scripts/interface/SBAddress.i",
+            "/scripts/interface/SBAttachInfo.i",
+						"/scripts/interface/SBBlock.i",
+						"/scripts/interface/SBBreakpoint.i",
+						"/scripts/interface/SBBreakpointLocation.i",
+						"/scripts/interface/SBBroadcaster.i",
+						"/scripts/interface/SBCommandInterpreter.i",
+						"/scripts/interface/SBCommandReturnObject.i",
+						"/scripts/interface/SBCommunication.i",
+						"/scripts/interface/SBCompileUnit.i",
+						"/scripts/interface/SBData.i",
+						"/scripts/interface/SBDebugger.i",
+						"/scripts/interface/SBDeclaration.i",
+						"/scripts/interface/SBError.i",
+						"/scripts/interface/SBEvent.i",
+						"/scripts/interface/SBExpressionOptions.i",
+						"/scripts/interface/SBFileSpec.i",
+						"/scripts/interface/SBFrame.i",
+						"/scripts/interface/SBFunction.i",
+						"/scripts/interface/SBHostOS.i",
+						"/scripts/interface/SBInputReader.i",
+						"/scripts/interface/SBInstruction.i",
+						"/scripts/interface/SBInstructionList.i",
+						"/scripts/interface/SBLanguageRuntime.i",
+						"/scripts/interface/SBLaunchInfo.i",
+						"/scripts/interface/SBLineEntry.i",
+						"/scripts/interface/SBListener.i",
+						"/scripts/interface/SBModule.i",
+						"/scripts/interface/SBModuleSpec.i",
+						"/scripts/interface/SBProcess.i",
+						"/scripts/interface/SBSourceManager.i",
+						"/scripts/interface/SBStream.i",
+						"/scripts/interface/SBStringList.i",
+						"/scripts/interface/SBSymbol.i",
+						"/scripts/interface/SBSymbolContext.i",
+						"/scripts/interface/SBTarget.i",
+						"/scripts/interface/SBThread.i",
+						"/scripts/interface/SBThreadCollection.i",
+						"/scripts/interface/SBType.i",
+						"/scripts/interface/SBTypeCategory.i",
+						"/scripts/interface/SBTypeFilter.i",
+						"/scripts/interface/SBTypeFormat.i",
+						"/scripts/interface/SBTypeNameSpecifier.i",
+						"/scripts/interface/SBTypeSummary.i",
+						"/scripts/interface/SBTypeSynthetic.i",
+						"/scripts/interface/SBValue.i",
+						"/scripts/interface/SBValueList.i",
+						"/scripts/interface/SBWatchpoint.i" ];	
 	bDebug = vDictArgs.has_key( "-d" );
 	strRt = vDictArgs[ "--srcRoot" ];
 	strRt = os.path.normcase( strRt );
@@ -428,6 +427,18 @@ def get_config_build_dir( vDictArgs, vstrFrameworkPythonDir ):
 		strConfigBldDir = vstrFrameworkPythonDir;
 	
 	return (bOk, strConfigBldDir, strErrMsg);
+
+"""
+Removes given file, ignoring error if it doesn't exist.
+"""
+def remove_ignore_enoent(filename):
+	try:
+		os.remove( filename );
+	except OSError as e:
+		import errno
+		if e.errno != errno.ENOENT:
+			raise
+		pass
 
 #++---------------------------------------------------------------------------
 # Details:	Do a SWIG code rebuild. Any number returned by SWIG which is not
@@ -685,10 +696,10 @@ def main( vDictArgs ):
     # iOS be sure to set LLDB_DISABLE_PYTHON to 1.
 	if (strEnvVarLLDBDisablePython != None) and \
 	   (strEnvVarLLDBDisablePython == "1"):
-		os.remove( strSwigOutputFile );
+		remove_ignore_enoent( strSwigOutputFile )
 		open( strSwigOutputFile, 'w' ).close(); # Touch the file
 		if bDebug:
-			strMsg = strMsgLldbDisablePython;
+			strMsg = strMsgLldbDisablePythonEnv;
 		return (0, strMsg );
 		
 	# If this project is being built with LLDB_DISABLE_PYTHON defined,
@@ -698,7 +709,7 @@ def main( vDictArgs ):
 											None );
 	if (strEnvVarGccPreprocessDefs != None) or \
 	   (strEnvVarLLDBDisablePython != None):
-		os.remove( strSwigOutputFile );
+		remove_ignore_enoent( strSwigOutputFile )
 		open( strSwigOutputFile, 'w' ).close(); # Touch the file
 		if bDebug:
 			strMsg = strMsgLldbDisableGccEnv;

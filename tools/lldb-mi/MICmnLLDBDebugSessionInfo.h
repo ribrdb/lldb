@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnLLDBDebugSessionInfo.h
-//
-// Overview:    CMICmnLLDBDebugSessionInfo interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // Third party headers:
@@ -47,12 +35,9 @@ class CMICmnMIValueList;
 // Details: MI debug session object that holds debugging information between
 //          instances of MI commands executing their work and producing MI
 //          result records. Information/data is set by one or many commands then
-//          retrieved by the same or other sebsequent commands.
-//          It primarily to hold LLDB type objects.
+//          retrieved by the same or other subsequent commands.
+//          It primarily holds LLDB type objects.
 //          A singleton class.
-// Gotchas: None.
-// Authors: Illya Rudkin 04/03/2014.
-// Changes: None.
 //--
 class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMICmnLLDBDebugSessionInfo>
 {
@@ -67,7 +52,7 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
     //--
     struct SBrkPtInfo
     {
-        SBrkPtInfo(void)
+        SBrkPtInfo()
             : m_id(0)
             , m_bDisp(false)
             , m_bEnabled(false)
@@ -87,7 +72,7 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
         CMIUtilString m_strType;        // Break point type.
         bool m_bDisp;                   // True = "del", false = "keep".
         bool m_bEnabled;                // True = enabled, false = disabled break point.
-        MIuint m_pc;                    // Address number.
+        lldb::addr_t m_pc;              // Address number.
         CMIUtilString m_fnName;         // Function name.
         CMIUtilString m_fileName;       // File name text.
         CMIUtilString m_path;           // Full file name and path text.
@@ -122,10 +107,28 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
     //--
     enum VariableInfoFormat_e
     {
-        eVariableInfoFormat_NoValues,
-        eVariableInfoFormat_AllValues,
-        eVariableInfoFormat_SimpleValues,
-        kNumVariableInfoFormats
+        eVariableInfoFormat_NoValues     = 0,
+        eVariableInfoFormat_AllValues    = 1,
+        eVariableInfoFormat_SimpleValues = 2
+    };
+
+    //++ ===================================================================
+    // Details: Determine the information that should be shown by using MIResponseFormThreadInfo family functions.
+    //--
+    enum ThreadInfoFormat_e
+    {
+        eThreadInfoFormat_NoFrames,
+        eThreadInfoFormat_AllFrames
+    };
+
+    //++ ===================================================================
+    // Details: Determine the information that should be shown by using MIResponseFormFrameInfo family functions.
+    //--
+    enum FrameInfoFormat_e
+    {
+        eFrameInfoFormat_NoArguments,
+        eFrameInfoFormat_AllArguments,
+        eFrameInfoFormat_AllArgumentsInSimpleForm
     };
 
     // Typedefs:
@@ -134,38 +137,26 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
 
     // Methods:
   public:
-    bool Initialize(void);
-    bool Shutdown(void);
+    bool Initialize() override;
+    bool Shutdown() override;
 
     // Variant type data which can be assigned and retrieved across all command instances
     template <typename T> bool SharedDataAdd(const CMIUtilString &vKey, const T &vData);
     template <typename T> bool SharedDataRetrieve(const CMIUtilString &vKey, T &vwData);
-    bool SharedDataDestroy(void);
+    bool SharedDataDestroy();
 
     //  Common command required functionality
     bool AccessPath(const CMIUtilString &vPath, bool &vwbYesAccessible);
-    bool GetFrameInfo(const lldb::SBFrame &vrFrame, lldb::addr_t &vwPc, CMIUtilString &vwFnName, CMIUtilString &vwFileName,
-                      CMIUtilString &vwPath, MIuint &vwnLine);
-    bool GetThreadFrames(const SMICmdData &vCmdData, const MIuint vThreadIdx, CMIUtilString &vwrThreadFrames);
-    bool GetThreadFrames2(const SMICmdData &vCmdData, const MIuint vThreadIdx, CMIUtilString &vwrThreadFrames);
     bool ResolvePath(const SMICmdData &vCmdData, const CMIUtilString &vPath, CMIUtilString &vwrResolvedPath);
     bool ResolvePath(const CMIUtilString &vstrUnknown, CMIUtilString &vwrResolvedPath);
-    bool MIResponseFormFrameInfo(const lldb::SBThread &vrThread, const MIuint vnLevel, CMICmnMIValueTuple &vwrMiValueTuple);
-    bool MIResponseFormFrameInfo(const lldb::addr_t vPc, const CMIUtilString &vFnName, const CMIUtilString &vFileName,
-                                 const CMIUtilString &vPath, const MIuint vnLine, CMICmnMIValueTuple &vwrMiValueTuple);
-    bool MIResponseFormFrameInfo2(const lldb::addr_t vPc, const CMIUtilString &vArgInfo, const CMIUtilString &vFnName,
-                                  const CMIUtilString &vFileName, const CMIUtilString &vPath, const MIuint vnLine,
-                                  CMICmnMIValueTuple &vwrMiValueTuple);
-    bool MIResponseFormThreadInfo(const SMICmdData &vCmdData, const lldb::SBThread &vrThread, CMICmnMIValueTuple &vwrMIValueTuple);
-    bool MIResponseFormThreadInfo2(const SMICmdData &vCmdData, const lldb::SBThread &vrThread, CMICmnMIValueTuple &vwrMIValueTuple);
-    bool MIResponseFormThreadInfo3(const SMICmdData &vCmdData, const lldb::SBThread &vrThread, CMICmnMIValueTuple &vwrMIValueTuple);
+    bool MIResponseFormFrameInfo(const lldb::SBThread &vrThread, const MIuint vnLevel,
+                                 const FrameInfoFormat_e veFrameInfoFormat, CMICmnMIValueTuple &vwrMiValueTuple);
+    bool MIResponseFormThreadInfo(const SMICmdData &vCmdData, const lldb::SBThread &vrThread,
+                                  const ThreadInfoFormat_e veThreadInfoFormat, CMICmnMIValueTuple &vwrMIValueTuple);
     bool MIResponseFormVariableInfo(const lldb::SBFrame &vrFrame, const MIuint vMaskVarTypes,
-                                    const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList);
-    bool MIResponseFormVariableInfo2(const lldb::SBFrame &vrFrame, const MIuint vMaskVarTypes,
-                                     const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList);
-    bool MIResponseFormVariableInfo3(const lldb::SBFrame &vrFrame, const MIuint vMaskVarTypes,
-                                     const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList);
-    bool MIResponseFormBrkPtFrameInfo(const SBrkPtInfo &vrBrkPtInfo, CMICmnMIValueTuple &vwrMiValueTuple);
+                                    const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList,
+                                    const MIuint vnMaxDepth = 10, const bool vbMarkArgs = false);
+    void MIResponseFormBrkPtFrameInfo(const SBrkPtInfo &vrBrkPtInfo, CMICmnMIValueTuple &vwrMiValueTuple);
     bool MIResponseFormBrkPtInfo(const SBrkPtInfo &vrBrkPtInfo, CMICmnMIValueTuple &vwrMiValueTuple);
     bool GetBrkPtInfo(const lldb::SBBreakpoint &vBrkPt, SBrkPtInfo &vrwBrkPtInfo) const;
     bool RecordBrkPtInfo(const MIuint vnBrkPtId, const SBrkPtInfo &vrBrkPtInfo);
@@ -188,6 +179,9 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
     // Note: This list is expected to grow and will be moved and abstracted in the future.
     const CMIUtilString m_constStrSharedDataKeyWkDir;
     const CMIUtilString m_constStrSharedDataSolibPath;
+    const CMIUtilString m_constStrPrintCharArrayAsString;
+    const CMIUtilString m_constStrPrintExpandAggregates;
+    const CMIUtilString m_constStrPrintAggregateFieldNames;
 
     // Typedefs:
   private:
@@ -197,19 +191,22 @@ class CMICmnLLDBDebugSessionInfo : public CMICmnBase, public MI::ISingleton<CMIC
 
     // Methods:
   private:
-    /* ctor */ CMICmnLLDBDebugSessionInfo(void);
+    /* ctor */ CMICmnLLDBDebugSessionInfo();
     /* ctor */ CMICmnLLDBDebugSessionInfo(const CMICmnLLDBDebugSessionInfo &);
     void operator=(const CMICmnLLDBDebugSessionInfo &);
     //
-    bool GetVariableInfo(const MIuint vnMaxDepth, const lldb::SBValue &vrValue, const bool vbIsChildValue,
-                         const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList, MIuint &vrwnDepth);
-    bool GetVariableInfo2(const MIuint vnMaxDepth, const lldb::SBValue &vrValue, const bool vbIsChildValue,
-                          const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList, MIuint &vrwnDepth);
+    bool GetVariableInfo(const lldb::SBValue &vrValue, const bool vbInSimpleForm, CMIUtilString &vwrStrValue);
+    bool GetFrameInfo(const lldb::SBFrame &vrFrame, lldb::addr_t &vwPc, CMIUtilString &vwFnName, CMIUtilString &vwFileName,
+                      CMIUtilString &vwPath, MIuint &vwnLine);
+    bool GetThreadFrames(const SMICmdData &vCmdData, const MIuint vThreadIdx, const FrameInfoFormat_e veFrameInfoFormat,
+                         CMIUtilString &vwrThreadFrames);
+    bool MIResponseForVariableInfoInternal(const VariableInfoFormat_e veVarInfoFormat, CMICmnMIValueList &vwrMiValueList,
+                                           const lldb::SBValueList &vwrSBValueList, const MIuint vnMaxDepth, const bool vbIsArgs, const bool vbMarkArgs);
 
     // Overridden:
   private:
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmnLLDBDebugSessionInfo(void);
+    /* dtor */ ~CMICmnLLDBDebugSessionInfo() override;
 
     // Attributes:
   private:
