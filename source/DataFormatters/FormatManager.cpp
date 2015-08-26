@@ -1615,11 +1615,11 @@ FormatManager::LoadHardcodedFormatters()
                                            lldb::DynamicValueType,
                                            FormatManager&) -> TypeSummaryImpl::SharedPointer {
                                             static CXXFunctionSummaryFormat::SharedPointer formatter_sp(new CXXFunctionSummaryFormat(TypeSummaryImpl::Flags().SetDontShowChildren(true), lldb_private::formatters::GoStringSummaryProvider, "Go string summary provider"));
-                                            if (GoASTContext::IsGoString(valobj.GetClangType()))
+                                            if (GoASTContext::IsGoString(valobj.GetCompilerType()))
                                             {
                                                 return formatter_sp;
                                             }
-                                            if (GoASTContext::IsGoString(valobj.GetClangType().GetPointeeType()))
+                                            if (GoASTContext::IsGoString(valobj.GetCompilerType().GetPointeeType()))
                                             {
                                                 return formatter_sp;
                                             }
@@ -1630,11 +1630,11 @@ FormatManager::LoadHardcodedFormatters()
                                            lldb::DynamicValueType,
                                            FormatManager&) -> TypeSummaryImpl::SharedPointer {
                                             static  lldb::TypeSummaryImplSP formatter_sp(new StringSummaryFormat(TypeSummaryImpl::Flags().SetHideItemNames(true),                                                                                                                 "(len ${var.len}, cap ${var.cap})"));
-                                            if (GoASTContext::IsGoSlice(valobj.GetClangType()))
+                                            if (GoASTContext::IsGoSlice(valobj.GetCompilerType()))
                                             {
                                                 return formatter_sp;
                                             }
-                                            if (GoASTContext::IsGoSlice(valobj.GetClangType().GetPointeeType()))
+                                            if (GoASTContext::IsGoSlice(valobj.GetCompilerType().GetPointeeType()))
                                             {
                                                 return formatter_sp;
                                             }
@@ -1685,7 +1685,7 @@ FormatManager::LoadHardcodedFormatters()
                                              static CXXSyntheticChildren::SharedPointer formatter_sp(new CXXSyntheticChildren(SyntheticChildren::Flags(),
                                                                                                                               "slice synthetic children",
                                                                                                                               lldb_private::formatters::GoSliceSyntheticFrontEndCreator));
-                                             if (GoASTContext::IsGoSlice(valobj.GetClangType()))
+                                             if (GoASTContext::IsGoSlice(valobj.GetCompilerType()))
                                              {
                                                  return formatter_sp;
                                              }

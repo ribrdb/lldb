@@ -721,7 +721,7 @@ GoASTContext::GetTypedefedType (void * type)
 // Create related types using the current type's AST
 //----------------------------------------------------------------------
 CompilerType
-GoASTContext::GetBasicTypeFromAST (void * type, lldb::BasicType basic_type)
+GoASTContext::GetBasicTypeFromAST (lldb::BasicType basic_type)
 {
     assert(false);
 }

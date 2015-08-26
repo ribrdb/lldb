@@ -584,7 +584,7 @@ PrivateAutoCompleteMembers (StackFrame *frame,
 {
 
     // We are in a type parsing child members
-    const uint32_t num_bases = ClangASTContext::GetNumDirectBaseClasses(clang_type);
+    const uint32_t num_bases = clang_type.GetNumDirectBaseClasses();
     
     if (num_bases > 0)
     {
@@ -602,7 +602,7 @@ PrivateAutoCompleteMembers (StackFrame *frame,
         }
     }
 
-    const uint32_t num_vbases = ClangASTContext::GetNumVirtualBaseClasses(clang_type);
+    const uint32_t num_vbases = clang_type.GetNumVirtualBaseClasses();
     
     if (num_vbases > 0)
     {

@@ -70,7 +70,7 @@ public:
             m_children.clear();
             return old_count == 0;
         }
-        m_type = array_sp->GetClangType().GetPointeeType();
+        m_type = array_sp->GetCompilerType().GetPointeeType();
         m_base_data_address = array_sp->GetPointerValue();
         
         ConstString len_const_str("len");

@@ -589,19 +589,6 @@ SymbolFileDWARF::GetTypeSystemForLanguage (LanguageType language)
         return m_obj_file->GetModule()->GetTypeSystemForLanguage (language);
 }
 
-
-GoASTContext &
-SymbolFileDWARF::GetGoASTContext ()
-{
-    GoASTContext& ast = m_obj_file->GetModule()->GetGoASTContext();
-    if (!m_is_external_go_source)
-    {
-        m_is_external_go_source = true;
-        ast.SetExternalSource(this, &SymbolFileDWARF::CompleteType);
-    }
-    return ast;
-}
-
 void
 SymbolFileDWARF::InitializeObject()
 {

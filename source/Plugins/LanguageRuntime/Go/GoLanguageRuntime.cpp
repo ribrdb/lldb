@@ -98,7 +98,7 @@ LookupRuntimeType(ValueObjectSP type, ExecutionContext* exe_ctx, bool* is_direct
     *is_direct = GoASTContext::IsDirectIface(kind);
     if (GoASTContext::IsPointerKind(kind))
     {
-        CompilerType type_ptr = type->GetClangType().GetPointerType();
+        CompilerType type_ptr = type->GetCompilerType().GetPointerType();
         Error err;
         ValueObjectSP elem = type->CreateValueObjectFromAddress("elem", type->GetAddressOf() + type->GetByteSize(), *exe_ctx, type_ptr)->Dereference(err);
         if (err.Fail())
@@ -121,7 +121,7 @@ LookupRuntimeType(ValueObjectSP type, ExecutionContext* exe_ctx, bool* is_direct
                                                           2,
                                                           type_list);
     if (num_matches > 0) {
-        return type_list.GetTypeAtIndex(0)->GetClangFullType();
+        return type_list.GetTypeAtIndex(0)->GetFullCompilerType();
     }
     return CompilerType();
 }
@@ -131,7 +131,7 @@ LookupRuntimeType(ValueObjectSP type, ExecutionContext* exe_ctx, bool* is_direct
 bool
 GoLanguageRuntime::CouldHaveDynamicValue (ValueObject &in_value)
 {
-    return GoASTContext::IsGoInterface(in_value.GetClangType());
+    return GoASTContext::IsGoInterface(in_value.GetCompilerType());
 }
 
 bool

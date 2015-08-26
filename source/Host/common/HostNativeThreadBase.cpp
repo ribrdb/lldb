@@ -32,28 +32,24 @@ HostNativeThreadBase::HostNativeThreadBase(thread_t thread)
 lldb::thread_t
 HostNativeThreadBase::GetSystemHandle() const
 {
-    Mutex::Locker locker(m_mutex);
     return m_thread;
 }
 
 lldb::thread_result_t
 HostNativeThreadBase::GetResult() const
 {
-    Mutex::Locker locker(m_mutex);
     return m_result;
 }
 
 bool
 HostNativeThreadBase::IsJoinable() const
 {
-    Mutex::Locker locker(m_mutex);
     return m_thread != LLDB_INVALID_HOST_THREAD;
 }
 
 void
 HostNativeThreadBase::Reset()
 {
-    Mutex::Locker locker(m_mutex);
     m_thread = LLDB_INVALID_HOST_THREAD;
     m_result = 0;
 }
@@ -61,7 +57,6 @@ HostNativeThreadBase::Reset()
 lldb::thread_t
 HostNativeThreadBase::Release()
 {
-    Mutex::Locker locker(m_mutex);
     lldb::thread_t result = m_thread;
     m_thread = LLDB_INVALID_HOST_THREAD;
     m_result = 0;

@@ -45,7 +45,6 @@ class HostNativeThreadBase
   protected:
     static lldb::thread_result_t THREAD_ROUTINE ThreadCreateTrampoline(lldb::thread_arg_t arg);
 
-    mutable Mutex m_mutex;
     lldb::thread_t m_thread;
     lldb::thread_result_t m_result;
 };
