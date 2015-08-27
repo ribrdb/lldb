@@ -45,19 +45,13 @@ public:
                         DWARFCompileUnit* dwarf_cu,
                         const DWARFDebugInfoEntry *die,
                         Log *log,
-                        bool *type_is_new_ptr) override
-    {
-        return nullptr;
-    }
+                        bool *type_is_new_ptr) override;
     
     virtual Function *
     ParseFunctionFromDWARF (const SymbolContext& sc,
                             SymbolFileDWARF *dwarf,
                             DWARFCompileUnit* dwarf_cu,
-                            const DWARFDebugInfoEntry *die) override
-    {
-        return nullptr;
-    }
+                            const DWARFDebugInfoEntry *die) override;
     
     void SetAddressByteSize(int byte_size) { m_pointer_byte_size = byte_size; }
     
@@ -103,7 +97,7 @@ public:
     CompilerType
     CreateVoidType(const ConstString& name);
     CompilerType
-    CreateFunctionType(const lldb_private::ConstString &name, CompilerType* params, size_t params_count, bool is_variadic, CompilerType return_type);
+    CreateFunctionType(const lldb_private::ConstString &name, CompilerType* params, size_t params_count, bool is_variadic);
     
     CompilerType
     CreateStructType(int kind, const ConstString& name, uint32_t byte_size);
@@ -467,7 +461,37 @@ public:
     virtual bool
     IsReferenceType (void * type, CompilerType *pointee_type = nullptr, bool* is_rvalue = nullptr) override;
     
+    bool
+    CompleteTypeFromDWARF (SymbolFileDWARF *dwarf,
+                           DWARFCompileUnit *dwarf_cu,
+                           const DWARFDebugInfoEntry* die,
+                           lldb_private::Type *type,
+                           CompilerType &clang_type) override;
 private:
+    size_t
+    ParseChildParameters (const SymbolContext& sc,
+                          SymbolFileDWARF *dwarf,
+                          DWARFCompileUnit* dwarf_cu,
+                          const DWARFDebugInfoEntry *parent_die,
+                          bool &is_variadic,
+                          std::vector<CompilerType>& function_param_types);
+    void
+    ParseChildArrayInfo (const SymbolContext& sc,
+                         SymbolFileDWARF *dwarf,
+                         DWARFCompileUnit* dwarf_cu,
+                         const DWARFDebugInfoEntry *parent_die,
+                         int64_t& first_index,
+                         std::vector<uint64_t>& element_orders,
+                         uint32_t& byte_stride,
+                         uint32_t& bit_stride);
+    
+    size_t
+    ParseChildMembers (const lldb_private::SymbolContext& sc,
+                       SymbolFileDWARF *dwarf,
+                       DWARFCompileUnit* dwarf_cu,
+                       const DWARFDebugInfoEntry *die,
+                       lldb_private::CompilerType &class_clang_type);
+    
     typedef std::map<ConstString, std::unique_ptr<GoType>> TypeMap;
     int m_pointer_byte_size;
     int m_int_byte_size;

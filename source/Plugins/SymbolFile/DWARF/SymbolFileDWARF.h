@@ -70,6 +70,7 @@ public:
     friend class DebugMapModule;
     friend class DWARFCompileUnit;
     friend class lldb_private::ClangASTContext;
+    friend class lldb_private::GoASTContext;
     //------------------------------------------------------------------
     // Static Functions
     //------------------------------------------------------------------

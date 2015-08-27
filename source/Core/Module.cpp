@@ -427,7 +427,11 @@ Module::GetUUID()
 TypeSystem *
 Module::GetTypeSystemForLanguage (LanguageType language)
 {
-    if (language != eLanguageTypeSwift)
+    if (language == eLanguageTypeGo)
+    {
+        return &GetGoASTContext();
+    }
+    else if (language != eLanguageTypeSwift)
     {
         // For now assume all languages except swift use the ClangASTContext for types
         return &GetClangASTContext();

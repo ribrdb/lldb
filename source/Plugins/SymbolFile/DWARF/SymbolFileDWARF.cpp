@@ -87,10 +87,6 @@
 #define DEBUG_PRINTF(fmt, ...)
 #endif
 
-#define DW_AT_go_kind 0x2900
-#define DW_AT_go_key  0x2901
-#define DW_AT_go_elem 0x2902
-
 using namespace lldb;
 using namespace lldb_private;
 
@@ -537,7 +533,6 @@ SymbolFileDWARF::SymbolFileDWARF(ObjectFile* objfile) :
     m_namespace_index(),
     m_indexed (false),
     m_using_apple_tables (false),
-    m_is_external_go_source (false),
     m_fetched_external_modules (false),
     m_supports_DW_AT_APPLE_objc_complete_type (eLazyBoolCalculate),
     m_ranges(),
@@ -547,12 +542,6 @@ SymbolFileDWARF::SymbolFileDWARF(ObjectFile* objfile) :
 
 SymbolFileDWARF::~SymbolFileDWARF()
 {
-    if (m_is_external_go_source)
-    {
-        ModuleSP module_sp (m_obj_file->GetModule());
-        if (module_sp)
-            module_sp->GetGoASTContext().RemoveExternalSource ();
-    }
 }
 
 static const ConstString &
