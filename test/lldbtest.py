@@ -1846,6 +1846,17 @@ class Base(unittest2.TestCase):
                 version = m.group(1)
         return version
 
+    def getGoVersion(self):
+        """ Returns a string that represents the go compiler version, or None if go is not found.
+        """
+        compiler = which("go")
+        if compiler:
+            version_output = system([[compiler, "version"]])
+            m = re.search('go version (devel|go\\S+)')
+            if m:
+                return m.group(1)
+        return None
+
     def platformIsDarwin(self):
         """Returns true if the OS triple for the selected platform is any valid apple OS"""
         return platformIsDarwin()
@@ -2030,6 +2041,11 @@ class Base(unittest2.TestCase):
             dictionary = append_android_envs(dictionary)
         if not module.buildDwarf(self, architecture, compiler, dictionary, clean):
             raise Exception("Don't know how to build binary with dwarf")
+
+    def buildGo(self):
+        """Build the default go binary.
+        """
+        system([[which('go'), 'build', '-o', 'a.out', 'main.go']])
 
     def signBinary(self, binary_path):
         if sys.platform.startswith("darwin"):
