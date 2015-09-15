@@ -6550,6 +6550,8 @@ Process::ModulesDidLoad (ModuleList &module_list)
         if (language_runtime_sp)
             language_runtime_sp->ModulesDidLoad(module_list);
     }
+
+    LoadOperatingSystemPlugin(false);
 }
 
 void

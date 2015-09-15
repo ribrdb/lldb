@@ -506,10 +506,8 @@ DisassemblerLLVMC::LLVMCDisassembler::LLVMCDisassembler (const char *triple, con
             asm_printer_variant = flavor;
         }
 
-        m_instr_printer_ap.reset(curr_target->createMCInstPrinter(llvm::TargetTuple{llvm::Triple{triple}},
-                                                                  asm_printer_variant,
-                                                                  *m_asm_info_ap.get(),
-                                                                  *m_instr_info_ap.get(),
+        m_instr_printer_ap.reset(curr_target->createMCInstPrinter(llvm::Triple{triple}, asm_printer_variant,
+                                                                  *m_asm_info_ap.get(), *m_instr_info_ap.get(),
                                                                   *m_reg_info_ap.get()));
         if (m_instr_printer_ap.get() == NULL)
         {
