@@ -13,6 +13,12 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FileSystem.h"
 
+#if defined(__GNUC__) && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 8))
+#ifndef _GLIBCXX_USE_NANOSLEEP
+#define _GLIBCXX_USE_NANOSLEEP
+#endif
+#endif
+
 #include <functional>
 #include <thread>
 
@@ -30,9 +36,9 @@ int PipePosix::kInvalidDescriptor = -1;
 
 enum PIPES { READ, WRITE }; // Constants 0 and 1 for READ and WRITE
 
-// pipe2 is supported by Linux, FreeBSD v10 and higher.
+// pipe2 is supported by a limited set of platforms
 // TODO: Add more platforms that support pipe2.
-#if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD__ >= 10)
+#if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD__ >= 10) || defined(__NetBSD__)
 #define PIPE2_SUPPORTED 1
 #else
 #define PIPE2_SUPPORTED 0
@@ -129,9 +135,27 @@ SelectIO(int handle, bool is_read, const std::function<Error(bool&)> &io_handler
 }
 
 PipePosix::PipePosix()
+    : m_fds{
+        PipePosix::kInvalidDescriptor,
+        PipePosix::kInvalidDescriptor
+    } {}
+
+PipePosix::PipePosix(int read_fd, int write_fd)
+    : m_fds{read_fd, write_fd} {}
+
+PipePosix::PipePosix(PipePosix &&pipe_posix)
+    : PipeBase{std::move(pipe_posix)},
+      m_fds{
+        pipe_posix.ReleaseReadFileDescriptor(),
+        pipe_posix.ReleaseWriteFileDescriptor()
+      } {}
+
+PipePosix &PipePosix::operator=(PipePosix &&pipe_posix)
 {
-    m_fds[READ] = PipePosix::kInvalidDescriptor;
-    m_fds[WRITE] = PipePosix::kInvalidDescriptor;
+    PipeBase::operator=(std::move(pipe_posix));
+    m_fds[READ] = pipe_posix.ReleaseReadFileDescriptor();
+    m_fds[WRITE] = pipe_posix.ReleaseWriteFileDescriptor();
+    return *this;
 }
 
 PipePosix::~PipePosix()
@@ -317,7 +341,7 @@ PipePosix::Close()
 Error
 PipePosix::Delete(llvm::StringRef name)
 {
-    return FileSystem::Unlink(name.data());
+    return FileSystem::Unlink(FileSpec{name.data(), true});
 }
 
 bool

@@ -29,10 +29,10 @@ class BreakpointResolverFileRegex :
 {
 public:
     BreakpointResolverFileRegex (Breakpoint *bkpt,
-                                RegularExpression &regex);
+                                 RegularExpression &regex,
+                                 bool exact_match);
 
-    virtual
-    ~BreakpointResolverFileRegex ();
+    ~BreakpointResolverFileRegex() override;
 
     Searcher::CallbackReturn
     SearchCallback (SearchFilter &filter,
@@ -61,6 +61,7 @@ public:
 protected:
     friend class Breakpoint;
     RegularExpression m_regex; // This is the line expression that we are looking for.
+    bool m_exact_match;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(BreakpointResolverFileRegex);
@@ -68,4 +69,4 @@ private:
 
 } // namespace lldb_private
 
-#endif  // liblldb_BreakpointResolverFileRegex_h_
+#endif // liblldb_BreakpointResolverFileRegex_h_

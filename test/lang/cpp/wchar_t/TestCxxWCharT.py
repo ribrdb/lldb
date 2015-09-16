@@ -13,7 +13,7 @@ class CxxWCharTTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym(self):
         """Test that C++ supports wchar_t correctly."""
@@ -21,6 +21,7 @@ class CxxWCharTTestCase(TestBase):
         self.wchar_t()
 
     @dwarf_test
+    @expectedFailureWindows("llvm.org/pr24764")
     def test_with_dwarf(self):
         """Test that C++ supports wchar_t correctly."""
         self.buildDwarf()
@@ -75,6 +76,12 @@ class CxxWCharTTestCase(TestBase):
 
         self.expect("frame variable ws_NULL",substrs = ['(wchar_t *) ws_NULL = 0x0'])
         self.expect("frame variable ws_empty",substrs = [' L""'])
+
+        self.expect("frame variable array",substrs = ['L"Hey, I\'m a super wchar_t string'])
+        self.expect("frame variable array",substrs = ['[0]'], matching=False)
+        
+        self.expect('frame variable wchar_zero', substrs=["L'\\0'"])
+        self.expect('expression wchar_zero', substrs=["L'\\0'"])
 
 if __name__ == '__main__':
     import atexit

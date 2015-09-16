@@ -13,9 +13,11 @@
 // C Includes
 // C++ Includes
 #include <string>
+
 // Other libraries and framework includes
 // Project includes
 #include "lldb/lldb-private.h"
+#include "lldb/Core/StructuredData.h"
 #include "lldb/Core/UserID.h"
 #include "lldb/Host/Mutex.h"
 #include "lldb/Target/Process.h"
@@ -36,45 +38,44 @@ class ThreadPlanPython : public ThreadPlan
 {
 public:
     ThreadPlanPython (Thread &thread, const char *class_name);
-    virtual ~ThreadPlanPython ();
+    ~ThreadPlanPython() override;
     
-    virtual void
-    GetDescription (Stream *s,
-                    lldb::DescriptionLevel level);
+    void
+    GetDescription(Stream *s,
+		   lldb::DescriptionLevel level) override;
 
-    virtual bool
-    ValidatePlan (Stream *error);
+    bool
+    ValidatePlan(Stream *error) override;
 
-    virtual bool
-    ShouldStop (Event *event_ptr);
+    bool
+    ShouldStop(Event *event_ptr) override;
 
-    virtual bool
-    MischiefManaged ();
+    bool
+    MischiefManaged() override;
 
-    virtual bool
-    WillStop ();
+    bool
+    WillStop() override;
 
-    virtual bool
-    StopOthers ();
+    bool
+    StopOthers() override;
 
-    virtual void
-    DidPush ();
+    void
+    DidPush() override;
 
 protected:
-    virtual bool
-    DoPlanExplainsStop (Event *event_ptr);
+    bool
+    DoPlanExplainsStop(Event *event_ptr) override;
     
-    virtual lldb::StateType
-    GetPlanRunState ();
+    lldb::StateType
+    GetPlanRunState() override;
 
 private:
-    std::string                     m_class_name;
-    lldb::ScriptInterpreterObjectSP m_implementation_sp;
+    std::string m_class_name;
+    StructuredData::ObjectSP m_implementation_sp;
 
     DISALLOW_COPY_AND_ASSIGN(ThreadPlanPython);
 };
 
-
 } // namespace lldb_private
 
-#endif  // liblldb_ThreadPlan_Python_h_
+#endif // liblldb_ThreadPlan_Python_h_

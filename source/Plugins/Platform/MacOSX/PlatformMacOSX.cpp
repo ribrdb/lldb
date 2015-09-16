@@ -40,6 +40,8 @@ static uint32_t g_initialize_count = 0;
 void
 PlatformMacOSX::Initialize ()
 {
+    PlatformDarwin::Initialize ();
+
     if (g_initialize_count++ == 0)
     {
 #if defined (__APPLE__)
@@ -64,6 +66,8 @@ PlatformMacOSX::Terminate ()
             PluginManager::UnregisterPlugin (PlatformMacOSX::CreateInstance);
         }
     }
+
+    PlatformDarwin::Terminate ();
 }
 
 PlatformSP
@@ -289,7 +293,7 @@ PlatformMacOSX::GetFileWithUUID (const lldb_private::FileSpec &platform_file,
             FileSpec module_cache_folder = module_cache_spec.CopyByRemovingLastPathComponent();
             // try to make the local directory first
             Error err =
-                FileSystem::MakeDirectory(module_cache_folder.GetPath().c_str(), eFilePermissionsDirectoryDefault);
+                FileSystem::MakeDirectory(module_cache_folder, eFilePermissionsDirectoryDefault);
             if (err.Fail())
                 return err;
             err = GetFile(platform_file, module_cache_spec);
@@ -320,6 +324,7 @@ PlatformMacOSX::GetSupportedArchitectureAtIndex (uint32_t idx, ArchSpec &arch)
 
 lldb_private::Error
 PlatformMacOSX::GetSharedModule (const lldb_private::ModuleSpec &module_spec,
+                                 Process* process,
                                  lldb::ModuleSP &module_sp,
                                  const lldb_private::FileSpecList *module_search_paths_ptr,
                                  lldb::ModuleSP *old_module_sp_ptr,

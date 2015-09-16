@@ -139,7 +139,7 @@ DNBArchMachARM::Create (MachThread *thread)
     return obj;
 }
 
-const uint8_t * const
+const uint8_t *
 DNBArchMachARM::SoftwareBreakpointOpcode (nub_size_t byte_size)
 {
     switch (byte_size)
@@ -1738,7 +1738,7 @@ DNBArchMachARM::GetRegisterSetInfo(nub_size_t *num_reg_sets)
 }
 
 bool
-DNBArchMachARM::GetRegisterValue(int set, int reg, DNBRegisterValue *value)
+DNBArchMachARM::GetRegisterValue(uint32_t set, uint32_t reg, DNBRegisterValue *value)
 {
     if (set == REGISTER_SET_GENERIC)
     {
@@ -1861,7 +1861,7 @@ DNBArchMachARM::GetRegisterValue(int set, int reg, DNBRegisterValue *value)
 }
 
 bool
-DNBArchMachARM::SetRegisterValue(int set, int reg, const DNBRegisterValue *value)
+DNBArchMachARM::SetRegisterValue(uint32_t set, uint32_t reg, const DNBRegisterValue *value)
 {
     if (set == REGISTER_SET_GENERIC)
     {
@@ -2060,6 +2060,7 @@ DNBArchMachARM::GetRegisterContext (void *buf, nub_size_t buf_len)
         p += sizeof(m_state.context.exc);
 
         size_t bytes_written = p - (uint8_t *)buf;
+        UNUSED_IF_ASSERT_DISABLED(bytes_written);
         assert (bytes_written == size);
 
     }
@@ -2093,6 +2094,7 @@ DNBArchMachARM::SetRegisterContext (const void *buf, nub_size_t buf_len)
         p += sizeof(m_state.context.exc);
         
         size_t bytes_written = p - (uint8_t *)buf;
+        UNUSED_IF_ASSERT_DISABLED(bytes_written);
         assert (bytes_written == size);
 
         if (SetGPRState() | SetVFPState() | SetEXCState())

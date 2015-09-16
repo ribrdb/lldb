@@ -12,7 +12,7 @@ class ReturnValueTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @expectedFailurei386
     @python_api_test
     @dsym_test
@@ -22,6 +22,7 @@ class ReturnValueTestCase(TestBase):
         self.do_return_value()
 
     @expectedFailurei386
+    @expectedFailureWindows("llvm.org/pr24778")
     @python_api_test
     @dwarf_test
     def test_with_dwarf_python(self):
@@ -81,7 +82,7 @@ class ReturnValueTestCase(TestBase):
             in_child_str = in_child.GetValue()
             ret_child_str = ret_child.GetValue()
 
-            self.assertTrue (in_child_str == ret_child_str)
+            self.assertEqual(in_child_str, ret_child_str)
 
     def do_return_value(self):
         """Test getting return values from stepping out."""
@@ -213,10 +214,13 @@ class ReturnValueTestCase(TestBase):
 
         # icc and gcc don't support this extension.
         if self.getCompiler().endswith('clang'):
-            self.return_and_test_struct_value ("return_vector_size_float32")
-            self.return_and_test_struct_value ("return_ext_vector_size_float32")
+            self.return_and_test_struct_value ("return_vector_size_float32_8")
+            self.return_and_test_struct_value ("return_vector_size_float32_16")
+            self.return_and_test_struct_value ("return_vector_size_float32_32")
+            self.return_and_test_struct_value ("return_ext_vector_size_float32_2")
+            self.return_and_test_struct_value ("return_ext_vector_size_float32_4")
+            self.return_and_test_struct_value ("return_ext_vector_size_float32_8")
 
-        
 if __name__ == '__main__':
     import atexit
     lldb.SBDebugger.Initialize()

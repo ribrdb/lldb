@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnLog.cpp
-//
-// Overview:    CMICmnLog implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmnLog.h"
 #include "MICmnLogMediumFile.h"
@@ -33,7 +21,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnLog::CMICmnLog(void)
+CMICmnLog::CMICmnLog()
     : m_bEnabled(false)
     , m_bInitializingATM(false)
 {
@@ -47,7 +35,7 @@ CMICmnLog::CMICmnLog(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnLog::~CMICmnLog(void)
+CMICmnLog::~CMICmnLog()
 {
     Shutdown();
 }
@@ -61,7 +49,7 @@ CMICmnLog::~CMICmnLog(void)
 // Throws:  None.
 //--
 bool
-CMICmnLog::Initialize(void)
+CMICmnLog::Initialize()
 {
     m_clientUsageRefCnt++;
 
@@ -114,7 +102,7 @@ CMICmnLog::Initialize(void)
 // Throws:  None.
 //--
 bool
-CMICmnLog::Shutdown(void)
+CMICmnLog::Shutdown()
 {
     if (--m_clientUsageRefCnt > 0)
         return MIstatus::success;
@@ -156,7 +144,7 @@ CMICmnLog::SetEnabled(const bool vbYes)
 // Throws:  None.
 //--
 bool
-CMICmnLog::GetEnabled(void) const
+CMICmnLog::GetEnabled() const
 {
     return m_bEnabled;
 }
@@ -170,7 +158,7 @@ CMICmnLog::GetEnabled(void) const
 // Throws:  None.
 //--
 bool
-CMICmnLog::UnregisterMediumAll(void)
+CMICmnLog::UnregisterMediumAll()
 {
     MapMediumToName_t::const_iterator it = m_mapMediumToName.begin();
     for (; it != m_mapMediumToName.end(); it++)
@@ -337,7 +325,7 @@ CMICmnLog::WriteLog(const CMIUtilString &vData)
 // Throws:  None.
 //--
 const CMIUtilString &
-CMICmnLog::GetErrorDescription(void) const
+CMICmnLog::GetErrorDescription() const
 {
     return m_strMILastErrorDescription;
 }
@@ -363,7 +351,7 @@ CMICmnLog::SetErrorDescription(const CMIUtilString &vrTxt) const
 // Throws:  None.
 //--
 void
-CMICmnLog::ClrErrorDescription(void) const
+CMICmnLog::ClrErrorDescription() const
 {
     m_strMILastErrorDescription = CMIUtilString("");
 }

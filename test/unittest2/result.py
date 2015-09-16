@@ -40,7 +40,9 @@ class TestResult(unittest.TestResult):
     def __init__(self):
         self.failfast = False
         self.failures = []
+        self.passes = []
         self.errors = []
+        self.cleanup_errors = []
         self.testsRun = 0
         self.skipped = []
         self.expectedFailures = []
@@ -108,6 +110,13 @@ class TestResult(unittest.TestResult):
         self.errors.append((test, self._exc_info_to_string(err, test)))
         self._mirrorOutput = True
 
+    def addCleanupError(self, test, err):
+        """Called when an error has occurred during cleanup. 'err' is a tuple of
+        values as returned by sys.exc_info().
+        """
+        self.cleanup_errors.append((test, self._exc_info_to_string(err, test)))
+        self._mirrorOutput = True
+
     @failfast
     def addFailure(self, test, err):
         """Called when an error has occurred. 'err' is a tuple of values as
@@ -117,6 +126,7 @@ class TestResult(unittest.TestResult):
 
     def addSuccess(self, test):
         "Called when a test has completed successfully"
+        self.passes.append(test)
         pass
 
     def addSkip(self, test, reason):

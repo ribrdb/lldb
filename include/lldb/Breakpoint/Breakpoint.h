@@ -85,7 +85,6 @@ public:
     static const ConstString &
     GetEventIdentifier ();
 
-
     //------------------------------------------------------------------
     /// An enum specifying the match style for breakpoint settings.  At
     /// present only used for function name style breakpoints.
@@ -101,18 +100,16 @@ public:
         public EventData
     {
     public:
+        BreakpointEventData (lldb::BreakpointEventType sub_type,
+                             const lldb::BreakpointSP &new_breakpoint_sp);
+
+        ~BreakpointEventData() override;
 
         static const ConstString &
         GetFlavorString ();
 
-        virtual const ConstString &
-        GetFlavor () const;
-
-        BreakpointEventData (lldb::BreakpointEventType sub_type,
-                             const lldb::BreakpointSP &new_breakpoint_sp);
-
-        virtual
-        ~BreakpointEventData();
+        const ConstString &
+        GetFlavor() const override;
 
         lldb::BreakpointEventType
         GetBreakpointEventType () const;
@@ -126,9 +123,8 @@ public:
             return m_locations;
         }
 
-
-        virtual void
-        Dump (Stream *s) const;
+        void
+        Dump(Stream *s) const override;
 
         static lldb::BreakpointEventType
         GetBreakpointEventTypeFromEvent (const lldb::EventSP &event_sp);
@@ -154,6 +150,22 @@ public:
         DISALLOW_COPY_AND_ASSIGN (BreakpointEventData);
     };
 
+    class BreakpointPrecondition
+    {
+    public:
+        virtual ~BreakpointPrecondition() {}
+
+        virtual bool
+        EvaluatePrecondition(StoppointCallbackContext &context);
+
+        virtual Error
+        ConfigurePrecondition(Args &options);
+
+        virtual void
+        DescribePrecondition(Stream &stream, lldb::DescriptionLevel level);
+    };
+
+    typedef std::shared_ptr<BreakpointPrecondition> BreakpointPreconditionSP;
 
     //------------------------------------------------------------------
     /// Destructor.
@@ -162,7 +174,7 @@ public:
     /// breakpoints.  The varieties of breakpoints are specified instead by
     /// providing different resolvers & filters.
     //------------------------------------------------------------------
-    ~Breakpoint();
+    ~Breakpoint() override;
 
     //------------------------------------------------------------------
     // Methods
@@ -180,13 +192,12 @@ public:
     /// Standard "Dump" method.  At present it does nothing.
     //------------------------------------------------------------------
     void
-    Dump (Stream *s);
+    Dump(Stream *s) override;
 
     //------------------------------------------------------------------
     // The next set of methods provide ways to tell the breakpoint to update
     // it's location list - usually done when modules appear or disappear.
     //------------------------------------------------------------------
-
 
     //------------------------------------------------------------------
     /// Tell this breakpoint to clear all its breakpoint sites.  Done
@@ -244,7 +255,6 @@ public:
     ModulesChanged (ModuleList &changed_modules,
                     bool load_event,
                     bool delete_locations = false);
-
 
     //------------------------------------------------------------------
     /// Tells the breakpoint the old module \a old_module_sp has been
@@ -356,7 +366,7 @@ public:
     /// If \a enable is \b true, enable the breakpoint, if \b false disable it.
     //------------------------------------------------------------------
     void
-    SetEnabled (bool enable);
+    SetEnabled(bool enable) override;
 
     //------------------------------------------------------------------
     /// Check the Enable/Disable state.
@@ -364,7 +374,7 @@ public:
     ///     \b true if the breakpoint is enabled, \b false if disabled.
     //------------------------------------------------------------------
     bool
-    IsEnabled ();
+    IsEnabled() override;
 
     //------------------------------------------------------------------
     /// Set the breakpoint to ignore the next \a count breakpoint hits.
@@ -389,7 +399,6 @@ public:
     //------------------------------------------------------------------
     uint32_t
     GetHitCount () const;
-
 
     //------------------------------------------------------------------
     /// If \a one_shot is \b true, breakpoint will be deleted on first hit.
@@ -602,7 +611,6 @@ public:
     BreakpointOptions *
     GetOptions ();
 
-
     //------------------------------------------------------------------
     /// Invoke the callback action when the breakpoint is hit.
     ///
@@ -665,12 +673,36 @@ public:
         }
     }
 
+    //------------------------------------------------------------------
+    /// Set a pre-condition filter that overrides all user provided filters/callbacks etc.
+    ///
+    /// Used to define fancy breakpoints that can do dynamic hit detection without taking up the condition slot -
+    /// which really belongs to the user anyway...
+    ///
+    /// The Precondition should not continue the target, it should return true if the condition says to stop and
+    /// false otherwise.
+    ///
+    //------------------------------------------------------------------
+    void
+    SetPrecondition(BreakpointPreconditionSP precondition_sp)
+    {
+        m_precondition_sp = precondition_sp;
+    }
+
+    bool
+    EvaluatePrecondition (StoppointCallbackContext &context);
+
+    BreakpointPreconditionSP
+    GetPrecondition()
+    {
+        return m_precondition_sp;
+    }
+
 protected:
     friend class Target;
     //------------------------------------------------------------------
     // Protected Methods
     //------------------------------------------------------------------
-
 
     //------------------------------------------------------------------
     /// Constructors and Destructors
@@ -737,13 +769,17 @@ private:
     // For Breakpoint only
     //------------------------------------------------------------------
     bool m_being_created;
-    bool m_hardware;                          // If this breakpoint is required to use a hardware breakpoint
-    Target &m_target;                         // The target that holds this breakpoint.
+    bool m_hardware;                             // If this breakpoint is required to use a hardware breakpoint
+    Target &m_target;                            // The target that holds this breakpoint.
     std::unordered_set<std::string> m_name_list; // If not empty, this is the name of this breakpoint (many breakpoints can share the same name.)
-    lldb::SearchFilterSP m_filter_sp;         // The filter that constrains the breakpoint's domain.
-    lldb::BreakpointResolverSP m_resolver_sp; // The resolver that defines this breakpoint.
-    BreakpointOptions m_options;              // Settable breakpoint options
-    BreakpointLocationList m_locations;       // The list of locations currently found for this breakpoint.
+    lldb::SearchFilterSP m_filter_sp;            // The filter that constrains the breakpoint's domain.
+    lldb::BreakpointResolverSP m_resolver_sp;    // The resolver that defines this breakpoint.
+    BreakpointPreconditionSP m_precondition_sp;  // The precondition is a breakpoint-level hit filter that can be used
+                                                 // to skip certain breakpoint hits.  For instance, exception breakpoints
+                                                 // use this to limit the stop to certain exception classes, while leaving
+                                                 // the condition & callback free for user specification.
+    BreakpointOptions m_options;                 // Settable breakpoint options
+    BreakpointLocationList m_locations;          // The list of locations currently found for this breakpoint.
     std::string m_kind_description;
     bool m_resolve_indirect_symbols;
     uint32_t    m_hit_count;                   // Number of times this breakpoint/watchpoint has been hit.  This is kept
@@ -761,4 +797,4 @@ private:
 
 } // namespace lldb_private
 
-#endif  // liblldb_Breakpoint_h_
+#endif // liblldb_Breakpoint_h_

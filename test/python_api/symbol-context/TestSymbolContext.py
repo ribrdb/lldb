@@ -12,7 +12,7 @@ class SymbolContextAPITestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_with_dsym(self):
@@ -22,6 +22,7 @@ class SymbolContextAPITestCase(TestBase):
 
     @python_api_test
     @dwarf_test
+    @expectedFailureWindows("llvm.org/pr24778")
     def test_with_dwarf(self):
         """Exercise SBSymbolContext API extensively."""
         self.buildDwarf()

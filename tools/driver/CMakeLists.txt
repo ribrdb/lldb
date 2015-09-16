@@ -1,11 +1,10 @@
-set(LLVM_NO_RTTI 1)
 add_lldb_executable(lldb
   Driver.cpp
   Platform.cpp
   )
 
 if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
-add_definitions( -DIMPORT_LIBLLDB )
+  add_definitions( -DIMPORT_LIBLLDB )
 endif()
 
 target_link_libraries(lldb liblldb)

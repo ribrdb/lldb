@@ -12,7 +12,7 @@ class ThreadStateTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     @expectedFailureDarwin("rdar://15367566")
     def test_state_after_breakpoint_with_dsym(self):
@@ -22,14 +22,15 @@ class ThreadStateTestCase(TestBase):
 
     @expectedFailureDarwin("rdar://15367566")
     @expectedFailureFreeBSD('llvm.org/pr15824')
-    @expectedFailureLLGS("llvm.org/pr15824") # thread states not properly maintained
+    @expectedFailureLinux("llvm.org/pr15824") # thread states not properly maintained
+    @expectedFailureWindows("llvm.org/pr24668") # Breakpoints not resolved correctly
     @dwarf_test
     def test_state_after_breakpoint_with_dwarf(self):
         """Test thread state after breakpoint."""
         self.buildDwarf(dictionary=self.getBuildFlags(use_cpp11=False))
         self.thread_state_after_breakpoint_test()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_state_after_continue_with_dsym(self):
         """Test thread state after continue."""
@@ -37,25 +38,33 @@ class ThreadStateTestCase(TestBase):
         self.thread_state_after_continue_test()
 
     @dwarf_test
+    @skipIfDarwin # 'llvm.org/pr23669', cause Python crash randomly
+    @expectedFailureDarwin('llvm.org/pr23669')
+    @expectedFailureWindows("llvm.org/pr24660")
     def test_state_after_continue_with_dwarf(self):
         """Test thread state after continue."""
         self.buildDwarf(dictionary=self.getBuildFlags(use_cpp11=False))
         self.thread_state_after_continue_test()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
+    @skipIfDarwin # 'llvm.org/pr23669', cause Python crash randomly
+    @expectedFailureDarwin('llvm.org/pr23669')
     @dsym_test
     def test_state_after_expression_with_dsym(self):
         """Test thread state after expression."""
         self.buildDsym(dictionary=self.getBuildFlags(use_cpp11=False))
         self.thread_state_after_continue_test()
 
+    @skipIfDarwin # 'llvm.org/pr23669', cause Python crash randomly
+    @expectedFailureDarwin('llvm.org/pr23669')
+    @expectedFailureWindows("llvm.org/pr24660")
     @dwarf_test
     def test_state_after_expression_with_dwarf(self):
         """Test thread state after expression."""
         self.buildDwarf(dictionary=self.getBuildFlags(use_cpp11=False))
         self.thread_state_after_continue_test()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     @unittest2.expectedFailure("llvm.org/pr16172") # thread states not properly maintained
     def test_process_interrupt_with_dsym(self):
@@ -65,12 +74,13 @@ class ThreadStateTestCase(TestBase):
 
     @dwarf_test
     @unittest2.expectedFailure("llvm.org/pr16712") # thread states not properly maintained
+    @expectedFailureWindows("llvm.org/pr24668") # Breakpoints not resolved correctly
     def test_process_interrupt_with_dwarf(self):
         """Test process interrupt."""
         self.buildDwarf(dictionary=self.getBuildFlags(use_cpp11=False))
         self.process_interrupt_test()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     @unittest2.expectedFailure("llvm.org/pr15824") # thread states not properly maintained
     def test_process_state_with_dsym(self):
@@ -80,6 +90,7 @@ class ThreadStateTestCase(TestBase):
 
     @dwarf_test
     @unittest2.expectedFailure("llvm.org/pr15824") # thread states not properly maintained
+    @expectedFailureWindows("llvm.org/pr24668") # Breakpoints not resolved correctly
     def test_process_state_with_dwarf(self):
         """Test thread states (comprehensive)."""
         self.buildDwarf(dictionary=self.getBuildFlags(use_cpp11=False))
@@ -89,8 +100,8 @@ class ThreadStateTestCase(TestBase):
         # Call super's setUp().
         TestBase.setUp(self)
         # Find the line numbers for our breakpoints.
-        self.break_1 = line_number('main.c', '// Set first breakpoint here')
-        self.break_2 = line_number('main.c', '// Set second breakpoint here')
+        self.break_1 = line_number('main.cpp', '// Set first breakpoint here')
+        self.break_2 = line_number('main.cpp', '// Set second breakpoint here')
 
     def thread_state_after_breakpoint_test(self):
         """Test thread state after breakpoint."""
@@ -98,11 +109,11 @@ class ThreadStateTestCase(TestBase):
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # This should create a breakpoint in the main thread.
-        lldbutil.run_break_set_by_file_and_line (self, "main.c", self.break_1, num_expected_locations=1)
+        lldbutil.run_break_set_by_file_and_line (self, "main.cpp", self.break_1, num_expected_locations=1)
 
         # The breakpoint list should show 1 breakpoint with 1 location.
         self.expect("breakpoint list -f", "Breakpoint location shown correctly",
-            substrs = ["1: file = 'main.c', line = %d, locations = 1" % self.break_1])
+            substrs = ["1: file = 'main.cpp', line = %d, locations = 1" % self.break_1])
 
         # Run the program.
         self.runCmd("run", RUN_SUCCEEDED)
@@ -138,12 +149,12 @@ class ThreadStateTestCase(TestBase):
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # This should create a breakpoint in the main thread.
-        lldbutil.run_break_set_by_file_and_line (self, "main.c", self.break_1, num_expected_locations=1)
-        lldbutil.run_break_set_by_file_and_line (self, "main.c", self.break_2, num_expected_locations=1)
+        lldbutil.run_break_set_by_file_and_line (self, "main.cpp", self.break_1, num_expected_locations=1)
+        lldbutil.run_break_set_by_file_and_line (self, "main.cpp", self.break_2, num_expected_locations=1)
 
         # The breakpoint list should show 1 breakpoints with 1 location.
         self.expect("breakpoint list -f", "Breakpoint location shown correctly",
-            substrs = ["1: file = 'main.c', line = %d, locations = 1" % self.break_1])
+            substrs = ["1: file = 'main.cpp', line = %d, exact_match = 0, locations = 1" % self.break_1])
 
         # Run the program.
         self.runCmd("run", RUN_SUCCEEDED)
@@ -187,12 +198,12 @@ class ThreadStateTestCase(TestBase):
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # This should create a breakpoint in the main thread.
-        lldbutil.run_break_set_by_file_and_line (self, "main.c", self.break_1, num_expected_locations=1)
-        lldbutil.run_break_set_by_file_and_line (self, "main.c", self.break_2, num_expected_locations=1)
+        lldbutil.run_break_set_by_file_and_line (self, "main.cpp", self.break_1, num_expected_locations=1)
+        lldbutil.run_break_set_by_file_and_line (self, "main.cpp", self.break_2, num_expected_locations=1)
 
         # The breakpoint list should show 1 breakpoints with 1 location.
         self.expect("breakpoint list -f", "Breakpoint location shown correctly",
-            substrs = ["1: file = 'main.c', line = %d, locations = 1" % self.break_1])
+            substrs = ["1: file = 'main.cpp', line = %d, locations = 1" % self.break_1])
 
         # Run the program.
         self.runCmd("run", RUN_SUCCEEDED)
@@ -232,11 +243,11 @@ class ThreadStateTestCase(TestBase):
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # This should create a breakpoint in the main thread.
-        lldbutil.run_break_set_by_file_and_line (self, "main.c", self.break_1, num_expected_locations=1)
+        lldbutil.run_break_set_by_file_and_line (self, "main.cpp", self.break_1, num_expected_locations=1)
 
         # The breakpoint list should show 1 breakpoints with 1 location.
         self.expect("breakpoint list -f", "Breakpoint location shown correctly",
-            substrs = ["1: file = 'main.c', line = %d, locations = 1" % self.break_1])
+            substrs = ["1: file = 'main.cpp', line = %d, locations = 1" % self.break_1])
 
         # Run the program.
         self.runCmd("run", RUN_SUCCEEDED)
@@ -285,13 +296,13 @@ class ThreadStateTestCase(TestBase):
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
 
         # This should create a breakpoint in the main thread.
-        lldbutil.run_break_set_by_file_and_line (self, "main.c", self.break_1, num_expected_locations=1)
-        lldbutil.run_break_set_by_file_and_line (self, "main.c", self.break_2, num_expected_locations=1)
+        lldbutil.run_break_set_by_file_and_line (self, "main.cpp", self.break_1, num_expected_locations=1)
+        lldbutil.run_break_set_by_file_and_line (self, "main.cpp", self.break_2, num_expected_locations=1)
 
         # The breakpoint list should show 2 breakpoints with 1 location each.
         self.expect("breakpoint list -f", "Breakpoint location shown correctly",
-            substrs = ["1: file = 'main.c', line = %d, locations = 1" % self.break_1,
-                       "2: file = 'main.c', line = %d, locations = 1" % self.break_2])
+            substrs = ["1: file = 'main.cpp', line = %d, locations = 1" % self.break_1,
+                       "2: file = 'main.cpp', line = %d, locations = 1" % self.break_2])
 
         # Run the program.
         self.runCmd("run", RUN_SUCCEEDED)

@@ -88,6 +88,8 @@ public:
                                         ///< if the address is in a section (section of pointers, c strings, etc).
         DumpStyleResolvedDescriptionNoModule,
         DumpStyleResolvedDescriptionNoFunctionArguments,
+        DumpStyleNoFunctionName,        ///< Elide the function name; display an offset into the current function.
+                                        ///< Used primarily in disassembly symbolication
         DumpStyleDetailedSymbolContext, ///< Detailed symbol context information for an address for all symbol
                                         ///< context members.
         DumpStyleResolvedPointerDescription ///< Dereference a pointer at the current address and then lookup the
@@ -324,7 +326,8 @@ public:
     ///     not loaded.
     //------------------------------------------------------------------
     lldb::addr_t
-    GetOpcodeLoadAddress (Target *target) const;
+    GetOpcodeLoadAddress (Target *target,
+                          lldb::AddressClass addr_class = lldb::eAddressClassInvalid) const;
 
     //------------------------------------------------------------------
     /// Get the section relative offset value.
@@ -423,7 +426,9 @@ public:
     SetLoadAddress (lldb::addr_t load_addr, Target *target);
     
     bool
-    SetOpcodeLoadAddress (lldb::addr_t load_addr, Target *target);
+    SetOpcodeLoadAddress (lldb::addr_t load_addr,
+                          Target *target,
+                          lldb::AddressClass addr_class = lldb::eAddressClassInvalid);
 
     bool
     SetCallableLoadAddress (lldb::addr_t load_addr, Target *target);

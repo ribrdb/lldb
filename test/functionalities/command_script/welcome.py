@@ -1,19 +1,29 @@
-import sys
+import lldb, sys
 
-def welcome_impl(debugger, args, result, dict):
-    """
-        Just a docstring for welcome_impl
-        A command that says hello to LLDB users
-    """
-    print >>result,  ('Hello ' + args + ', welcome to LLDB');
-    return None;
+class WelcomeCommand(object):
+    def __init__(self, debugger, session_dict):
+        pass
+    
+    def get_short_help(self):
+        return "Just a docstring for welcome_impl\nA command that says hello to LLDB users"
+        
+    def __call__(self, debugger, args, exe_ctx, result):
+        print >>result,  ('Hello ' + args + ', welcome to LLDB');
+        return None;
 
-def target_name_impl(debugger, args, result, dict):
-    target = debugger.GetSelectedTarget()
-    file = target.GetExecutable()
-    print >>result,  ('Current target ' + file.GetFilename())
-    if args == 'fail':
-        result.SetError('a test for error in command')
+class TargetnameCommand(object):
+    def __init__(self, debugger, session_dict):
+        pass
+
+    def __call__(self, debugger, args, exe_ctx, result):
+        target = debugger.GetSelectedTarget()
+        file = target.GetExecutable()
+        print >>result,  ('Current target ' + file.GetFilename())
+        if args == 'fail':
+            result.SetError('a test for error in command')
+    
+    def get_flags(self):
+        return lldb.eCommandRequiresTarget
 
 def print_wait_impl(debugger, args, result, dict):
     result.SetImmediateOutputFile(sys.stdout)

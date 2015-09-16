@@ -7,9 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdTarget.h
-//
 // Overview:    CMICmdCmdTargetSelect           interface.
 //
 //              To implement new MI commands derive a new command class from the command base
@@ -20,13 +17,6 @@
 //                  MICmdCmd.h / .cpp
 //              For an introduction to adding a new command see CMICmdCmdSupportInfoMiCmdQuery
 //              command class as an example.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 #pragma once
 
@@ -39,32 +29,88 @@
 // Details: MI command class. MI commands derived from the command base class.
 //          *this class implements MI command "target-select".
 //          http://sourceware.org/gdb/onlinedocs/gdb/GDB_002fMI-Target-Manipulation.html#GDB_002fMI-Target-Manipulation
-// Gotchas: None.
-// Authors: Illya Rudkin 05/03/2014.
-// Changes: None.
 //--
 class CMICmdCmdTargetSelect : public CMICmdBase
 {
     // Statics:
   public:
     // Required by the CMICmdFactory when registering *this command
-    static CMICmdBase *CreateSelf(void);
+    static CMICmdBase *CreateSelf();
 
     // Methods:
   public:
-    /* ctor */ CMICmdCmdTargetSelect(void);
+    /* ctor */ CMICmdCmdTargetSelect();
 
     // Overridden:
   public:
     // From CMICmdInvoker::ICmd
-    virtual bool Execute(void);
-    virtual bool Acknowledge(void);
-    virtual bool ParseArgs(void);
+    bool Execute() override;
+    bool Acknowledge() override;
+    bool ParseArgs() override;
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmdCmdTargetSelect(void);
+    /* dtor */ ~CMICmdCmdTargetSelect() override;
 
     // Attributes:
   private:
     const CMIUtilString m_constStrArgNamedType;
     const CMIUtilString m_constStrArgNamedParameters;
 };
+
+//++ ============================================================================
+// Details: MI command class. MI commands derived from the command base class.
+//          *this class implements MI command "target-attach".
+//          http://sourceware.org/gdb/onlinedocs/gdb/GDB_002fMI-Target-Manipulation.html#GDB_002fMI-Target-Manipulation
+//--
+class CMICmdCmdTargetAttach : public CMICmdBase
+{
+    // Statics:
+public:
+    // Required by the CMICmdFactory when registering *this command
+    static CMICmdBase *CreateSelf();
+    
+    // Methods:
+public:
+    /* ctor */ CMICmdCmdTargetAttach();
+    
+    // Overridden:
+public:
+    // From CMICmdInvoker::ICmd
+    bool Execute() override;
+    bool Acknowledge() override;
+    bool ParseArgs() override;
+    // From CMICmnBase
+    /* dtor */ ~CMICmdCmdTargetAttach() override;
+    
+    // Attributes:
+private:
+    const CMIUtilString m_constStrArgPid;
+    const CMIUtilString m_constStrArgNamedFile;
+    const CMIUtilString m_constStrArgWaitFor;
+};
+
+//++ ============================================================================
+// Details: MI command class. MI commands derived from the command base class.
+//          *this class implements MI command "target-attach".
+//          http://sourceware.org/gdb/onlinedocs/gdb/GDB_002fMI-Target-Manipulation.html#GDB_002fMI-Target-Manipulation
+//--
+class CMICmdCmdTargetDetach : public CMICmdBase
+{
+    // Statics:
+public:
+    // Required by the CMICmdFactory when registering *this command
+    static CMICmdBase *CreateSelf();
+    
+    // Methods:
+public:
+    /* ctor */ CMICmdCmdTargetDetach();
+    
+    // Overridden:
+public:
+    // From CMICmdInvoker::ICmd
+    bool Execute() override;
+    bool Acknowledge() override;
+    bool ParseArgs() override;
+    // From CMICmnBase
+    /* dtor */ ~CMICmdCmdTargetDetach() override;
+};
+

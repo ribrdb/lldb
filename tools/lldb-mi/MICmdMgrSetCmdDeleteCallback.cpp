@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdMgrSetCmdDeleteCallback.cpp
-//
-// Overview:    CSetClients implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmdMgrSetCmdDeleteCallback.h"
 
@@ -32,7 +20,7 @@ namespace CMICmdMgrSetCmdDeleteCallback
 // Return:  None.
 // Throws:  None.
 //--
-CSetClients::CSetClients(void)
+CSetClients::CSetClients()
     : m_bClientUnregistered(false)
 {
 }
@@ -44,7 +32,7 @@ CSetClients::CSetClients(void)
 // Return:  None.
 // Throws:  None.
 //--
-CSetClients::~CSetClients(void)
+CSetClients::~CSetClients()
 {
 }
 

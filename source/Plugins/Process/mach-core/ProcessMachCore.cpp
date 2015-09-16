@@ -13,8 +13,10 @@
 
 // C++ Includes
 #include "llvm/Support/MathExtras.h"
+#include <mutex>
 
 // Other libraries and framework includes
+#include "lldb/Core/DataBuffer.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Module.h"
@@ -62,7 +64,7 @@ ProcessMachCore::Terminate()
 
 
 lldb::ProcessSP
-ProcessMachCore::CreateInstance (Target &target, Listener &listener, const FileSpec *crash_file)
+ProcessMachCore::CreateInstance (lldb::TargetSP target_sp, Listener &listener, const FileSpec *crash_file)
 {
     lldb::ProcessSP process_sp;
     if (crash_file)
@@ -78,7 +80,7 @@ ProcessMachCore::CreateInstance (Target &target, Listener &listener, const FileS
             if (ObjectFileMachO::ParseHeader(data, &data_offset, mach_header))
             {
                 if (mach_header.filetype == llvm::MachO::MH_CORE)
-                    process_sp.reset(new ProcessMachCore (target, listener, *crash_file));
+                    process_sp.reset(new ProcessMachCore (target_sp, listener, *crash_file));
             }
         }
         
@@ -87,7 +89,7 @@ ProcessMachCore::CreateInstance (Target &target, Listener &listener, const FileS
 }
 
 bool
-ProcessMachCore::CanDebug(Target &target, bool plugin_specified_by_name)
+ProcessMachCore::CanDebug(lldb::TargetSP target_sp, bool plugin_specified_by_name)
 {
     if (plugin_specified_by_name)
         return true;
@@ -108,13 +110,9 @@ ProcessMachCore::CanDebug(Target &target, bool plugin_specified_by_name)
 
         if (m_core_module_sp)
         {
-            const llvm::Triple &triple_ref = m_core_module_sp->GetArchitecture().GetTriple();
-            if (triple_ref.getVendor() == llvm::Triple::Apple)
-            {
-                ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
-                if (core_objfile && core_objfile->GetType() == ObjectFile::eTypeCoreFile)
-                    return true;
-            }
+            ObjectFile *core_objfile = m_core_module_sp->GetObjectFile();
+            if (core_objfile && core_objfile->GetType() == ObjectFile::eTypeCoreFile)
+                return true;
         }
     }
     return false;
@@ -123,8 +121,8 @@ ProcessMachCore::CanDebug(Target &target, bool plugin_specified_by_name)
 //----------------------------------------------------------------------
 // ProcessMachCore constructor
 //----------------------------------------------------------------------
-ProcessMachCore::ProcessMachCore(Target& target, Listener &listener, const FileSpec &core_file) :
-    Process (target, listener),
+ProcessMachCore::ProcessMachCore(lldb::TargetSP target_sp, Listener &listener, const FileSpec &core_file) :
+    Process (target_sp, listener),
     m_core_aranges (),
     m_core_module_sp (),
     m_core_file (core_file),
@@ -311,10 +309,14 @@ ProcessMachCore::DoLoadCore ()
         // We need to locate the main executable in the memory ranges
         // we have in the core file.  We need to search for both a user-process dyld binary
         // and a kernel binary in memory; we must look at all the pages in the binary so
-        // we don't miss one or the other.  If we find a user-process dyld binary, stop
-        // searching -- that's the one we'll prefer over the mach kernel.
+        // we don't miss one or the other.  Step through all memory segments searching for
+        // a kernel binary and for a user process dyld -- we'll decide which to prefer 
+        // later if both are present.
+
         const size_t num_core_aranges = m_core_aranges.GetSize();
-        for (size_t i=0; i<num_core_aranges && m_dyld_addr == LLDB_INVALID_ADDRESS; ++i)
+        for (size_t i = 0; 
+             i < num_core_aranges && (m_dyld_addr == LLDB_INVALID_ADDRESS || m_mach_kernel_addr == LLDB_INVALID_ADDRESS); 
+             ++i)
         {
             const VMRangeToFileOffset::Entry *entry = m_core_aranges.GetEntryAtIndex(i);
             lldb::addr_t section_vm_addr_start = entry->GetRangeBase();
@@ -358,10 +360,10 @@ ProcessMachCore::DoLoadCore ()
     ArchSpec arch (m_core_module_sp->GetArchitecture());
     if (arch.GetCore() == ArchSpec::eCore_x86_32_i486)
     {
-        arch.SetTriple ("i386", m_target.GetPlatform().get());
+        arch.SetTriple ("i386", GetTarget().GetPlatform().get());
     }
     if (arch.IsValid())
-        m_target.SetArchitecture(arch);            
+        GetTarget().SetArchitecture(arch);
 
     return error;
 }
@@ -478,15 +480,13 @@ ProcessMachCore::Clear()
 void
 ProcessMachCore::Initialize()
 {
-    static bool g_initialized = false;
-    
-    if (g_initialized == false)
-    {
-        g_initialized = true;
+    static std::once_flag g_once_flag;
+
+    std::call_once(g_once_flag, []() {
         PluginManager::RegisterPlugin (GetPluginNameStatic(),
                                        GetPluginDescriptionStatic(),
-                                       CreateInstance);        
-    }
+                                       CreateInstance);
+    });
 }
 
 addr_t

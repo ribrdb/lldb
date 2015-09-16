@@ -12,7 +12,6 @@
 
 // C Includes
 // C++ Includes
-#include <set>
 
 // Other libraries and framework includes
 #include "lldb/lldb-private-forward.h"
@@ -23,8 +22,12 @@
 #include "GDBRemoteCommunicationServer.h"
 #include "GDBRemoteCommunicationServerCommon.h"
 
-class ProcessGDBRemote;
 class StringExtractorGDBRemote;
+
+namespace lldb_private {
+namespace process_gdb_remote {
+
+class ProcessGDBRemote;
 
 class GDBRemoteCommunicationServerCommon :
     public GDBRemoteCommunicationServer
@@ -35,32 +38,10 @@ public:
     virtual
     ~GDBRemoteCommunicationServerCommon();
 
-    virtual bool
-    GetThreadSuffixSupported () override
-    {
-        return true;
-    }
-
-    //------------------------------------------------------------------
-    /// Launch a process with the current launch settings.
-    ///
-    /// This method supports running an lldb-gdbserver or similar
-    /// server in a situation where the startup code has been provided
-    /// with all the information for a child process to be launched.
-    ///
-    /// @return
-    ///     An Error object indicating the success or failure of the
-    ///     launch.
-    //------------------------------------------------------------------
-    virtual lldb_private::Error
-    LaunchProcess () = 0;
-
 protected:
-    std::set<lldb::pid_t> m_spawned_pids;
-    lldb_private::Mutex m_spawned_pids_mutex;
-    lldb_private::ProcessLaunchInfo m_process_launch_info;
-    lldb_private::Error m_process_launch_error;
-    lldb_private::ProcessInstanceInfoList m_proc_infos;
+    ProcessLaunchInfo m_process_launch_info;
+    Error m_process_launch_error;
+    ProcessInstanceInfoList m_proc_infos;
     uint32_t m_proc_infos_index;
     bool m_thread_suffix_supported;
     bool m_list_threads_in_stop_reply;
@@ -88,9 +69,6 @@ protected:
 
     PacketResult
     Handle_qSpeedTest (StringExtractorGDBRemote &packet);
-
-    PacketResult
-    Handle_qKillSpawnedProcess (StringExtractorGDBRemote &packet);
 
     PacketResult
     Handle_vFile_Open (StringExtractorGDBRemote &packet);
@@ -124,6 +102,12 @@ protected:
 
     PacketResult
     Handle_vFile_MD5 (StringExtractorGDBRemote &packet);
+
+    PacketResult
+    Handle_qEcho (StringExtractorGDBRemote &packet);
+
+    PacketResult
+    Handle_qModuleInfo (StringExtractorGDBRemote &packet);
 
     PacketResult
     Handle_qPlatform_shell (StringExtractorGDBRemote &packet);
@@ -162,39 +146,62 @@ protected:
     Handle_qLaunchSuccess (StringExtractorGDBRemote &packet);
 
     PacketResult
-    Handle_QEnvironment  (StringExtractorGDBRemote &packet);
+    Handle_QEnvironment (StringExtractorGDBRemote &packet);
+
+    PacketResult
+    Handle_QEnvironmentHexEncoded (StringExtractorGDBRemote &packet);
 
     PacketResult
     Handle_QLaunchArch (StringExtractorGDBRemote &packet);
 
-    bool
-    KillSpawnedProcess (lldb::pid_t pid);
+    static void
+    CreateProcessInfoResponse (const ProcessInstanceInfo &proc_info,
+                               StreamString &response);
 
     static void
-    CreateProcessInfoResponse (const lldb_private::ProcessInstanceInfo &proc_info,
-                               lldb_private::StreamString &response);
-
-    static void
-    CreateProcessInfoResponse_DebugServerStyle (const lldb_private::ProcessInstanceInfo &proc_info,
-                                                lldb_private::StreamString &response);
-
-    template <typename T>
-    using MemberFunctionPacketHandler = PacketResult (T::*) (StringExtractorGDBRemote& packet);
+    CreateProcessInfoResponse_DebugServerStyle (const ProcessInstanceInfo &proc_info,
+                                                StreamString &response);
 
     template <typename T>
     void
-    RegisterMemberFunctionHandler(StringExtractorGDBRemote::ServerPacketType packet_type,
-                                  MemberFunctionPacketHandler<T> handler)
+    RegisterMemberFunctionHandler (StringExtractorGDBRemote::ServerPacketType packet_type,
+                                   PacketResult (T::*handler) (StringExtractorGDBRemote& packet))
     {
         RegisterPacketHandler(packet_type,
                               [this, handler] (StringExtractorGDBRemote packet,
-                                               lldb_private::Error &error,
+                                               Error &error,
                                                bool &interrupt,
                                                bool &quit)
                               {
                                   return (static_cast<T*>(this)->*handler) (packet);
                               });
     }
+
+    bool
+    GetThreadSuffixSupported () override
+    {
+        return true;
+    }
+
+    //------------------------------------------------------------------
+    /// Launch a process with the current launch settings.
+    ///
+    /// This method supports running an lldb-gdbserver or similar
+    /// server in a situation where the startup code has been provided
+    /// with all the information for a child process to be launched.
+    ///
+    /// @return
+    ///     An Error object indicating the success or failure of the
+    ///     launch.
+    //------------------------------------------------------------------
+    virtual Error
+    LaunchProcess () = 0;
+
+    virtual FileSpec
+    FindModuleFile (const std::string& module_path, const ArchSpec& arch);
 };
+
+} // namespace process_gdb_remote
+} // namespace lldb_private
 
 #endif  // liblldb_GDBRemoteCommunicationServerCommon_h_

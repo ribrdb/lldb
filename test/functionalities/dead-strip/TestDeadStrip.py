@@ -12,15 +12,15 @@ class DeadStripTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym(self):
         """Test breakpoint works correctly with dead-code stripping."""
         self.buildDsym()
         self.dead_strip()
 
+    @expectedFailureWindows("llvm.org/pr24778")
     @skipIfFreeBSD # The -dead_strip linker option isn't supported on FreeBSD versions of ld.
-    @skipIfLinux # The -dead_strip linker option isn't supported on Linux versions of ld.
     @dwarf_test
     def test_with_dwarf(self):
         """Test breakpoint works correctly with dead-code stripping."""

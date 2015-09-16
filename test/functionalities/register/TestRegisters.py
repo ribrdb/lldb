@@ -17,6 +17,10 @@ class RegisterCommandsTestCase(TestBase):
         TestBase.setUp(self)
         self.has_teardown = False
 
+    def tearDown(self):
+        self.dbg.GetSelectedTarget().GetProcess().Destroy()
+        TestBase.tearDown(self)
+
     def test_register_commands(self):
         """Test commands related to registers, in particular vector registers."""
         if not self.getArchitecture() in ['amd64', 'i386', 'x86_64']:
@@ -24,12 +28,22 @@ class RegisterCommandsTestCase(TestBase):
         self.buildDefault()
         self.register_commands()
 
+    @skipIfTargetAndroid(archs=["i386"]) # Writing of mxcsr register fails, presumably due to a kernel/hardware problem
     def test_fp_register_write(self):
         """Test commands that write to registers, in particular floating-point registers."""
         if not self.getArchitecture() in ['amd64', 'i386', 'x86_64']:
             self.skipTest("This test requires x86 or x86_64 as the architecture for the inferior")
         self.buildDefault()
         self.fp_register_write()
+
+    @expectedFailureAndroid(archs=["i386"]) # "register read fstat" always return 0xffff
+    @expectedFailureClang("llvm.org/pr24733")
+    def test_fp_special_purpose_register_read(self):
+        """Test commands that read fpu special purpose registers."""
+        if not self.getArchitecture() in ['amd64', 'i386', 'x86_64']:
+            self.skipTest("This test requires x86 or x86_64 as the architecture for the inferior")
+        self.buildDefault()
+        self.fp_special_purpose_register_read()
 
     def test_register_expressions(self):
         """Test expression evaluation with commands related to registers."""
@@ -84,6 +98,8 @@ class RegisterCommandsTestCase(TestBase):
 
     # platform specific logging of the specified category
     def log_enable(self, category):
+        # This intentionally checks the host platform rather than the target
+        # platform as logging is host side.
         self.platform = ""
         if sys.platform.startswith("darwin"):
             self.platform = "" # TODO: add support for "log enable darwin registers"
@@ -145,6 +161,69 @@ class RegisterCommandsTestCase(TestBase):
         self.runCmd("register write " + register + " \'" + new_value + "\'")
         self.expect("register read " + register,
             substrs = [register + ' = ', new_value])
+
+    def fp_special_purpose_register_read(self):
+        exe = os.path.join(os.getcwd(), "a.out")
+
+        # Create a target by the debugger.
+        target = self.dbg.CreateTarget(exe)
+        self.assertTrue(target, VALID_TARGET)
+
+        # Find the line number to break inside a.cpp.
+        self.line = line_number('a.cpp', '// Set break point at this line.')
+
+        # Set breakpoint
+        lldbutil.run_break_set_by_file_and_line (self, "a.cpp", self.line, num_expected_locations=1, loc_exact=True)
+
+        # Launch the process, and do not stop at the entry point.
+        self.runCmd ("run", RUN_SUCCEEDED)
+
+        process = target.GetProcess()
+        self.assertTrue(process.GetState() == lldb.eStateStopped,
+                        PROCESS_STOPPED)
+
+        thread = process.GetThreadAtIndex(0)
+        self.assertTrue(thread.IsValid(), "current thread is valid")
+
+        currentFrame = thread.GetFrameAtIndex(0)
+        self.assertTrue(currentFrame.IsValid(), "current frame is valid")
+
+        # Extract the value of fstat and ftag flag at the point just before
+        # we start pushing floating point values on st% register stack
+        value = currentFrame.FindValue("fstat", lldb.eValueTypeRegister)
+        error = lldb.SBError()
+        reg_value_fstat_initial = value.GetValueAsUnsigned(error, 0)
+
+        self.assertTrue(error.Success(), "reading a value for fstat")
+        value = currentFrame.FindValue("ftag", lldb.eValueTypeRegister)
+        error = lldb.SBError()
+        reg_value_ftag_initial = value.GetValueAsUnsigned(error, 0)
+
+        self.assertTrue(error.Success(), "reading a value for ftag")
+        fstat_top_pointer_initial = (reg_value_fstat_initial & 0x3800)>>11
+
+        # Execute 'si' aka 'thread step-inst' instruction 5 times and with
+        # every execution verify the value of fstat and ftag registers
+        for x in range(0,5):
+            # step into the next instruction to push a value on 'st' register stack
+            self.runCmd ("si", RUN_SUCCEEDED)
+
+            # Verify fstat and save it to be used for verification in next execution of 'si' command
+            if not (reg_value_fstat_initial & 0x3800):
+                self.expect("register read fstat",
+                    substrs = ['fstat' + ' = ', str("0x%0.4x" %((reg_value_fstat_initial & ~(0x3800))| 0x3800))])
+                reg_value_fstat_initial = ((reg_value_fstat_initial & ~(0x3800))| 0x3800)
+                fstat_top_pointer_initial = 7
+            else :
+                self.expect("register read fstat",
+                    substrs = ['fstat' + ' = ', str("0x%0.4x" % (reg_value_fstat_initial - 0x0800))])
+                reg_value_fstat_initial = (reg_value_fstat_initial - 0x0800)
+                fstat_top_pointer_initial -= 1
+
+            # Verify ftag and save it to be used for verification in next execution of 'si' command
+            self.expect("register read ftag",
+                substrs = ['ftag' + ' = ', str("0x%0.4x" % (reg_value_ftag_initial | (1<< fstat_top_pointer_initial)))])
+            reg_value_ftag_initial = reg_value_ftag_initial | (1<< fstat_top_pointer_initial)
 
     def fp_register_write(self):
         exe = os.path.join(os.getcwd(), "a.out")
@@ -252,12 +331,7 @@ class RegisterCommandsTestCase(TestBase):
         exe = os.path.join(os.getcwd(), "a.out")
 
         # Spawn a new process
-        pid = 0
-        if sys.platform.startswith('linux'):
-            pid = self.forkSubprocess(exe, ['wait_for_attach'])
-        else:
-            proc = self.spawnSubprocess(exe, ['wait_for_attach'])
-            pid = proc.pid
+        pid = self.spawnSubprocess(exe, ['wait_for_attach']).pid
         self.addTearDownHook(self.cleanupSubprocesses)
 
         if self.TraceOn():

@@ -7,17 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdSupportList.cpp
-//
 // Overview:    CMICmdCmdSupportListFeatures            implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 // In-house headers:
 #include "MICmdCmdSupportList.h"
@@ -32,7 +22,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdSupportListFeatures::CMICmdCmdSupportListFeatures(void)
+CMICmdCmdSupportListFeatures::CMICmdCmdSupportListFeatures()
 {
     // Command factory matches this name with that received from the stdin stream
     m_strMiCmd = "list-features";
@@ -48,7 +38,7 @@ CMICmdCmdSupportListFeatures::CMICmdCmdSupportListFeatures(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdSupportListFeatures::~CMICmdCmdSupportListFeatures(void)
+CMICmdCmdSupportListFeatures::~CMICmdCmdSupportListFeatures()
 {
 }
 
@@ -62,7 +52,7 @@ CMICmdCmdSupportListFeatures::~CMICmdCmdSupportListFeatures(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdSupportListFeatures::Execute(void)
+CMICmdCmdSupportListFeatures::Execute()
 {
     // Do nothing
 
@@ -79,7 +69,7 @@ CMICmdCmdSupportListFeatures::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdSupportListFeatures::Acknowledge(void)
+CMICmdCmdSupportListFeatures::Acknowledge()
 {
     const CMICmnMIValueConst miValueConst("data-read-memory-bytes");
     const CMICmnMIValueList miValueList(miValueConst);
@@ -99,7 +89,7 @@ CMICmdCmdSupportListFeatures::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdSupportListFeatures::CreateSelf(void)
+CMICmdCmdSupportListFeatures::CreateSelf()
 {
     return new CMICmdCmdSupportListFeatures();
 }

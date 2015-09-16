@@ -84,7 +84,7 @@ DNBArchMachARM64::Create (MachThread *thread)
     return obj;
 }
 
-const uint8_t * const
+const uint8_t *
 DNBArchMachARM64::SoftwareBreakpointOpcode (nub_size_t byte_size)
 {
     return g_arm_breakpoint_opcode;
@@ -1674,7 +1674,7 @@ DNBArchMachARM64::GetRegisterSetInfo(nub_size_t *num_reg_sets)
 }
 
 bool
-DNBArchMachARM64::FixGenericRegisterNumber (int &set, int &reg)
+DNBArchMachARM64::FixGenericRegisterNumber (uint32_t &set, uint32_t &reg)
 {
     if (set == REGISTER_SET_GENERIC)
     {
@@ -1722,7 +1722,7 @@ DNBArchMachARM64::FixGenericRegisterNumber (int &set, int &reg)
     return true;
 }
 bool
-DNBArchMachARM64::GetRegisterValue(int set, int reg, DNBRegisterValue *value)
+DNBArchMachARM64::GetRegisterValue(uint32_t set, uint32_t reg, DNBRegisterValue *value)
 {
     if (!FixGenericRegisterNumber (set, reg))
         return false;
@@ -1821,7 +1821,7 @@ DNBArchMachARM64::GetRegisterValue(int set, int reg, DNBRegisterValue *value)
 }
 
 bool
-DNBArchMachARM64::SetRegisterValue(int set, int reg, const DNBRegisterValue *value)
+DNBArchMachARM64::SetRegisterValue(uint32_t set, uint32_t reg, const DNBRegisterValue *value)
 {
     if (!FixGenericRegisterNumber (set, reg))
         return false;
@@ -1995,6 +1995,7 @@ DNBArchMachARM64::GetRegisterContext (void *buf, nub_size_t buf_len)
         p += sizeof(m_state.context.exc);
         
         size_t bytes_written = p - (uint8_t *)buf;
+        UNUSED_IF_ASSERT_DISABLED(bytes_written);
         assert (bytes_written == size);
     }
     DNBLogThreadedIf (LOG_THREAD, "DNBArchMachARM64::GetRegisterContext (buf = %p, len = %zu) => %zu", buf, buf_len, size);
@@ -2027,6 +2028,7 @@ DNBArchMachARM64::SetRegisterContext (const void *buf, nub_size_t buf_len)
         p += sizeof(m_state.context.exc);
         
         size_t bytes_written = p - (uint8_t *)buf;
+        UNUSED_IF_ASSERT_DISABLED(bytes_written);
         assert (bytes_written == size);
         SetGPRState();
         SetVFPState();

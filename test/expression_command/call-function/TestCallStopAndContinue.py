@@ -20,18 +20,17 @@ class ExprCommandCallStopContinueTestCase(TestBase):
         self.func_line = line_number ('main.cpp', 
                                 '{ 5, "five" }')
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
-    @expectedFailureDarwin("llvm.org/pr20274") # intermittent failure on MacOSX
+    @expectedFlakeyDarwin("llvm.org/pr20274")
     def test_with_dsym(self):
         """Test gathering result from interrupted function call."""
         self.buildDsym()
         self.call_function()
 
     @dwarf_test
-    @expectedFailureDarwin("llvm.org/pr20274") # intermittent failure on MacOSX
-    @expectedFailureFreeBSD("llvm.org/pr20274") # intermittent failure
-    @expectedFailureLinux("llvm.org/pr20274") # intermittent failure on Linux
+    @expectedFlakeyDarwin("llvm.org/pr20274")
+    @expectedFailureWindows("llvm.org/pr24489: Name lookup not working correctly on Windows")
     def test_with_dwarf(self):
         """Test gathering result from interrupted function call."""
         self.buildDwarf()

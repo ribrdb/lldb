@@ -7,9 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdExec.cpp
-//
 // Overview:    CMICmdCmdExecRun                implementation.
 //              CMICmdCmdExecContinue           implementation.
 //              CMICmdCmdExecNext               implementation.
@@ -18,13 +15,8 @@
 //              CMICmdCmdExecStepInstruction    implementation.
 //              CMICmdCmdExecFinish             implementation.
 //              CMICmdCmdExecInterrupt          implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
+//              CMICmdCmdExecArguments          implementation.
+//              CMICmdCmdExecAbort              implementation.
 
 // Third Party Headers:
 #include "lldb/API/SBCommandInterpreter.h"
@@ -55,7 +47,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecRun::CMICmdCmdExecRun(void)
+CMICmdCmdExecRun::CMICmdCmdExecRun()
 {
     // Command factory matches this name with that received from the stdin stream
     m_strMiCmd = "exec-run";
@@ -71,7 +63,7 @@ CMICmdCmdExecRun::CMICmdCmdExecRun(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecRun::~CMICmdCmdExecRun(void)
+CMICmdCmdExecRun::~CMICmdCmdExecRun()
 {
 }
 
@@ -85,15 +77,14 @@ CMICmdCmdExecRun::~CMICmdCmdExecRun(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecRun::Execute(void)
+CMICmdCmdExecRun::Execute()
 {
     CMICmnLLDBDebugSessionInfo &rSessionInfo(CMICmnLLDBDebugSessionInfo::Instance());
     lldb::SBError error;
     lldb::SBStream errMsg;
-    uint32_t launch_flags = lldb::LaunchFlags::eLaunchFlagDebug;
-    lldb::SBProcess process = rSessionInfo.GetTarget().Launch(rSessionInfo.GetListener(), nullptr, nullptr, nullptr, nullptr,
-                                                              nullptr, nullptr, launch_flags, false, error);
-
+    lldb::SBLaunchInfo launchInfo = rSessionInfo.GetTarget().GetLaunchInfo();
+    launchInfo.SetListener(rSessionInfo.GetListener());
+    lldb::SBProcess process = rSessionInfo.GetTarget().Launch(launchInfo, error);
     if ((!process.IsValid()) || (error.Fail()))
     {
         SetError(CMIUtilString::Format(MIRSRC(IDS_CMD_ERR_INVALID_PROCESS), m_cmdData.strMiCmd.c_str(), errMsg.GetData()));
@@ -119,7 +110,7 @@ CMICmdCmdExecRun::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecRun::Acknowledge(void)
+CMICmdCmdExecRun::Acknowledge()
 {
     if (m_lldbResult.GetErrorSize() > 0)
     {
@@ -159,7 +150,7 @@ CMICmdCmdExecRun::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdExecRun::CreateSelf(void)
+CMICmdCmdExecRun::CreateSelf()
 {
     return new CMICmdCmdExecRun();
 }
@@ -175,7 +166,7 @@ CMICmdCmdExecRun::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecContinue::CMICmdCmdExecContinue(void)
+CMICmdCmdExecContinue::CMICmdCmdExecContinue()
 {
     // Command factory matches this name with that received from the stdin stream
     m_strMiCmd = "exec-continue";
@@ -191,7 +182,7 @@ CMICmdCmdExecContinue::CMICmdCmdExecContinue(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecContinue::~CMICmdCmdExecContinue(void)
+CMICmdCmdExecContinue::~CMICmdCmdExecContinue()
 {
 }
 
@@ -205,9 +196,9 @@ CMICmdCmdExecContinue::~CMICmdCmdExecContinue(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecContinue::Execute(void)
+CMICmdCmdExecContinue::Execute()
 {
-    const MIchar *pCmd = "continue";
+    const char *pCmd = "continue";
     CMICmnLLDBDebugSessionInfo &rSessionInfo(CMICmnLLDBDebugSessionInfo::Instance());
     const lldb::ReturnStatus rtn = rSessionInfo.GetDebugger().GetCommandInterpreter().HandleCommand(pCmd, m_lldbResult);
     MIunused(rtn);
@@ -226,7 +217,7 @@ CMICmdCmdExecContinue::Execute(void)
     {
         // ToDo: Re-evaluate if this is required when application near finished as this is parsing LLDB error message
         // which seems a hack and is code brittle
-        const MIchar *pLldbErr = m_lldbResult.GetError();
+        const char *pLldbErr = m_lldbResult.GetError();
         const CMIUtilString strLldbMsg(CMIUtilString(pLldbErr).StripCREndOfLine());
         if (strLldbMsg == "error: Process must be launched.")
         {
@@ -247,7 +238,7 @@ CMICmdCmdExecContinue::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecContinue::Acknowledge(void)
+CMICmdCmdExecContinue::Acknowledge()
 {
     if (m_lldbResult.GetErrorSize() > 0)
     {
@@ -274,7 +265,7 @@ CMICmdCmdExecContinue::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdExecContinue::CreateSelf(void)
+CMICmdCmdExecContinue::CreateSelf()
 {
     return new CMICmdCmdExecContinue();
 }
@@ -290,7 +281,7 @@ CMICmdCmdExecContinue::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecNext::CMICmdCmdExecNext(void)
+CMICmdCmdExecNext::CMICmdCmdExecNext()
     : m_constStrArgThread("thread")
     , m_constStrArgNumber("number")
 {
@@ -308,7 +299,7 @@ CMICmdCmdExecNext::CMICmdCmdExecNext(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecNext::~CMICmdCmdExecNext(void)
+CMICmdCmdExecNext::~CMICmdCmdExecNext()
 {
 }
 
@@ -322,12 +313,11 @@ CMICmdCmdExecNext::~CMICmdCmdExecNext(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecNext::ParseArgs(void)
+CMICmdCmdExecNext::ParseArgs()
 {
-    bool bOk =
-        m_setCmdArgs.Add(*(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1)));
-    bOk = bOk && m_setCmdArgs.Add(*(new CMICmdArgValNumber(m_constStrArgNumber, false, false)));
-    return (bOk && ParseValidateCmdOptions());
+    m_setCmdArgs.Add(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1));
+    m_setCmdArgs.Add(new CMICmdArgValNumber(m_constStrArgNumber, false, false));
+    return ParseValidateCmdOptions();
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -340,7 +330,7 @@ CMICmdCmdExecNext::ParseArgs(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecNext::Execute(void)
+CMICmdCmdExecNext::Execute()
 {
     CMICMDBASE_GETOPTION(pArgThread, OptionLong, m_constStrArgThread);
 
@@ -372,11 +362,11 @@ CMICmdCmdExecNext::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecNext::Acknowledge(void)
+CMICmdCmdExecNext::Acknowledge()
 {
     if (m_lldbResult.GetErrorSize() > 0)
     {
-        const MIchar *pLldbErr = m_lldbResult.GetError();
+        const char *pLldbErr = m_lldbResult.GetError();
         MIunused(pLldbErr);
         const CMICmnMIValueConst miValueConst(m_lldbResult.GetError());
         const CMICmnMIValueResult miValueResult("message", miValueConst);
@@ -401,7 +391,7 @@ CMICmdCmdExecNext::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdExecNext::CreateSelf(void)
+CMICmdCmdExecNext::CreateSelf()
 {
     return new CMICmdCmdExecNext();
 }
@@ -417,7 +407,7 @@ CMICmdCmdExecNext::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecStep::CMICmdCmdExecStep(void)
+CMICmdCmdExecStep::CMICmdCmdExecStep()
     : m_constStrArgThread("thread")
     , m_constStrArgNumber("number")
 {
@@ -435,7 +425,7 @@ CMICmdCmdExecStep::CMICmdCmdExecStep(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecStep::~CMICmdCmdExecStep(void)
+CMICmdCmdExecStep::~CMICmdCmdExecStep()
 {
 }
 
@@ -449,12 +439,11 @@ CMICmdCmdExecStep::~CMICmdCmdExecStep(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecStep::ParseArgs(void)
+CMICmdCmdExecStep::ParseArgs()
 {
-    bool bOk =
-        m_setCmdArgs.Add(*(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1)));
-    bOk = bOk && m_setCmdArgs.Add(*(new CMICmdArgValNumber(m_constStrArgNumber, false, false)));
-    return (bOk && ParseValidateCmdOptions());
+    m_setCmdArgs.Add(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1));
+    m_setCmdArgs.Add(new CMICmdArgValNumber(m_constStrArgNumber, false, false));
+    return ParseValidateCmdOptions();
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -467,7 +456,7 @@ CMICmdCmdExecStep::ParseArgs(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecStep::Execute(void)
+CMICmdCmdExecStep::Execute()
 {
     CMICMDBASE_GETOPTION(pArgThread, OptionLong, m_constStrArgThread);
 
@@ -499,11 +488,11 @@ CMICmdCmdExecStep::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecStep::Acknowledge(void)
+CMICmdCmdExecStep::Acknowledge()
 {
     if (m_lldbResult.GetErrorSize() > 0)
     {
-        const MIchar *pLldbErr = m_lldbResult.GetError();
+        const char *pLldbErr = m_lldbResult.GetError();
         MIunused(pLldbErr);
         const CMICmnMIValueConst miValueConst(m_lldbResult.GetError());
         const CMICmnMIValueResult miValueResult("message", miValueConst);
@@ -528,7 +517,7 @@ CMICmdCmdExecStep::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdExecStep::CreateSelf(void)
+CMICmdCmdExecStep::CreateSelf()
 {
     return new CMICmdCmdExecStep();
 }
@@ -544,7 +533,7 @@ CMICmdCmdExecStep::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecNextInstruction::CMICmdCmdExecNextInstruction(void)
+CMICmdCmdExecNextInstruction::CMICmdCmdExecNextInstruction()
     : m_constStrArgThread("thread")
     , m_constStrArgNumber("number")
 {
@@ -562,7 +551,7 @@ CMICmdCmdExecNextInstruction::CMICmdCmdExecNextInstruction(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecNextInstruction::~CMICmdCmdExecNextInstruction(void)
+CMICmdCmdExecNextInstruction::~CMICmdCmdExecNextInstruction()
 {
 }
 
@@ -576,12 +565,11 @@ CMICmdCmdExecNextInstruction::~CMICmdCmdExecNextInstruction(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecNextInstruction::ParseArgs(void)
+CMICmdCmdExecNextInstruction::ParseArgs()
 {
-    bool bOk =
-        m_setCmdArgs.Add(*(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1)));
-    bOk = bOk && m_setCmdArgs.Add(*(new CMICmdArgValNumber(m_constStrArgNumber, false, false)));
-    return (bOk && ParseValidateCmdOptions());
+    m_setCmdArgs.Add(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1));
+    m_setCmdArgs.Add(new CMICmdArgValNumber(m_constStrArgNumber, false, false));
+    return ParseValidateCmdOptions();
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -594,7 +582,7 @@ CMICmdCmdExecNextInstruction::ParseArgs(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecNextInstruction::Execute(void)
+CMICmdCmdExecNextInstruction::Execute()
 {
     CMICMDBASE_GETOPTION(pArgThread, OptionLong, m_constStrArgThread);
 
@@ -626,11 +614,11 @@ CMICmdCmdExecNextInstruction::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecNextInstruction::Acknowledge(void)
+CMICmdCmdExecNextInstruction::Acknowledge()
 {
     if (m_lldbResult.GetErrorSize() > 0)
     {
-        const MIchar *pLldbErr = m_lldbResult.GetError();
+        const char *pLldbErr = m_lldbResult.GetError();
         MIunused(pLldbErr);
         const CMICmnMIValueConst miValueConst(m_lldbResult.GetError());
         const CMICmnMIValueResult miValueResult("message", miValueConst);
@@ -655,7 +643,7 @@ CMICmdCmdExecNextInstruction::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdExecNextInstruction::CreateSelf(void)
+CMICmdCmdExecNextInstruction::CreateSelf()
 {
     return new CMICmdCmdExecNextInstruction();
 }
@@ -671,7 +659,7 @@ CMICmdCmdExecNextInstruction::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecStepInstruction::CMICmdCmdExecStepInstruction(void)
+CMICmdCmdExecStepInstruction::CMICmdCmdExecStepInstruction()
     : m_constStrArgThread("thread")
     , m_constStrArgNumber("number")
 {
@@ -689,7 +677,7 @@ CMICmdCmdExecStepInstruction::CMICmdCmdExecStepInstruction(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecStepInstruction::~CMICmdCmdExecStepInstruction(void)
+CMICmdCmdExecStepInstruction::~CMICmdCmdExecStepInstruction()
 {
 }
 
@@ -703,12 +691,11 @@ CMICmdCmdExecStepInstruction::~CMICmdCmdExecStepInstruction(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecStepInstruction::ParseArgs(void)
+CMICmdCmdExecStepInstruction::ParseArgs()
 {
-    bool bOk =
-        m_setCmdArgs.Add(*(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1)));
-    bOk = bOk && m_setCmdArgs.Add(*(new CMICmdArgValNumber(m_constStrArgNumber, false, false)));
-    return (bOk && ParseValidateCmdOptions());
+    m_setCmdArgs.Add(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1));
+    m_setCmdArgs.Add(new CMICmdArgValNumber(m_constStrArgNumber, false, false));
+    return ParseValidateCmdOptions();
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -721,7 +708,7 @@ CMICmdCmdExecStepInstruction::ParseArgs(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecStepInstruction::Execute(void)
+CMICmdCmdExecStepInstruction::Execute()
 {
     CMICMDBASE_GETOPTION(pArgThread, OptionLong, m_constStrArgThread);
 
@@ -753,11 +740,11 @@ CMICmdCmdExecStepInstruction::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecStepInstruction::Acknowledge(void)
+CMICmdCmdExecStepInstruction::Acknowledge()
 {
     if (m_lldbResult.GetErrorSize() > 0)
     {
-        const MIchar *pLldbErr = m_lldbResult.GetError();
+        const char *pLldbErr = m_lldbResult.GetError();
         MIunused(pLldbErr);
         const CMICmnMIValueConst miValueConst(m_lldbResult.GetError());
         const CMICmnMIValueResult miValueResult("message", miValueConst);
@@ -782,7 +769,7 @@ CMICmdCmdExecStepInstruction::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdExecStepInstruction::CreateSelf(void)
+CMICmdCmdExecStepInstruction::CreateSelf()
 {
     return new CMICmdCmdExecStepInstruction();
 }
@@ -798,7 +785,7 @@ CMICmdCmdExecStepInstruction::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecFinish::CMICmdCmdExecFinish(void)
+CMICmdCmdExecFinish::CMICmdCmdExecFinish()
     : m_constStrArgThread("thread")
     , m_constStrArgFrame("frame")
 {
@@ -816,7 +803,7 @@ CMICmdCmdExecFinish::CMICmdCmdExecFinish(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecFinish::~CMICmdCmdExecFinish(void)
+CMICmdCmdExecFinish::~CMICmdCmdExecFinish()
 {
 }
 
@@ -830,13 +817,11 @@ CMICmdCmdExecFinish::~CMICmdCmdExecFinish(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecFinish::ParseArgs(void)
+CMICmdCmdExecFinish::ParseArgs()
 {
-    bool bOk =
-        m_setCmdArgs.Add(*(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1)));
-    bOk = bOk &&
-          m_setCmdArgs.Add(*(new CMICmdArgValOptionLong(m_constStrArgFrame, false, false, CMICmdArgValListBase::eArgValType_Number, 1)));
-    return (bOk && ParseValidateCmdOptions());
+    m_setCmdArgs.Add(new CMICmdArgValOptionLong(m_constStrArgThread, false, true, CMICmdArgValListBase::eArgValType_Number, 1));
+    m_setCmdArgs.Add(new CMICmdArgValOptionLong(m_constStrArgFrame, false, false, CMICmdArgValListBase::eArgValType_Number, 1));
+    return ParseValidateCmdOptions();
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -849,7 +834,7 @@ CMICmdCmdExecFinish::ParseArgs(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecFinish::Execute(void)
+CMICmdCmdExecFinish::Execute()
 {
     CMICMDBASE_GETOPTION(pArgThread, OptionLong, m_constStrArgThread);
 
@@ -881,11 +866,11 @@ CMICmdCmdExecFinish::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecFinish::Acknowledge(void)
+CMICmdCmdExecFinish::Acknowledge()
 {
     if (m_lldbResult.GetErrorSize() > 0)
     {
-        const MIchar *pLldbErr = m_lldbResult.GetError();
+        const char *pLldbErr = m_lldbResult.GetError();
         MIunused(pLldbErr);
         const CMICmnMIValueConst miValueConst(m_lldbResult.GetError());
         const CMICmnMIValueResult miValueResult("message", miValueConst);
@@ -910,7 +895,7 @@ CMICmdCmdExecFinish::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdExecFinish::CreateSelf(void)
+CMICmdCmdExecFinish::CreateSelf()
 {
     return new CMICmdCmdExecFinish();
 }
@@ -926,7 +911,7 @@ CMICmdCmdExecFinish::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecInterrupt::CMICmdCmdExecInterrupt(void)
+CMICmdCmdExecInterrupt::CMICmdCmdExecInterrupt()
 {
     // Command factory matches this name with that received from the stdin stream
     m_strMiCmd = "exec-interrupt";
@@ -942,7 +927,7 @@ CMICmdCmdExecInterrupt::CMICmdCmdExecInterrupt(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdExecInterrupt::~CMICmdCmdExecInterrupt(void)
+CMICmdCmdExecInterrupt::~CMICmdCmdExecInterrupt()
 {
 }
 
@@ -956,7 +941,7 @@ CMICmdCmdExecInterrupt::~CMICmdCmdExecInterrupt(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecInterrupt::Execute(void)
+CMICmdCmdExecInterrupt::Execute()
 {
     CMICmnLLDBDebugSessionInfo &rSessionInfo(CMICmnLLDBDebugSessionInfo::Instance());
     lldb::SBDebugger &rDebugger = rSessionInfo.GetDebugger();
@@ -985,7 +970,7 @@ CMICmdCmdExecInterrupt::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdExecInterrupt::Acknowledge(void)
+CMICmdCmdExecInterrupt::Acknowledge()
 {
     if (m_lldbResult.GetErrorSize() > 0)
     {
@@ -1012,7 +997,219 @@ CMICmdCmdExecInterrupt::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdExecInterrupt::CreateSelf(void)
+CMICmdCmdExecInterrupt::CreateSelf()
 {
     return new CMICmdCmdExecInterrupt();
+}
+
+//---------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------
+
+//++ ------------------------------------------------------------------------------------
+// Details: CMICmdCmdExecArguments constructor.
+// Type:    Method.
+// Args:    None.
+// Return:  None.
+// Throws:  None.
+//--
+CMICmdCmdExecArguments::CMICmdCmdExecArguments()
+    : m_constStrArgArguments("arguments")
+{
+    // Command factory matches this name with that received from the stdin stream
+    m_strMiCmd = "exec-arguments";
+
+    // Required by the CMICmdFactory when registering *this command
+    m_pSelfCreatorFn = &CMICmdCmdExecArguments::CreateSelf;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: CMICmdCmdExecArguments destructor.
+// Type:    Overrideable.
+// Args:    None.
+// Return:  None.
+// Throws:  None.
+//--
+CMICmdCmdExecArguments::~CMICmdCmdExecArguments()
+{
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: The invoker requires this function. The parses the command line options
+//          arguments to extract values for each of those arguments.
+// Type:    Overridden.
+// Args:    None.
+// Return:  MIstatus::success - Function succeeded.
+//          MIstatus::failure - Function failed.
+// Throws:  None.
+//--
+bool
+CMICmdCmdExecArguments::ParseArgs()
+{
+    m_setCmdArgs.Add(
+        new CMICmdArgValListOfN(m_constStrArgArguments, false, true, CMICmdArgValListBase::eArgValType_StringAnything));
+    return ParseValidateCmdOptions();
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: The invoker requires this function. The command does work in this function.
+//          The command is likely to communicate with the LLDB SBDebugger in here.
+// Type:    Overridden.
+// Args:    None.
+// Return:  MIstatus::success - Function succeeded.
+//          MIstatus::failure - Function failed.
+// Throws:  None.
+//--
+bool
+CMICmdCmdExecArguments::Execute()
+{
+    CMICMDBASE_GETOPTION(pArgArguments, ListOfN, m_constStrArgArguments);
+
+    CMICmnLLDBDebugSessionInfo &rSessionInfo(CMICmnLLDBDebugSessionInfo::Instance());
+    lldb::SBTarget sbTarget = rSessionInfo.GetTarget();
+    if (!sbTarget.IsValid())
+    {
+        SetError(CMIUtilString::Format(MIRSRC(IDS_CMD_ERR_INVALID_TARGET_CURRENT), m_cmdData.strMiCmd.c_str()));
+        return MIstatus::failure;
+    }
+
+    lldb::SBLaunchInfo sbLaunchInfo = sbTarget.GetLaunchInfo();
+    sbLaunchInfo.SetArguments(NULL, false);
+
+    CMIUtilString strArg;
+    size_t nArgIndex = 0;
+    while (pArgArguments->GetExpectedOption<CMICmdArgValString, CMIUtilString>(strArg, nArgIndex))
+    {
+        const char *argv[2] = { strArg.c_str(), NULL };
+        sbLaunchInfo.SetArguments(argv, true);
+        ++nArgIndex;
+    }
+
+    sbTarget.SetLaunchInfo(sbLaunchInfo);
+
+    return MIstatus::success;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: The invoker requires this function. The command prepares a MI Record Result
+//          for the work carried out in the Execute().
+// Type:    Overridden.
+// Args:    None.
+// Return:  MIstatus::success - Function succeeded.
+//          MIstatus::failure - Function failed.
+// Throws:  None.
+//--
+bool
+CMICmdCmdExecArguments::Acknowledge()
+{
+    const CMICmnMIResultRecord miRecordResult(m_cmdData.strMiCmdToken, CMICmnMIResultRecord::eResultClass_Done);
+    m_miResultRecord = miRecordResult;
+
+    return MIstatus::success;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: Required by the CMICmdFactory when registering *this command. The factory
+//          calls this function to create an instance of *this command.
+// Type:    Static method.
+// Args:    None.
+// Return:  CMICmdBase * - Pointer to a new command.
+// Throws:  None.
+//--
+CMICmdBase *
+CMICmdCmdExecArguments::CreateSelf()
+{
+    return new CMICmdCmdExecArguments();
+}
+
+//---------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------
+
+//++ ------------------------------------------------------------------------------------
+// Details: CMICmdCmdExecAbort constructor.
+// Type:    Method.
+// Args:    None.
+// Return:  None.
+// Throws:  None.
+//--
+CMICmdCmdExecAbort::CMICmdCmdExecAbort()
+{
+    // Command factory matches this name with that received from the stdin stream
+    m_strMiCmd = "exec-abort";
+
+    // Required by the CMICmdFactory when registering *this command
+    m_pSelfCreatorFn = &CMICmdCmdExecAbort::CreateSelf;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: CMICmdCmdExecAbort destructor.
+// Type:    Overrideable.
+// Args:    None.
+// Return:  None.
+// Throws:  None.
+//--
+CMICmdCmdExecAbort::~CMICmdCmdExecAbort()
+{
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: The invoker requires this function. The command does work in this function.
+//          The command is likely to communicate with the LLDB SBDebugger in here.
+// Type:    Overridden.
+// Args:    None.
+// Return:  MIstatus::success - Function succeeded.
+//          MIstatus::failure - Function failed.
+// Throws:  None.
+//--
+bool
+CMICmdCmdExecAbort::Execute()
+{
+    CMICmnLLDBDebugSessionInfo &rSessionInfo(CMICmnLLDBDebugSessionInfo::Instance());
+    lldb::SBProcess sbProcess = rSessionInfo.GetProcess();
+    if (!sbProcess.IsValid())
+    {
+        SetError(CMIUtilString::Format(MIRSRC(IDS_CMD_ERR_INVALID_PROCESS), m_cmdData.strMiCmd.c_str()));
+        return MIstatus::failure;
+    }
+
+    lldb::SBError sbError = sbProcess.Destroy();
+    if (sbError.Fail())
+    {
+        SetError(CMIUtilString::Format(MIRSRC(IDS_CMD_ERR_LLDBPROCESS_DESTROY), m_cmdData.strMiCmd.c_str(), sbError.GetCString()));
+        return MIstatus::failure;
+    }
+
+    return MIstatus::success;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: The invoker requires this function. The command prepares a MI Record Result
+//          for the work carried out in the Execute().
+// Type:    Overridden.
+// Args:    None.
+// Return:  MIstatus::success - Function succeeded.
+//          MIstatus::failure - Function failed.
+// Throws:  None.
+//--
+bool
+CMICmdCmdExecAbort::Acknowledge()
+{
+    const CMICmnMIResultRecord miRecordResult(m_cmdData.strMiCmdToken, CMICmnMIResultRecord::eResultClass_Done);
+    m_miResultRecord = miRecordResult;
+    return MIstatus::success;
+}
+
+//++ ------------------------------------------------------------------------------------
+// Details: Required by the CMICmdFactory when registering *this command. The factory
+//          calls this function to create an instance of *this command.
+// Type:    Static method.
+// Args:    None.
+// Return:  CMICmdBase * - Pointer to a new command.
+// Throws:  None.
+//--
+CMICmdBase *
+CMICmdCmdExecAbort::CreateSelf()
+{
+    return new CMICmdCmdExecAbort();
 }

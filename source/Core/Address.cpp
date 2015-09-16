@@ -367,21 +367,29 @@ Address::SetCallableLoadAddress (lldb::addr_t load_addr, Target *target)
 }
 
 addr_t
-Address::GetOpcodeLoadAddress (Target *target) const
+Address::GetOpcodeLoadAddress (Target *target, AddressClass addr_class) const
 {
     addr_t code_addr = GetLoadAddress (target);
     if (code_addr != LLDB_INVALID_ADDRESS)
-        code_addr = target->GetOpcodeLoadAddress (code_addr, GetAddressClass());
+    {
+        if (addr_class == eAddressClassInvalid)
+            addr_class = GetAddressClass();
+        code_addr = target->GetOpcodeLoadAddress (code_addr, addr_class);
+    }
     return code_addr;
 }
 
 bool
-Address::SetOpcodeLoadAddress (lldb::addr_t load_addr, Target *target)
+Address::SetOpcodeLoadAddress (lldb::addr_t load_addr, Target *target, AddressClass addr_class)
 {
     if (SetLoadAddress (load_addr, target))
     {
         if (target)
-            m_offset = target->GetOpcodeLoadAddress (m_offset, GetAddressClass());
+        {
+            if (addr_class == eAddressClassInvalid)
+                addr_class = GetAddressClass();
+            m_offset = target->GetOpcodeLoadAddress (m_offset, addr_class);
+        }
         return true;
     }
     return false;
@@ -468,6 +476,7 @@ Address::Dump (Stream *s, ExecutionContextScope *exe_scope, DumpStyle style, Dum
     case DumpStyleResolvedDescription:
     case DumpStyleResolvedDescriptionNoModule:
     case DumpStyleResolvedDescriptionNoFunctionArguments:
+    case DumpStyleNoFunctionName:
         if (IsSectionOffset())
         {
             uint32_t pointer_size = 4;
@@ -500,7 +509,7 @@ Address::Dump (Stream *s, ExecutionContextScope *exe_scope, DumpStyle style, Dum
                                     if (symbol_name)
                                     {
                                         s->PutCString(symbol_name);
-                                        addr_t delta = file_Addr - symbol->GetAddress().GetFileAddress();
+                                        addr_t delta = file_Addr - symbol->GetAddressRef().GetFileAddress();
                                         if (delta)
                                             s->Printf(" + %" PRIu64, delta);
                                         showed_info = true;
@@ -553,7 +562,7 @@ Address::Dump (Stream *s, ExecutionContextScope *exe_scope, DumpStyle style, Dum
 #endif
                                     Address cstr_addr(*this);
                                     cstr_addr.SetOffset(cstr_addr.GetOffset() + pointer_size);
-                                    func_sc.DumpStopContext(s, exe_scope, so_addr, true, true, false, true);
+                                    func_sc.DumpStopContext(s, exe_scope, so_addr, true, true, false, true, true);
                                     if (ReadAddress (exe_scope, cstr_addr, pointer_size, so_addr))
                                     {
 #if VERBOSE_OUTPUT
@@ -636,7 +645,7 @@ Address::Dump (Stream *s, ExecutionContextScope *exe_scope, DumpStyle style, Dum
                                     if (pointer_sc.function || pointer_sc.symbol)
                                     {
                                         s->PutCString(": ");
-                                        pointer_sc.DumpStopContext(s, exe_scope, so_addr, true, false, false, true);
+                                        pointer_sc.DumpStopContext(s, exe_scope, so_addr, true, false, false, true, true);
                                     }
                                 }
                             }
@@ -662,12 +671,13 @@ Address::Dump (Stream *s, ExecutionContextScope *exe_scope, DumpStyle style, Dum
                         const bool show_fullpaths = false; 
                         const bool show_inlined_frames = true;
                         const bool show_function_arguments = (style != DumpStyleResolvedDescriptionNoFunctionArguments);
+                        const bool show_function_name = (style != DumpStyleNoFunctionName);
                         if (sc.function == NULL && sc.symbol != NULL)
                         {
                             // If we have just a symbol make sure it is in the right section
                             if (sc.symbol->ValueIsAddress())
                             {
-                                if (sc.symbol->GetAddress().GetSection() != GetSection())
+                                if (sc.symbol->GetAddressRef().GetSection() != GetSection())
                                 {
                                     // don't show the module if the symbol is a trampoline symbol
                                     show_stop_context = false;
@@ -684,7 +694,8 @@ Address::Dump (Stream *s, ExecutionContextScope *exe_scope, DumpStyle style, Dum
                                                 show_fullpaths, 
                                                 show_module, 
                                                 show_inlined_frames,
-                                                show_function_arguments);
+                                                show_function_arguments,
+                                                show_function_name);
                         }
                         else
                         {
@@ -719,7 +730,7 @@ Address::Dump (Stream *s, ExecutionContextScope *exe_scope, DumpStyle style, Dum
                     // as our address. If it isn't, then we might have just found
                     // the last symbol that came before the address that we are 
                     // looking up that has nothing to do with our address lookup.
-                    if (sc.symbol->ValueIsAddress() && sc.symbol->GetAddress().GetSection() != GetSection())
+                    if (sc.symbol->ValueIsAddress() && sc.symbol->GetAddressRef().GetSection() != GetSection())
                         sc.symbol = NULL;
                 }
                 sc.GetDescription(s, eDescriptionLevelBrief, target);
@@ -742,10 +753,15 @@ Address::Dump (Stream *s, ExecutionContextScope *exe_scope, DumpStyle style, Dum
                         if (var && var->LocationIsValidForAddress (*this))
                         {
                             s->Indent();
-                            s->Printf ("   Variable: id = {0x%8.8" PRIx64 "}, name = \"%s\", type= \"%s\", location =",
+                            s->Printf ("   Variable: id = {0x%8.8" PRIx64 "}, name = \"%s\"",
                                        var->GetID(),
-                                       var->GetName().GetCString(),
-                                       var->GetType()->GetName().GetCString());
+                                       var->GetName().GetCString());
+                            Type *type = var->GetType();
+                            if (type)
+                                s->Printf(", type = \"%s\"", type->GetName().GetCString());
+                            else
+                                s->PutCString(", type = <unknown>");
+                            s->PutCString(", location = ");
                             var->DumpLocationForAddress(s, *this);
                             s->PutCString(", decl = ");
                             var->GetDeclaration().DumpStopContext(s, false);

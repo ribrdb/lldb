@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/Core/ValueObjectSyntheticFilter.h"
 
 // C Includes
@@ -84,10 +82,10 @@ ValueObjectSynthetic::~ValueObjectSynthetic()
 {
 }
 
-ClangASTType
-ValueObjectSynthetic::GetClangTypeImpl ()
+CompilerType
+ValueObjectSynthetic::GetCompilerTypeImpl ()
 {
-    return m_parent->GetClangType();
+    return m_parent->GetCompilerType();
 }
 
 ConstString
@@ -303,4 +301,25 @@ bool
 ValueObjectSynthetic::SetValueFromCString (const char *value_str, Error& error)
 {
     return m_parent->SetValueFromCString(value_str, error);
+}
+
+void
+ValueObjectSynthetic::SetFormat (lldb::Format format)
+{
+    if (m_parent)
+    {
+        m_parent->ClearUserVisibleData(eClearUserVisibleDataItemsAll);
+        m_parent->SetFormat(format);
+    }
+    this->ValueObject::SetFormat(format);
+    this->ClearUserVisibleData(eClearUserVisibleDataItemsAll);
+}
+
+bool
+ValueObjectSynthetic::GetDeclaration (Declaration &decl)
+{
+    if (m_parent)
+        return m_parent->GetDeclaration(decl);
+
+    return ValueObject::GetDeclaration(decl);
 }

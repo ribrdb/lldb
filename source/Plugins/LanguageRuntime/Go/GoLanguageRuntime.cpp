@@ -18,8 +18,7 @@
 #include "lldb/Core/Scalar.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectMemory.h"
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangExternalASTSourceCommon.h"
+#include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/TypeList.h"
 #include "lldb/Target/Process.h"
@@ -37,13 +36,7 @@ using namespace lldb_private;
 bool
 GoLanguageRuntime::CouldHaveDynamicValue (ValueObject &in_value)
 {
-    const auto& type = in_value.GetClangType();
-    clang::CXXRecordDecl *cxx_record_decl = type.GetCanonicalQualType()->getAsCXXRecordDecl();
-    ClangASTMetadata *metadata = ClangASTContext::GetMetadata (type.GetASTContext(), cxx_record_decl);
-    if (metadata) {
-        return metadata->GetIsDynamicCXXType();
-    }
-    return false;
+    return GoASTContext::IsGoInterface(in_value.GetCompilerType());
 }
 
 bool
@@ -134,7 +127,7 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
         {
             if (class_type_or_name.HasTypeSP())
             {
-                class_type_or_name.SetClangASTType(class_type_or_name.GetTypeSP()->GetClangLayoutType().GetPointeeType());
+                class_type_or_name.SetCompilerType(class_type_or_name.GetTypeSP()->GetLayoutCompilerType().GetPointeeType());
             }
         }
         dynamic_address.SetLoadAddress(iface->GetChildMemberWithName(data_cs, true)->GetAddressOf(), target);

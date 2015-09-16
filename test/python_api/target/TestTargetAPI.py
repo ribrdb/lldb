@@ -12,7 +12,7 @@ class TargetAPITestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_find_global_variables_with_dsym(self):
@@ -38,7 +38,7 @@ class TargetAPITestCase(TestBase):
         self.setTearDownCleanup(dictionary=d)
         self.find_global_variables('b.out')
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_find_functions_with_dsym(self):
@@ -50,6 +50,7 @@ class TargetAPITestCase(TestBase):
 
     @python_api_test
     @dwarf_test
+    @expectedFailureWindows("llvm.org/pr24778")
     def test_find_functions_with_dwarf(self):
         """Exercise SBTarget.FindFunctions() API."""
         d = {'EXE': 'b.out'}
@@ -57,7 +58,7 @@ class TargetAPITestCase(TestBase):
         self.setTearDownCleanup(dictionary=d)
         self.find_functions('b.out')
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_get_description_with_dsym(self):
@@ -72,10 +73,9 @@ class TargetAPITestCase(TestBase):
         self.buildDwarf()
         self.get_description()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
-    @expectedFailureDarwin("llvm.org/pr20273")
     def test_launch_new_process_and_redirect_stdout_with_dsym(self):
         """Exercise SBTaget.Launch() API."""
         self.buildDsym()
@@ -83,13 +83,12 @@ class TargetAPITestCase(TestBase):
 
     @python_api_test
     @dwarf_test
-    @expectedFailureDarwin("llvm.org/pr20273")
     def test_launch_new_process_and_redirect_stdout_with_dwarf(self):
         """Exercise SBTarget.Launch() API."""
         self.buildDwarf()
         self.launch_new_process_and_redirect_stdout()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_resolve_symbol_context_with_address_with_dsym(self):
@@ -104,7 +103,7 @@ class TargetAPITestCase(TestBase):
         self.buildDwarf()
         self.resolve_symbol_context_with_address()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_get_platform_with_dsym(self):
@@ -125,7 +124,7 @@ class TargetAPITestCase(TestBase):
         platform = target.platform
         self.assertTrue(platform, VALID_PLATFORM)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_get_data_byte_size_with_dsym(self):
@@ -144,7 +143,7 @@ class TargetAPITestCase(TestBase):
         target = self.create_simple_target('b.out')
         self.assertEquals(target.data_byte_size, 1)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_get_code_byte_size_with_dsym(self):
@@ -163,7 +162,7 @@ class TargetAPITestCase(TestBase):
         target = self.create_simple_target('b.out')
         self.assertEquals(target.code_byte_size, 1)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_resolve_file_address_with_dsym(self):
@@ -182,7 +181,7 @@ class TargetAPITestCase(TestBase):
         target = self.create_simple_target('b.out')
         self.resolve_file_address(target)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_read_memory_with_dsym(self):
@@ -375,7 +374,7 @@ class TargetAPITestCase(TestBase):
         # The inferior should run to completion after "process.Continue()" call.
         local_path = "stdout.txt";
         if lldb.remote_platform:
-            stdout_path = os.path.join(lldb.remote_platform.GetWorkingDirectory(), "lldb-stdout-redirect.txt")
+            stdout_path = lldbutil.append_to_process_working_directory("lldb-stdout-redirect.txt")
         else:
             stdout_path = local_path
         error = lldb.SBError()

@@ -7,9 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdSupportInfo.h
-//
 // Overview:    CMICmdCmdSupportInfoMiCmdQuery          interface.
 //
 //              To implement new MI commands derive a new command class from the command base
@@ -20,13 +17,6 @@
 //                  MICmdCmd.h / .cpp
 //              For an introduction to adding a new command see CMICmdCmdSupportInfoMiCmdQuery
 //              command class as an example.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 #pragma once
 
@@ -37,29 +27,26 @@
 // Details: MI command class. MI commands derived from the command base class.
 //          *this class implements MI command "info-gdb-mi-command".
 //          This command does not follow the MI documentation exactly.
-// Gotchas: None.
-// Authors: Illya Rudkin 06/05/2014.
-// Changes: None.
 //--
 class CMICmdCmdSupportInfoMiCmdQuery : public CMICmdBase
 {
     // Statics:
   public:
     // Required by the CMICmdFactory when registering *this command
-    static CMICmdBase *CreateSelf(void);
+    static CMICmdBase *CreateSelf();
 
     // Methods:
   public:
-    /* ctor */ CMICmdCmdSupportInfoMiCmdQuery(void);
+    /* ctor */ CMICmdCmdSupportInfoMiCmdQuery();
 
     // Overridden:
   public:
     // From CMICmdInvoker::ICmd
-    virtual bool Execute(void);
-    virtual bool Acknowledge(void);
-    virtual bool ParseArgs(void);
+    bool Execute() override;
+    bool Acknowledge() override;
+    bool ParseArgs() override;
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmdCmdSupportInfoMiCmdQuery(void);
+    /* dtor */ ~CMICmdCmdSupportInfoMiCmdQuery() override;
 
     // Attributes:
   private:

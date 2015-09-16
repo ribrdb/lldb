@@ -14,7 +14,7 @@ class TestCPPExceptionBreakpoint (TestBase):
     mydir = TestBase.compute_mydir(__file__)
     my_var = 10
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_cpp_exception_breakpoint (self):
@@ -23,6 +23,7 @@ class TestCPPExceptionBreakpoint (TestBase):
         self.do_cpp_exception_bkpt ()
 
     @python_api_test
+    @expectedFailureWindows("llvm.org/pr24538") # clang-cl does not support throw or catch
     @dwarf_test
     def test_cpp_exception_breakpoint_with_dwarf(self):
         """Test setting and hitting the C++ exception breakpoint."""

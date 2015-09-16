@@ -39,12 +39,14 @@
 
 #include "lldb/Core/ArchSpec.h"
 #include "lldb/Core/Communication.h"
+#include "lldb/Core/DataBufferHeap.h"
 #include "lldb/Core/DataExtractor.h"
 #include "lldb/Core/Log.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StreamString.h"
+#include "lldb/Core/StructuredData.h"
 #include "lldb/Host/ConnectionFileDescriptor.h"
 #include "lldb/Host/Endian.h"
 #include "lldb/Host/FileSpec.h"
@@ -54,6 +56,7 @@
 #include "lldb/Target/Platform.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/CleanUp.h"
+#include "lldb/Utility/NameMatches.h"
 
 #include "cfcpp/CFCBundle.h"
 #include "cfcpp/CFCMutableArray.h"
@@ -327,7 +330,7 @@ WaitForProcessToSIGSTOP (const lldb::pid_t pid, const int timeout_in_seconds)
 //            {
 //                pid = (intptr_t)accept_thread_result;
 //
-//                // Wait for process to be stopped the the entry point by watching
+//                // Wait for process to be stopped the entry point by watching
 //                // for the process status to be set to SSTOP which indicates it it
 //                // SIGSTOP'ed at the entry point
 //                WaitForProcessToSIGSTOP (pid, 5);
@@ -409,9 +412,9 @@ LaunchInNewTerminalWithAppleScript (const char *exe_path, ProcessLaunchInfo &lau
     if (arch_spec.IsValid())
         command.Printf(" --arch=%s", arch_spec.GetArchitectureName());
 
-    const char *working_dir = launch_info.GetWorkingDirectory();
+    FileSpec working_dir{launch_info.GetWorkingDirectory()};
     if (working_dir)
-        command.Printf(" --working-dir '%s'", working_dir);
+        command.Printf(" --working-dir '%s'", working_dir.GetCString());
     else
     {
         char cwd[PATH_MAX];
@@ -525,7 +528,7 @@ LaunchInNewTerminalWithAppleScript (const char *exe_path, ProcessLaunchInfo &lau
         WaitForProcessToSIGSTOP(pid, 5);
     }
 
-    FileSystem::Unlink(unix_socket_name);
+    FileSystem::Unlink(FileSpec{unix_socket_name, false});
     [applescript release];
     if (pid != LLDB_INVALID_PROCESS_ID)
         launch_info.SetProcessID (pid);
@@ -703,25 +706,6 @@ Host::OpenFileInExternalEditor (const FileSpec &file_spec, uint32_t line_no)
 #endif // #if !defined(__arm__) && !defined(__arm64__) && !defined(__aarch64__)
 }
 
-
-void
-Host::Backtrace (Stream &strm, uint32_t max_frames)
-{
-    if (max_frames > 0)
-    {
-        std::vector<void *> frame_buffer (max_frames, NULL);
-        int num_frames = ::backtrace (&frame_buffer[0], frame_buffer.size());
-        char** strs = ::backtrace_symbols (&frame_buffer[0], num_frames);
-        if (strs)
-        {
-            // Start at 1 to skip the "Host::Backtrace" frame
-            for (int i = 1; i < num_frames; ++i)
-                strm.Printf("%s\n", strs[i]);
-            ::free (strs);
-        }
-    }
-}
-
 size_t
 Host::GetEnvironment (StringList &env)
 {
@@ -807,21 +791,23 @@ GetMacOSXProcessArgs (const ProcessInstanceInfoMatch *match_info_ptr,
     {
         int proc_args_mib[3] = { CTL_KERN, KERN_PROCARGS2, (int)process_info.GetProcessID() };
 
-        char arg_data[8192];
-        size_t arg_data_size = sizeof(arg_data);
-        if (::sysctl (proc_args_mib, 3, arg_data, &arg_data_size , NULL, 0) == 0)
+        size_t arg_data_size = 0;
+        if (::sysctl (proc_args_mib, 3, nullptr, &arg_data_size, NULL, 0) || arg_data_size == 0)
+            arg_data_size = 8192;
+
+        // Add a few bytes to the calculated length, I know we need to add at least one byte
+        // to this number otherwise we get junk back, so add 128 just in case...
+        DataBufferHeap arg_data(arg_data_size+128, 0);
+        arg_data_size = arg_data.GetByteSize();
+        if (::sysctl (proc_args_mib, 3, arg_data.GetBytes(), &arg_data_size , NULL, 0) == 0)
         {
-            DataExtractor data (arg_data, arg_data_size, lldb::endian::InlHostByteOrder(), sizeof(void *));
+            DataExtractor data (arg_data.GetBytes(), arg_data_size, lldb::endian::InlHostByteOrder(), sizeof(void *));
             lldb::offset_t offset = 0;
             uint32_t argc = data.GetU32 (&offset);
-            const char *cstr;
-            
-            
             llvm::Triple &triple = process_info.GetArchitecture().GetTriple();
             const llvm::Triple::ArchType triple_arch = triple.getArch();
             const bool check_for_ios_simulator = (triple_arch == llvm::Triple::x86 || triple_arch == llvm::Triple::x86_64);
-            
-            cstr = data.GetCStr (&offset);
+            const char *cstr = data.GetCStr (&offset);
             if (cstr)
             {
                 process_info.GetExecutableFile().SetFile(cstr, false);
@@ -1348,6 +1334,86 @@ Host::LaunchProcess (ProcessLaunchInfo &launch_info)
         if (error.Success())
             error.SetErrorString ("process launch failed for unknown reasons");
     }
+    return error;
+}
+
+Error
+Host::ShellExpandArguments (ProcessLaunchInfo &launch_info)
+{
+    Error error;
+    if (launch_info.GetFlags().Test(eLaunchFlagShellExpandArguments))
+    {
+        FileSpec expand_tool_spec;
+        if (!HostInfo::GetLLDBPath(lldb::ePathTypeSupportExecutableDir, expand_tool_spec))
+        {
+            error.SetErrorString("could not find argdumper tool");
+            return error;
+        }
+        expand_tool_spec.AppendPathComponent("argdumper");
+        if (!expand_tool_spec.Exists())
+        {
+            error.SetErrorString("could not find argdumper tool");
+            return error;
+        }
+
+        Args expand_command(expand_tool_spec.GetPath().c_str());
+        expand_command.AppendArguments (launch_info.GetArguments());
+        
+        int status;
+        std::string output;
+        RunShellCommand(expand_command, launch_info.GetWorkingDirectory(), &status, nullptr, &output, 10);
+        
+        if (status != 0)
+        {
+            error.SetErrorStringWithFormat("argdumper exited with error %d", status);
+            return error;
+        }
+        
+        auto data_sp = StructuredData::ParseJSON(output);
+        if (!data_sp)
+        {
+            error.SetErrorString("invalid JSON");
+            return error;
+        }
+        
+        auto dict_sp = data_sp->GetAsDictionary();
+        if (!data_sp)
+        {
+            error.SetErrorString("invalid JSON");
+            return error;
+        }
+        
+        auto args_sp = dict_sp->GetObjectForDotSeparatedPath("arguments");
+        if (!args_sp)
+        {
+            error.SetErrorString("invalid JSON");
+            return error;
+        }
+
+        auto args_array_sp = args_sp->GetAsArray();
+        if (!args_array_sp)
+        {
+            error.SetErrorString("invalid JSON");
+            return error;
+        }
+        
+        launch_info.GetArguments().Clear();
+        
+        for (size_t i = 0;
+             i < args_array_sp->GetSize();
+             i++)
+        {
+            auto item_sp = args_array_sp->GetItemAtIndex(i);
+            if (!item_sp)
+                continue;
+            auto str_sp = item_sp->GetAsString();
+            if (!str_sp)
+                continue;
+            
+            launch_info.GetArguments().AppendArgument(str_sp->GetValue().c_str());
+        }
+    }
+    
     return error;
 }
 

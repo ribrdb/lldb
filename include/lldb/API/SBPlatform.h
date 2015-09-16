@@ -21,7 +21,7 @@ namespace lldb {
 
     class SBLaunchInfo;
 
-    class SBPlatformConnectOptions
+    class LLDB_API SBPlatformConnectOptions
     {
     public:
         SBPlatformConnectOptions (const char *url);
@@ -59,7 +59,7 @@ namespace lldb {
         PlatformConnectOptions *m_opaque_ptr;
     };
 
-    class SBPlatformShellCommand
+    class LLDB_API SBPlatformShellCommand
     {
     public:
         SBPlatformShellCommand (const char *shell_command);
@@ -104,7 +104,7 @@ namespace lldb {
         PlatformShellCommand *m_opaque_ptr;
     };
 
-    class SBPlatform
+    class LLDB_API SBPlatform
     {
     public:
         
@@ -188,6 +188,9 @@ namespace lldb {
         
         SBError
         SetFilePermissions (const char *path, uint32_t file_permissions);
+
+        SBUnixSignals
+        GetUnixSignals() const;
 
     protected:
         

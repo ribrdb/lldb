@@ -58,6 +58,7 @@ StopInfoMachException::GetDescription ()
                 }
                 break;
             case llvm::Triple::arm:
+            case llvm::Triple::thumb:
                 switch (m_exc_code)
                 {
                 case 0x101: code_desc = "EXC_ARM_DA_ALIGN"; break;
@@ -104,6 +105,7 @@ StopInfoMachException::GetDescription ()
                 break;
 
             case llvm::Triple::arm:
+            case llvm::Triple::thumb:
                 if (m_exc_code == 1)
                     code_desc = "EXC_ARM_UNDEFINED";
                 break;
@@ -188,6 +190,7 @@ StopInfoMachException::GetDescription ()
                     break;
                 
                 case llvm::Triple::arm:
+                case llvm::Triple::thumb:
                     switch (m_exc_code)
                     {
                     case 0x101: code_desc = "EXC_ARM_DA_ALIGN"; break;
@@ -408,6 +411,7 @@ StopInfoMachException::CreateStopReasonWithMachException
                     break;
                 
                 case llvm::Triple::arm:
+                case llvm::Triple::thumb:
                     if (exc_code == 0x102) // EXC_ARM_DA_DEBUG
                     {
                         // It's a watchpoint, then, if the exc_sub_code indicates a known/enabled
@@ -498,12 +502,15 @@ StopInfoMachException::CreateStopReasonWithMachException
                         // If the breakpoint is for this thread, then we'll report the hit, but if it is for another thread,
                         // we can just report no reason.  We don't need to worry about stepping over the breakpoint here, that
                         // will be taken care of when the thread resumes and notices that there's a breakpoint under the pc.
-                        if (bp_site_sp->ValidForThisThread (&thread))
+                        // If we have an operating system plug-in, we might have set a thread specific breakpoint using the
+                        // operating system thread ID, so we can't make any assumptions about the thread ID so we must always
+                        // report the breakpoint regardless of the thread.
+                        if (bp_site_sp->ValidForThisThread (&thread) || thread.GetProcess()->GetOperatingSystem () != NULL)
                             return StopInfo::CreateStopReasonWithBreakpointSiteID (thread, bp_site_sp->GetID());
                         else
                             return StopInfoSP();
                     }
-                    
+
                     // Don't call this a trace if we weren't single stepping this thread.
                     if (is_trace_if_actual_breakpoint_missing && thread.GetTemporaryResumeState() == eStateStepping)
                     {

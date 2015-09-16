@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/Utility/SafeMachO.h"
 
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
@@ -23,6 +21,7 @@
 #include "lldb/Core/State.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Host/Symbols.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrame.h"
@@ -183,7 +182,7 @@ DynamicLoaderDarwinKernel::CreateInstance (Process* process, bool force)
     addr_t kernel_load_address = SearchForDarwinKernel (process);
     if (kernel_load_address != LLDB_INVALID_ADDRESS)
     {
-        process->SetCanJIT(false);
+        process->SetCanRunCode(false);
         return new DynamicLoaderDarwinKernel (process, kernel_load_address);
     }
     return NULL;
@@ -669,6 +668,7 @@ DynamicLoaderDarwinKernel::KextImageInfo::GetUUID () const
 bool
 DynamicLoaderDarwinKernel::KextImageInfo::ReadMemoryModule (Process *process)
 {
+    Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
     if (m_memory_module_sp.get() != NULL)
         return true;
     if (m_load_address == LLDB_INVALID_ADDRESS)
@@ -703,6 +703,10 @@ DynamicLoaderDarwinKernel::KextImageInfo::ReadMemoryModule (Process *process)
     {
         if (m_uuid != memory_module_sp->GetUUID())
         {
+            if (log)
+            {
+                log->Printf ("KextImageInfo::ReadMemoryModule the kernel said to find uuid %s at 0x%" PRIx64 " but instead we found uuid %s, throwing it away", m_uuid.GetAsString().c_str(), m_load_address, memory_module_sp->GetUUID().GetAsString().c_str());
+            }
             return false;
         }
     }
@@ -717,25 +721,31 @@ DynamicLoaderDarwinKernel::KextImageInfo::ReadMemoryModule (Process *process)
     m_kernel_image = is_kernel;
     if (is_kernel)
     {
+        if (log)
+        {
+            // This is unusual and probably not intended
+            log->Printf ("KextImageInfo::ReadMemoryModule read the kernel binary out of memory");
+        }
         if (memory_module_sp->GetArchitecture().IsValid())
         {
             process->GetTarget().SetArchitecture(memory_module_sp->GetArchitecture());
         }
         if (m_uuid.IsValid())
         {
-            Module* exe_module = process->GetTarget().GetExecutableModulePointer();
-            if (exe_module && exe_module->GetUUID().IsValid())
+            ModuleSP exe_module_sp = process->GetTarget().GetExecutableModule();
+            if (exe_module_sp.get() && exe_module_sp->GetUUID().IsValid())
             {
-                if (m_uuid != exe_module->GetUUID())
+                if (m_uuid != exe_module_sp->GetUUID())
                 {
-                    Stream *s = process->GetTarget().GetDebugger().GetOutputFile().get();
-                    if (s)
-                    {
-                        s->Printf ("warning: Host-side kernel file has Mach-O UUID of %s but remote kernel has a UUID of %s -- a mismatched kernel file will result in a poor debugger experience.\n", 
-                                   exe_module->GetUUID().GetAsString().c_str(),
-                                   m_uuid.GetAsString().c_str());
-                        s->Flush ();
-                    }
+                    // The user specified a kernel binary that has a different UUID than
+                    // the kernel actually running in memory.  This never ends well; 
+                    // clear the user specified kernel binary from the Target.
+
+                    m_module_sp.reset();
+
+                    ModuleList user_specified_kernel_list;
+                    user_specified_kernel_list.Append (exe_module_sp);
+                    process->GetTarget().GetImages().Remove (user_specified_kernel_list);
                 }
             }
         }
@@ -829,7 +839,7 @@ DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule (Process *p
                     ModuleSpec kext_bundle_module_spec(module_spec);
                     FileSpec kext_filespec(m_name.c_str(), false);
                     kext_bundle_module_spec.GetFileSpec() = kext_filespec;
-                    platform_sp->GetSharedModule (kext_bundle_module_spec, m_module_sp, &target.GetExecutableSearchPaths(), NULL, NULL);
+                    platform_sp->GetSharedModule (kext_bundle_module_spec, process, m_module_sp, &target.GetExecutableSearchPaths(), NULL, NULL);
                 }
             }
 
@@ -1546,6 +1556,7 @@ DynamicLoaderDarwinKernel::SetNotificationBreakpointIfNeeded ()
                                                                   NULL,
                                                                   "OSKextLoadedKextSummariesUpdated",
                                                                   eFunctionNameTypeFull,
+                                                                  eLanguageTypeUnknown,
                                                                   skip_prologue,
                                                                   internal_bp,
                                                                   hardware).get();

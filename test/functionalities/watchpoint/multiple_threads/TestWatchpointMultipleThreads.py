@@ -13,37 +13,38 @@ class WatchpointForMultipleThreadsTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_watchpoint_multiple_threads_with_dsym(self):
         """Test that lldb watchpoint works for multiple threads."""
-        self.buildDsym(dictionary=self.d)
-        self.setTearDownCleanup(dictionary=self.d)
+        self.buildDsym()
+        self.setTearDownCleanup()
         self.hello_multiple_threads()
 
-    @skipIfGcc # causes intermittent gcc debian buildbot failures, skip until we can investigate
-    @expectedFailureLinux("llvm.org/pr20233") # note due to a @skipIfGcc above, this is going to check failure on Linux if using non-GCC (most likely clang)
     @dwarf_test
+    @expectedFailureAndroid(archs=['arm', 'aarch64']) # Watchpoints not supported
+    @expectedFailureWindows("llvm.org/pr24446") # WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows
     def test_watchpoint_multiple_threads_with_dwarf(self):
         """Test that lldb watchpoint works for multiple threads."""
-        self.buildDwarf(dictionary=self.d)
-        self.setTearDownCleanup(dictionary=self.d)
+        self.buildDwarf()
+        self.setTearDownCleanup()
         self.hello_multiple_threads()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_watchpoint_multiple_threads_wp_set_and_then_delete_with_dsym(self):
         """Test that lldb watchpoint works for multiple threads, and after the watchpoint is deleted, the watchpoint event should no longer fires."""
-        self.buildDsym(dictionary=self.d)
-        self.setTearDownCleanup(dictionary=self.d)
+        self.buildDsym()
+        self.setTearDownCleanup()
         self.hello_multiple_threads_wp_set_and_then_delete()
 
-    @skipIfGcc # causes intermittent gcc debian buildbot failures, skip until we can investigate 
     @dwarf_test
+    @expectedFailureAndroid(archs=['arm', 'aarch64']) # Watchpoints not supported
+    @expectedFailureWindows("llvm.org/pr24446") # WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows
     def test_watchpoint_multiple_threads_wp_set_and_then_delete_with_dwarf(self):
         """Test that lldb watchpoint works for multiple threads, and after the watchpoint is deleted, the watchpoint event should no longer fires."""
-        self.buildDwarf(dictionary=self.d)
-        self.setTearDownCleanup(dictionary=self.d)
+        self.buildDwarf()
+        self.setTearDownCleanup()
         self.hello_multiple_threads_wp_set_and_then_delete()
 
     def setUp(self):
@@ -53,14 +54,10 @@ class WatchpointForMultipleThreadsTestCase(TestBase):
         self.source = 'main.cpp'
         # Find the line number to break inside main().
         self.first_stop = line_number(self.source, '// Set break point at this line')
-        # Build dictionary to have unique executable names for each test method.
-        self.exe_name = self.testMethodName
-        self.d = {'CXX_SOURCES': self.source, 'EXE': self.exe_name}
 
     def hello_multiple_threads(self):
         """Test that lldb watchpoint works for multiple threads."""
-        exe = os.path.join(os.getcwd(), self.exe_name)
-        self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
+        self.runCmd("file %s" % os.path.join(os.getcwd(), 'a.out'), CURRENT_EXECUTABLE_SET)
 
         # Add a breakpoint to set a watchpoint when stopped on the breakpoint.
         lldbutil.run_break_set_by_file_and_line (self, None, self.first_stop, num_expected_locations=1)
@@ -104,8 +101,7 @@ class WatchpointForMultipleThreadsTestCase(TestBase):
 
     def hello_multiple_threads_wp_set_and_then_delete(self):
         """Test that lldb watchpoint works for multiple threads, and after the watchpoint is deleted, the watchpoint event should no longer fires."""
-        exe = os.path.join(os.getcwd(), self.exe_name)
-        self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
+        self.runCmd("file %s" % os.path.join(os.getcwd(), 'a.out'), CURRENT_EXECUTABLE_SET)
 
         # Add a breakpoint to set a watchpoint when stopped on the breakpoint.
         lldbutil.run_break_set_by_file_and_line (self, None, self.first_stop, num_expected_locations=1)

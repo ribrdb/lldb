@@ -103,9 +103,13 @@ ObjectContainerBSDArchive::Object::Extract (const DataExtractor& data, lldb::off
     }
     else
     {
-        // Strip off any spaces (if the object file name contains spaces it
-        // will use the extended format above).
-        str.erase (str.find(' '));
+        // Strip off any trailing spaces.
+        const size_t last_pos = str.find_last_not_of(' ');
+        if (last_pos != std::string::npos)
+        {
+            if (last_pos + 1 < 16)
+                str.erase (last_pos + 1);
+        }
         ar_name.SetCString(str.c_str());
     }
 
@@ -364,7 +368,7 @@ ObjectContainerBSDArchive::CreateInstance
 
                 // Map the entire .a file to be sure that we don't lose any data if the file
                 // gets updated by a new build while this .a file is being used for debugging
-                DataBufferSP archive_data_sp (file->MemoryMapFileContents(file_offset, length));
+                DataBufferSP archive_data_sp (file->MemoryMapFileContentsIfLocal(file_offset, length));
                 lldb::offset_t archive_data_offset = 0;
 
                 Archive::shared_ptr archive_sp (Archive::FindCachedArchive (*file,
@@ -570,7 +574,7 @@ ObjectContainerBSDArchive::GetModuleSpecifications (const lldb_private::FileSpec
         if (!archive_sp)
         {
             set_archive_arch = true;
-            DataBufferSP data_sp (file.MemoryMapFileContents(file_offset, file_size));
+            DataBufferSP data_sp (file.MemoryMapFileContentsIfLocal(file_offset, file_size));
             data.SetData (data_sp, 0, data_sp->GetByteSize());
             archive_sp = Archive::ParseAndCacheArchiveForFile(file, ArchSpec(), file_mod_time, file_offset, data);
         }
@@ -595,7 +599,8 @@ ObjectContainerBSDArchive::GetModuleSpecifications (const lldb_private::FileSpec
                             TimeValue object_mod_time;
                             object_mod_time.OffsetWithSeconds(object->ar_date);
                             spec.GetObjectName () = object->ar_name;
-                            spec.SetObjectOffset(object_file_offset);
+                            spec.SetObjectOffset (object_file_offset);
+                            spec.SetObjectSize (file_size - object_file_offset);
                             spec.GetObjectModificationTime () = object_mod_time;
                         }
                     }

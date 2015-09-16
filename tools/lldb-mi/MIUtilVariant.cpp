@@ -7,20 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MIUtilVariant.cpp
-//
-// Overview:    CMIUtilVariant implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Gotchas:     See CMIUtilVariant class description.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MIUtilVariant.h"
 
@@ -31,7 +17,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilVariant::CDataObjectBase::CDataObjectBase(void)
+CMIUtilVariant::CDataObjectBase::CDataObjectBase()
 {
 }
 
@@ -78,7 +64,7 @@ CMIUtilVariant::CDataObjectBase::CDataObjectBase(CDataObjectBase &&vrwOther)
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilVariant::CDataObjectBase::~CDataObjectBase(void)
+CMIUtilVariant::CDataObjectBase::~CDataObjectBase()
 {
     Destroy();
 }
@@ -118,7 +104,7 @@ CMIUtilVariant::CDataObjectBase &CMIUtilVariant::CDataObjectBase::operator=(CDat
 // Throws:  None.
 //--
 CMIUtilVariant::CDataObjectBase *
-CMIUtilVariant::CDataObjectBase::CreateCopyOfSelf(void)
+CMIUtilVariant::CDataObjectBase::CreateCopyOfSelf()
 {
     // Override to implement copying of variant's data object
     return new CDataObjectBase();
@@ -132,7 +118,7 @@ CMIUtilVariant::CDataObjectBase::CreateCopyOfSelf(void)
 // Throws:  None.
 //--
 bool
-CMIUtilVariant::CDataObjectBase::GetIsDerivedClass(void) const
+CMIUtilVariant::CDataObjectBase::GetIsDerivedClass() const
 {
     // Override to in the derived class and return true
     return false;
@@ -160,7 +146,7 @@ CMIUtilVariant::CDataObjectBase::Copy(const CDataObjectBase &vrOther)
 // Throws:  None.
 //--
 void
-CMIUtilVariant::CDataObjectBase::Destroy(void)
+CMIUtilVariant::CDataObjectBase::Destroy()
 {
     // Do nothing - override to implement
 }
@@ -259,7 +245,7 @@ template <typename T> CMIUtilVariant::CDataObject<T> &CMIUtilVariant::CDataObjec
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilVariant::CMIUtilVariant(void)
+CMIUtilVariant::CMIUtilVariant()
     : m_pDataObject(nullptr)
 {
 }
@@ -320,7 +306,7 @@ CMIUtilVariant::CMIUtilVariant(CMIUtilVariant &&vrwOther)
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilVariant::~CMIUtilVariant(void)
+CMIUtilVariant::~CMIUtilVariant()
 {
     Destroy();
 }
@@ -366,7 +352,7 @@ CMIUtilVariant &CMIUtilVariant::operator=(CMIUtilVariant &&vrwOther)
 // Throws:  None.
 //--
 void
-CMIUtilVariant::Destroy(void)
+CMIUtilVariant::Destroy()
 {
     if (m_pDataObject != nullptr)
         delete m_pDataObject;

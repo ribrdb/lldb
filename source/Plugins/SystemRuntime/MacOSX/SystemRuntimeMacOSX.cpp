@@ -20,6 +20,7 @@
 #include "lldb/Expression/ClangFunction.h"
 #include "lldb/Expression/ClangUtilityFunction.h"
 #include "lldb/Host/FileSpec.h"
+#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "Plugins/Process/Utility/HistoryThread.h"
@@ -315,7 +316,7 @@ SystemRuntimeMacOSX::ReadLibdispatchOffsetsAddress ()
             dispatch_queue_offsets_symbol = module_sp->FindFirstSymbolWithNameAndType (g_dispatch_queue_offsets_symbol_name, eSymbolTypeData);
     }
     if (dispatch_queue_offsets_symbol)
-        m_dispatch_queue_offsets_addr = dispatch_queue_offsets_symbol->GetAddress().GetLoadAddress(&m_process->GetTarget());
+        m_dispatch_queue_offsets_addr = dispatch_queue_offsets_symbol->GetLoadAddress(&m_process->GetTarget());
 }
 
 void
@@ -360,7 +361,7 @@ SystemRuntimeMacOSX::ReadLibpthreadOffsetsAddress ()
                                                            (g_libpthread_layout_offsets_symbol_name, eSymbolTypeData);
         if (libpthread_layout_offsets_symbol)
         {
-            m_libpthread_layout_offsets_addr =  libpthread_layout_offsets_symbol->GetAddress().GetLoadAddress(&m_process->GetTarget());
+            m_libpthread_layout_offsets_addr = libpthread_layout_offsets_symbol->GetLoadAddress(&m_process->GetTarget());
         }
     }
 }
@@ -409,7 +410,7 @@ SystemRuntimeMacOSX::ReadLibdispatchTSDIndexesAddress ()
                                                            (g_libdispatch_tsd_indexes_symbol_name, eSymbolTypeData);
         if (libdispatch_tsd_indexes_symbol)
         {
-            m_dispatch_tsd_indexes_addr =  libdispatch_tsd_indexes_symbol->GetAddress().GetLoadAddress(&m_process->GetTarget());
+            m_dispatch_tsd_indexes_addr = libdispatch_tsd_indexes_symbol->GetLoadAddress(&m_process->GetTarget());
         }
     }
 }
@@ -445,14 +446,15 @@ SystemRuntimeMacOSX::ReadLibdispatchTSDIndexes ()
         ClangASTContext *ast_ctx = m_process->GetTarget().GetScratchClangASTContext();
         if (ast_ctx->getASTContext() && m_dispatch_tsd_indexes_addr != LLDB_INVALID_ADDRESS)
         {
-            ClangASTType uint16 = ast_ctx->GetIntTypeFromBitSize(16, false);
-            ClangASTType dispatch_tsd_indexes_s = ast_ctx->CreateRecordType(nullptr, lldb::eAccessPublic, "__lldb_dispatch_tsd_indexes_s", clang::TTK_Struct, lldb::eLanguageTypeC);
-            dispatch_tsd_indexes_s.StartTagDeclarationDefinition();
-            dispatch_tsd_indexes_s.AddFieldToRecordType ("dti_version", uint16, lldb::eAccessPublic, 0);
-            dispatch_tsd_indexes_s.AddFieldToRecordType ("dti_queue_index", uint16, lldb::eAccessPublic, 0);
-            dispatch_tsd_indexes_s.AddFieldToRecordType ("dti_voucher_index", uint16, lldb::eAccessPublic, 0);
-            dispatch_tsd_indexes_s.AddFieldToRecordType ("dti_qos_class_index", uint16, lldb::eAccessPublic, 0);
-            dispatch_tsd_indexes_s.CompleteTagDeclarationDefinition();
+            CompilerType uint16 = ast_ctx->GetIntTypeFromBitSize(16, false);
+            CompilerType dispatch_tsd_indexes_s = ast_ctx->CreateRecordType(nullptr, lldb::eAccessPublic, "__lldb_dispatch_tsd_indexes_s", clang::TTK_Struct, lldb::eLanguageTypeC);
+
+            ClangASTContext::StartTagDeclarationDefinition(dispatch_tsd_indexes_s);
+            ClangASTContext::AddFieldToRecordType (dispatch_tsd_indexes_s, "dti_version", uint16, lldb::eAccessPublic, 0);
+            ClangASTContext::AddFieldToRecordType (dispatch_tsd_indexes_s, "dti_queue_index", uint16, lldb::eAccessPublic, 0);
+            ClangASTContext::AddFieldToRecordType (dispatch_tsd_indexes_s, "dti_voucher_index", uint16, lldb::eAccessPublic, 0);
+            ClangASTContext::AddFieldToRecordType (dispatch_tsd_indexes_s, "dti_qos_class_index", uint16, lldb::eAccessPublic, 0);
+            ClangASTContext::CompleteTagDeclarationDefinition(dispatch_tsd_indexes_s);
 
             ProcessStructReader struct_reader (m_process, m_dispatch_tsd_indexes_addr, dispatch_tsd_indexes_s);
 

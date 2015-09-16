@@ -7,14 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/API/SBTarget.h"
 
 #include "lldb/lldb-public.h"
 
-#include "lldb/API/SBDebugger.h"
 #include "lldb/API/SBBreakpoint.h"
+#include "lldb/API/SBDebugger.h"
+#include "lldb/API/SBEvent.h"
 #include "lldb/API/SBExpressionOptions.h"
 #include "lldb/API/SBFileSpec.h"
 #include "lldb/API/SBListener.h"
@@ -47,12 +46,17 @@
 #include "lldb/Host/FileSpec.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/Args.h"
+#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/DeclVendor.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolVendor.h"
 #include "lldb/Symbol/VariableList.h"
+#include "lldb/Target/ABI.h"
+#include "lldb/Target/Language.h"
 #include "lldb/Target/LanguageRuntime.h"
+#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
-
+#include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/TargetList.h"
 
@@ -65,231 +69,6 @@ using namespace lldb;
 using namespace lldb_private;
 
 #define DEFAULT_DISASM_BYTE_SIZE 32
-
-
-SBAttachInfo::SBAttachInfo () :
-    m_opaque_sp (new ProcessAttachInfo())
-{
-}
-
-SBAttachInfo::SBAttachInfo (lldb::pid_t pid) :
-    m_opaque_sp (new ProcessAttachInfo())
-{
-    m_opaque_sp->SetProcessID (pid);
-}
-
-SBAttachInfo::SBAttachInfo (const char *path, bool wait_for) :
-    m_opaque_sp (new ProcessAttachInfo())
-{
-    if (path && path[0])
-        m_opaque_sp->GetExecutableFile().SetFile(path, false);
-    m_opaque_sp->SetWaitForLaunch (wait_for);
-}
-
-SBAttachInfo::SBAttachInfo (const SBAttachInfo &rhs) :
-    m_opaque_sp (new ProcessAttachInfo())
-{
-    *m_opaque_sp = *rhs.m_opaque_sp;
-}
-
-SBAttachInfo::~SBAttachInfo()
-{
-}
-
-lldb_private::ProcessAttachInfo &
-SBAttachInfo::ref ()
-{
-    return *m_opaque_sp;
-}
-
-SBAttachInfo &
-SBAttachInfo::operator = (const SBAttachInfo &rhs)
-{
-    if (this != &rhs)
-        *m_opaque_sp = *rhs.m_opaque_sp;
-    return *this;
-}
-
-lldb::pid_t
-SBAttachInfo::GetProcessID ()
-{
-    return m_opaque_sp->GetProcessID();
-}
-
-void
-SBAttachInfo::SetProcessID (lldb::pid_t pid)
-{
-    m_opaque_sp->SetProcessID (pid);
-}
-
-
-uint32_t
-SBAttachInfo::GetResumeCount ()
-{
-    return m_opaque_sp->GetResumeCount();
-}
-
-void
-SBAttachInfo::SetResumeCount (uint32_t c)
-{
-    m_opaque_sp->SetResumeCount (c);
-}
-
-const char *
-SBAttachInfo::GetProcessPluginName ()
-{
-    return m_opaque_sp->GetProcessPluginName();
-}
-
-void
-SBAttachInfo::SetProcessPluginName (const char *plugin_name)
-{
-    return m_opaque_sp->SetProcessPluginName (plugin_name);
-}
-
-void
-SBAttachInfo::SetExecutable (const char *path)
-{
-    if (path && path[0])
-        m_opaque_sp->GetExecutableFile().SetFile(path, false);
-    else
-        m_opaque_sp->GetExecutableFile().Clear();
-}
-
-void
-SBAttachInfo::SetExecutable (SBFileSpec exe_file)
-{
-    if (exe_file.IsValid())
-        m_opaque_sp->GetExecutableFile() = exe_file.ref();
-    else
-        m_opaque_sp->GetExecutableFile().Clear();
-}
-
-bool
-SBAttachInfo::GetWaitForLaunch ()
-{
-    return m_opaque_sp->GetWaitForLaunch();
-}
-
-void
-SBAttachInfo::SetWaitForLaunch (bool b)
-{
-    m_opaque_sp->SetWaitForLaunch (b);
-}
-
-bool
-SBAttachInfo::GetIgnoreExisting ()
-{
-    return m_opaque_sp->GetIgnoreExisting();
-}
-
-void
-SBAttachInfo::SetIgnoreExisting (bool b)
-{
-    m_opaque_sp->SetIgnoreExisting (b);
-}
-
-uint32_t
-SBAttachInfo::GetUserID()
-{
-    return m_opaque_sp->GetUserID();
-}
-
-uint32_t
-SBAttachInfo::GetGroupID()
-{
-    return m_opaque_sp->GetGroupID();
-}
-
-bool
-SBAttachInfo::UserIDIsValid ()
-{
-    return m_opaque_sp->UserIDIsValid();
-}
-
-bool
-SBAttachInfo::GroupIDIsValid ()
-{
-    return m_opaque_sp->GroupIDIsValid();
-}
-
-void
-SBAttachInfo::SetUserID (uint32_t uid)
-{
-    m_opaque_sp->SetUserID (uid);
-}
-
-void
-SBAttachInfo::SetGroupID (uint32_t gid)
-{
-    m_opaque_sp->SetGroupID (gid);
-}
-
-uint32_t
-SBAttachInfo::GetEffectiveUserID()
-{
-    return m_opaque_sp->GetEffectiveUserID();
-}
-
-uint32_t
-SBAttachInfo::GetEffectiveGroupID()
-{
-    return m_opaque_sp->GetEffectiveGroupID();
-}
-
-bool
-SBAttachInfo::EffectiveUserIDIsValid ()
-{
-    return m_opaque_sp->EffectiveUserIDIsValid();
-}
-
-bool
-SBAttachInfo::EffectiveGroupIDIsValid ()
-{
-    return m_opaque_sp->EffectiveGroupIDIsValid ();
-}
-
-void
-SBAttachInfo::SetEffectiveUserID (uint32_t uid)
-{
-    m_opaque_sp->SetEffectiveUserID(uid);
-}
-
-void
-SBAttachInfo::SetEffectiveGroupID (uint32_t gid)
-{
-    m_opaque_sp->SetEffectiveGroupID(gid);
-}
-
-lldb::pid_t
-SBAttachInfo::GetParentProcessID ()
-{
-    return m_opaque_sp->GetParentProcessID();
-}
-
-void
-SBAttachInfo::SetParentProcessID (lldb::pid_t pid)
-{
-    m_opaque_sp->SetParentProcessID (pid);
-}
-
-bool
-SBAttachInfo::ParentProcessIDIsValid()
-{
-    return m_opaque_sp->ParentProcessIDIsValid();
-}
-
-SBListener
-SBAttachInfo::GetListener ()
-{
-    return SBListener(m_opaque_sp->GetListener());
-}
-
-void
-SBAttachInfo::SetListener (SBListener &listener)
-{
-    m_opaque_sp->SetListener(listener.GetSP());
-}
 
 namespace {
 
@@ -348,6 +127,32 @@ SBTarget::operator = (const SBTarget& rhs)
 //----------------------------------------------------------------------
 SBTarget::~SBTarget()
 {
+}
+
+bool
+SBTarget::EventIsTargetEvent (const SBEvent &event)
+{
+    return Target::TargetEventData::GetEventDataFromEvent(event.get()) != NULL;
+}
+
+SBTarget
+SBTarget::GetTargetFromEvent (const SBEvent &event)
+{
+    return Target::TargetEventData::GetTargetFromEvent (event.get());
+}
+
+uint32_t
+SBTarget::GetNumModulesFromEvent (const SBEvent &event)
+{
+    const ModuleList module_list = Target::TargetEventData::GetModuleListFromEvent (event.get());
+    return module_list.GetSize();
+}
+
+SBModule
+SBTarget::GetModuleAtIndexFromEvent (const uint32_t idx, const SBEvent &event)
+{
+    const ModuleList module_list = Target::TargetEventData::GetModuleListFromEvent (event.get());
+    return SBModule(module_list.GetModuleAtIndex(idx));
 }
 
 const char *
@@ -539,7 +344,11 @@ SBTarget::Launch
         if (getenv("LLDB_LAUNCH_FLAG_DISABLE_STDIO"))
             launch_flags |= eLaunchFlagDisableSTDIO;
 
-        ProcessLaunchInfo launch_info (stdin_path, stdout_path, stderr_path, working_directory, launch_flags);
+        ProcessLaunchInfo launch_info(FileSpec{stdin_path, false},
+                                      FileSpec{stdout_path, false},
+                                      FileSpec{stderr_path, false},
+                                      FileSpec{working_directory, false},
+                                      launch_flags);
 
         Module *exe_module = target_sp->GetExecutableModulePointer();
         if (exe_module)
@@ -1002,7 +811,8 @@ SBTarget::BreakpointCreateByLocation (const SBFileSpec &sb_file_spec,
         const LazyBool skip_prologue = eLazyBoolCalculate;
         const bool internal = false;
         const bool hardware = false;
-        *sb_bp = target_sp->CreateBreakpoint (NULL, *sb_file_spec, line, check_inlines, skip_prologue, internal, hardware);
+        const LazyBool move_to_nearest_code = eLazyBoolCalculate;
+        *sb_bp = target_sp->CreateBreakpoint (NULL, *sb_file_spec, line, check_inlines, skip_prologue, internal, hardware, move_to_nearest_code);
     }
 
     if (log)
@@ -1038,11 +848,11 @@ SBTarget::BreakpointCreateByName (const char *symbol_name,
         {
             FileSpecList module_spec_list;
             module_spec_list.Append (FileSpec (module_name, false));
-            *sb_bp = target_sp->CreateBreakpoint (&module_spec_list, NULL, symbol_name, eFunctionNameTypeAuto, skip_prologue, internal, hardware);
+            *sb_bp = target_sp->CreateBreakpoint (&module_spec_list, NULL, symbol_name, eFunctionNameTypeAuto, eLanguageTypeUnknown, skip_prologue, internal, hardware);
         }
         else
         {
-            *sb_bp = target_sp->CreateBreakpoint (NULL, NULL, symbol_name, eFunctionNameTypeAuto, skip_prologue, internal, hardware);
+            *sb_bp = target_sp->CreateBreakpoint (NULL, NULL, symbol_name, eFunctionNameTypeAuto, eLanguageTypeUnknown, skip_prologue, internal, hardware);
         }
     }
 
@@ -1083,6 +893,7 @@ SBTarget::BreakpointCreateByName (const char *symbol_name,
                                               comp_unit_list.get(),
                                               symbol_name,
                                               name_type_mask,
+                                              eLanguageTypeUnknown,
                                               skip_prologue,
                                               internal,
                                               hardware);
@@ -1118,6 +929,7 @@ SBTarget::BreakpointCreateByNames (const char *symbol_names[],
                                                 symbol_names,
                                                 num_names,
                                                 name_type_mask, 
+                                                eLanguageTypeUnknown,
                                                 skip_prologue,
                                                 internal,
                                                 hardware);
@@ -1249,6 +1061,7 @@ SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
         RegularExpression regexp(source_regex);
         FileSpecList source_file_spec_list;
         const bool hardware = false;
+        const LazyBool move_to_nearest_code = eLazyBoolCalculate;
         source_file_spec_list.Append (source_file.ref());
 
         if (module_name && module_name[0])
@@ -1256,11 +1069,11 @@ SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
             FileSpecList module_spec_list;
             module_spec_list.Append (FileSpec (module_name, false));
 
-            *sb_bp = target_sp->CreateSourceRegexBreakpoint (&module_spec_list, &source_file_spec_list, regexp, false, hardware);
+            *sb_bp = target_sp->CreateSourceRegexBreakpoint (&module_spec_list, &source_file_spec_list, regexp, false, hardware, move_to_nearest_code);
         }
         else
         {
-            *sb_bp = target_sp->CreateSourceRegexBreakpoint (NULL, &source_file_spec_list, regexp, false, hardware);
+            *sb_bp = target_sp->CreateSourceRegexBreakpoint (NULL, &source_file_spec_list, regexp, false, hardware, move_to_nearest_code);
         }
     }
 
@@ -1277,9 +1090,9 @@ SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
 }
 
 lldb::SBBreakpoint
-SBTarget::BreakpointCreateBySourceRegex (const char *source_regex, 
-                                         const SBFileSpecList &module_list,
-                                         const lldb::SBFileSpecList &source_file_list)
+SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
+                                                 const SBFileSpecList &module_list,
+                                                 const lldb::SBFileSpecList &source_file_list)
 {
     Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_API));
 
@@ -1289,8 +1102,9 @@ SBTarget::BreakpointCreateBySourceRegex (const char *source_regex,
     {
         Mutex::Locker api_locker (target_sp->GetAPIMutex());
         const bool hardware = false;
+        const LazyBool move_to_nearest_code = eLazyBoolCalculate;
         RegularExpression regexp(source_regex);
-        *sb_bp = target_sp->CreateSourceRegexBreakpoint (module_list.get(), source_file_list.get(), regexp, false, hardware);
+        *sb_bp = target_sp->CreateSourceRegexBreakpoint (module_list.get(), source_file_list.get(), regexp, false, hardware, move_to_nearest_code);
     }
 
     if (log)
@@ -1320,7 +1134,7 @@ SBTarget::BreakpointCreateForException  (lldb::LanguageType language,
     if (log)
         log->Printf ("SBTarget(%p)::BreakpointCreateByRegex (Language: %s, catch: %s throw: %s) => SBBreakpoint(%p)",
                      static_cast<void*>(target_sp.get()),
-                     LanguageRuntime::GetNameForLanguageType(language),
+                     Language::GetNameForLanguageType(language),
                      catch_bp ? "on" : "off", throw_bp ? "on" : "off",
                      static_cast<void*>(sb_bp.get()));
 
@@ -1533,7 +1347,7 @@ SBTarget::WatchAddress (lldb::addr_t addr, size_t size, bool read, bool write, S
         // Target::CreateWatchpoint() is thread safe.
         Error cw_error;
         // This API doesn't take in a type, so we can't figure out what it is.
-        ClangASTType *type = NULL;
+        CompilerType *type = NULL;
         watchpoint_sp = target_sp->CreateWatchpoint(addr, size, type, watch_type, cw_error);
         error.SetError(cw_error);
         sb_watchpoint.SetSP (watchpoint_sp);
@@ -1587,7 +1401,7 @@ SBTarget::CreateValueFromAddress (const char *name, SBAddress addr, SBType type)
     {
         lldb::addr_t load_addr(addr.GetLoadAddress(*this));
         ExecutionContext exe_ctx (ExecutionContextRef(ExecutionContext(m_opaque_sp.get(),false)));
-        ClangASTType ast_type(type.GetSP()->GetClangASTType(true));
+        CompilerType ast_type(type.GetSP()->GetCompilerType(true));
         new_value_sp = ValueObject::CreateValueObjectFromAddress(name, load_addr, exe_ctx, ast_type);
     }
     sb_value.SetSP(new_value_sp);
@@ -1614,7 +1428,7 @@ SBTarget::CreateValueFromData (const char *name, lldb::SBData data, lldb::SBType
     {
         DataExtractorSP extractor(*data);
         ExecutionContext exe_ctx (ExecutionContextRef(ExecutionContext(m_opaque_sp.get(),false)));
-        ClangASTType ast_type(type.GetSP()->GetClangASTType(true));
+        CompilerType ast_type(type.GetSP()->GetCompilerType(true));
         new_value_sp = ValueObject::CreateValueObjectFromData(name, *extractor, exe_ctx, ast_type);
     }
     sb_value.SetSP(new_value_sp);
@@ -1995,7 +1809,7 @@ SBTarget::FindFirstType (const char* typename_cstr)
                     
                     if (objc_decl_vendor->FindDecls(const_typename, true, 1, decls) > 0)
                     {
-                        if (ClangASTType type = ClangASTContext::GetTypeForDecl(decls[0]))
+                        if (CompilerType type = ClangASTContext::GetTypeForDecl(decls[0]))
                         {
                             return SBType(type);
                         }
@@ -2075,7 +1889,7 @@ SBTarget::FindTypes (const char* typename_cstr)
                     {
                         for (clang::NamedDecl *decl : decls)
                         {
-                            if (ClangASTType type = ClangASTContext::GetTypeForDecl(decl))
+                            if (CompilerType type = ClangASTContext::GetTypeForDecl(decl))
                             {
                                 sb_type_list.Append(SBType(type));
                             }
@@ -2482,6 +2296,19 @@ SBTarget::FindSymbols (const char *name, lldb::SymbolType symbol_type)
     
 }
 
+lldb::SBValue
+SBTarget::EvaluateExpression (const char *expr)
+{
+    TargetSP target_sp(GetSP());
+    if (!target_sp)
+        return SBValue();
+
+    SBExpressionOptions options;
+    lldb::DynamicValueType fetch_dynamic_value = target_sp->GetPreferDynamicValue();
+    options.SetFetchDynamicValue (fetch_dynamic_value);
+    options.SetUnwindOnError (true);
+    return EvaluateExpression(expr, options);
+}
 
 lldb::SBValue
 SBTarget::EvaluateExpression (const char *expr, const SBExpressionOptions &options)
@@ -2567,4 +2394,22 @@ SBTarget::GetStackRedZoneSize()
             return abi_sp->GetRedZoneSize();
     }
     return 0;
+}
+
+lldb::SBLaunchInfo
+SBTarget::GetLaunchInfo () const
+{
+    lldb::SBLaunchInfo launch_info(NULL);
+    TargetSP target_sp(GetSP());
+    if (target_sp)
+        launch_info.ref() = m_opaque_sp->GetProcessLaunchInfo();
+    return launch_info;
+}
+
+void
+SBTarget::SetLaunchInfo (const lldb::SBLaunchInfo &launch_info)
+{
+    TargetSP target_sp(GetSP());
+    if (target_sp)
+        m_opaque_sp->SetProcessLaunchInfo(launch_info.ref());
 }

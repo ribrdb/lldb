@@ -7,17 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdEnviro.cpp
-//
 // Overview:    CMICmdCmdEnvironmentCd          implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 // In-house headers:
 #include "MICmdCmdEnviro.h"
@@ -34,7 +24,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdEnvironmentCd::CMICmdCmdEnvironmentCd(void)
+CMICmdCmdEnvironmentCd::CMICmdCmdEnvironmentCd()
     : m_constStrArgNamePathDir("pathdir")
 {
     // Command factory matches this name with that received from the stdin stream
@@ -51,7 +41,7 @@ CMICmdCmdEnvironmentCd::CMICmdCmdEnvironmentCd(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdEnvironmentCd::~CMICmdCmdEnvironmentCd(void)
+CMICmdCmdEnvironmentCd::~CMICmdCmdEnvironmentCd()
 {
 }
 
@@ -65,11 +55,11 @@ CMICmdCmdEnvironmentCd::~CMICmdCmdEnvironmentCd(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdEnvironmentCd::ParseArgs(void)
+CMICmdCmdEnvironmentCd::ParseArgs()
 {
-    bool bOk = m_setCmdArgs.Add(*(new CMICmdArgValFile(m_constStrArgNamePathDir, true, true)));
+    m_setCmdArgs.Add(new CMICmdArgValFile(m_constStrArgNamePathDir, true, true));
     CMICmdArgContext argCntxt(m_cmdData.strMiCmdOption);
-    return (bOk && ParseValidateCmdOptions());
+    return ParseValidateCmdOptions();
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -82,7 +72,7 @@ CMICmdCmdEnvironmentCd::ParseArgs(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdEnvironmentCd::Execute(void)
+CMICmdCmdEnvironmentCd::Execute()
 {
     CMICMDBASE_GETOPTION(pArgPathDir, File, m_constStrArgNamePathDir);
     const CMIUtilString &strWkDir(pArgPathDir->GetValue());
@@ -114,7 +104,7 @@ CMICmdCmdEnvironmentCd::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdEnvironmentCd::Acknowledge(void)
+CMICmdCmdEnvironmentCd::Acknowledge()
 {
     const CMIUtilString &rStrKeyWkDir(m_rLLDBDebugSessionInfo.m_constStrSharedDataKeyWkDir);
     CMIUtilString strWkDir;
@@ -141,7 +131,7 @@ CMICmdCmdEnvironmentCd::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdEnvironmentCd::CreateSelf(void)
+CMICmdCmdEnvironmentCd::CreateSelf()
 {
     return new CMICmdCmdEnvironmentCd();
 }

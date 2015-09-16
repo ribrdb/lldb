@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/API/SBThread.h"
 
 #include "lldb/API/SBSymbolContext.h"
@@ -20,13 +18,15 @@
 #include "lldb/Core/Stream.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredData.h"
+#include "lldb/Core/ValueObject.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Symbol/SymbolContext.h"
+#include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Target/SystemRuntime.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Queue.h"
-#include "lldb/Symbol/SymbolContext.h"
-#include "lldb/Symbol/CompileUnit.h"
+#include "lldb/Target/UnixSignals.h"
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/ThreadPlan.h"
@@ -114,13 +114,13 @@ SBThread::GetQueue () const
         else
         {
             if (log)
-                log->Printf ("SBThread(%p)::GetQueueKind() => error: process is running",
+                log->Printf ("SBThread(%p)::GetQueue() => error: process is running",
                              static_cast<void*>(exe_ctx.GetThreadPtr()));
         }
     }
 
     if (log)
-        log->Printf ("SBThread(%p)::GetQueueKind () => SBQueue(%p)",
+        log->Printf ("SBThread(%p)::GetQueue () => SBQueue(%p)",
                      static_cast<void*>(exe_ctx.GetThreadPtr()), static_cast<void*>(queue_sp.get()));
 
     return sb_queue;
@@ -392,7 +392,7 @@ SBThread::GetStopDescription (char *dst, size_t dst_len)
 
                     case eStopReasonSignal:
                         {
-                            stop_desc = exe_ctx.GetProcessPtr()->GetUnixSignals ().GetSignalAsCString (stop_info_sp->GetValue());
+                            stop_desc = exe_ctx.GetProcessPtr()->GetUnixSignals()->GetSignalAsCString(stop_info_sp->GetValue());
                             if (stop_desc == NULL || stop_desc[0] == '\0')
                             {
                                 static char signal_desc[] = "signal";
@@ -826,7 +826,6 @@ SBThread::StepOut ()
     Mutex::Locker api_locker;
     ExecutionContext exe_ctx (m_opaque_sp.get(), api_locker);
 
-
     if (log)
         log->Printf ("SBThread(%p)::StepOut ()",
                      static_cast<void*>(exe_ctx.GetThreadPtr()));
@@ -861,6 +860,14 @@ SBThread::StepOutOfFrame (lldb::SBFrame &sb_frame)
     Mutex::Locker api_locker;
     ExecutionContext exe_ctx (m_opaque_sp.get(), api_locker);
 
+    if (!sb_frame.IsValid())
+    {
+        if (log)
+            log->Printf("SBThread(%p)::StepOutOfFrame passed an invalid frame, returning.",
+                        static_cast<void*>(exe_ctx.GetThreadPtr()));
+        return;
+    }
+    
     StackFrameSP frame_sp (sb_frame.GetFrameSP());
     if (log)
     {
@@ -877,6 +884,13 @@ SBThread::StepOutOfFrame (lldb::SBFrame &sb_frame)
         bool abort_other_plans = false;
         bool stop_other_threads = false;
         Thread *thread = exe_ctx.GetThreadPtr();
+        if (sb_frame.GetThread().GetThreadID() != thread->GetID())
+        {
+            log->Printf("SBThread(%p)::StepOutOfFrame passed a frame from another thread (0x%" PRIx64 " vrs. 0x%" PRIx64 ", returning.",
+                        static_cast<void*>(exe_ctx.GetThreadPtr()),
+                        sb_frame.GetThread().GetThreadID(),
+                        thread->GetID());
+        }
 
         ThreadPlanSP new_plan_sp(thread->QueueThreadPlanForStepOut (abort_other_plans,
                                                                     NULL,

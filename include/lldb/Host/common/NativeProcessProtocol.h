@@ -16,6 +16,8 @@
 #include "lldb/lldb-types.h"
 #include "lldb/Core/Error.h"
 #include "lldb/Host/Mutex.h"
+#include "lldb/Host/MainLoop.h"
+#include "llvm/ADT/StringRef.h"
 
 #include "NativeBreakpointList.h"
 #include "NativeWatchpointList.h"
@@ -34,8 +36,6 @@ namespace lldb_private
         friend class SoftwareBreakpoint;
 
     public:
-        static NativeProcessProtocol *
-        CreateInstance (lldb::pid_t pid);
 
         // lldb_private::Host calls should be used to launch a process for debugging, and
         // then the process should be attached to. When attaching to a process
@@ -43,7 +43,6 @@ namespace lldb_private
         // and then this function should be called.
         NativeProcessProtocol (lldb::pid_t pid);
 
-    public:
         virtual ~NativeProcessProtocol ()
         {
         }
@@ -90,13 +89,16 @@ namespace lldb_private
         GetMemoryRegionInfo (lldb::addr_t load_addr, MemoryRegionInfo &range_info);
 
         virtual Error
-        ReadMemory (lldb::addr_t addr, void *buf, lldb::addr_t size, lldb::addr_t &bytes_read) = 0;
+        ReadMemory(lldb::addr_t addr, void *buf, size_t size, size_t &bytes_read) = 0;
 
         virtual Error
-        WriteMemory (lldb::addr_t addr, const void *buf, lldb::addr_t size, lldb::addr_t &bytes_written) = 0;
+        ReadMemoryWithoutTrap(lldb::addr_t addr, void *buf, size_t size, size_t &bytes_read) = 0;
 
         virtual Error
-        AllocateMemory (lldb::addr_t size, uint32_t permissions, lldb::addr_t &addr) = 0;
+        WriteMemory(lldb::addr_t addr, const void *buf, size_t size, size_t &bytes_written) = 0;
+
+        virtual Error
+        AllocateMemory(size_t size, uint32_t permissions, lldb::addr_t &addr) = 0;
 
         virtual Error
         DeallocateMemory (lldb::addr_t addr) = 0;
@@ -282,6 +284,80 @@ namespace lldb_private
         //------------------------------------------------------------------
         bool
         UnregisterNativeDelegate (NativeDelegate &native_delegate);
+
+        virtual Error
+        GetLoadedModuleFileSpec(const char* module_path, FileSpec& file_spec) = 0;
+
+        virtual Error
+        GetFileLoadAddress(const llvm::StringRef& file_name, lldb::addr_t& load_addr) = 0;
+
+        //------------------------------------------------------------------
+        /// Launch a process for debugging. This method will create an concrete
+        /// instance of NativeProcessProtocol, based on the host platform.
+        /// (e.g. NativeProcessLinux on linux, etc.)
+        ///
+        /// @param[in] launch_info
+        ///     Information required to launch the process.
+        ///
+        /// @param[in] native_delegate
+        ///     The delegate that will receive messages regarding the
+        ///     inferior.  Must outlive the NativeProcessProtocol
+        ///     instance.
+        ///
+        /// @param[in] mainloop
+        ///     The mainloop instance with which the process can register
+        ///     callbacks. Must outlive the NativeProcessProtocol
+        ///     instance.
+        ///
+        /// @param[out] process_sp
+        ///     On successful return from the method, this parameter
+        ///     contains the shared pointer to the
+        ///     NativeProcessProtocol that can be used to manipulate
+        ///     the native process.
+        ///
+        /// @return
+        ///     An error object indicating if the operation succeeded,
+        ///     and if not, what error occurred.
+        //------------------------------------------------------------------
+        static Error
+        Launch (ProcessLaunchInfo &launch_info,
+                NativeDelegate &native_delegate,
+                MainLoop &mainloop,
+                NativeProcessProtocolSP &process_sp);
+
+        //------------------------------------------------------------------
+        /// Attach to an existing process. This method will create an concrete
+        /// instance of NativeProcessProtocol, based on the host platform.
+        /// (e.g. NativeProcessLinux on linux, etc.)
+        ///
+        /// @param[in] pid
+        ///     pid of the process locatable
+        ///
+        /// @param[in] native_delegate
+        ///     The delegate that will receive messages regarding the
+        ///     inferior.  Must outlive the NativeProcessProtocol
+        ///     instance.
+        ///
+        /// @param[in] mainloop
+        ///     The mainloop instance with which the process can register
+        ///     callbacks. Must outlive the NativeProcessProtocol
+        ///     instance.
+        ///
+        /// @param[out] process_sp
+        ///     On successful return from the method, this parameter
+        ///     contains the shared pointer to the
+        ///     NativeProcessProtocol that can be used to manipulate
+        ///     the native process.
+        ///
+        /// @return
+        ///     An error object indicating if the operation succeeded,
+        ///     and if not, what error occurred.
+        //------------------------------------------------------------------
+        static Error
+        Attach (lldb::pid_t pid,
+                NativeDelegate &native_delegate,
+                MainLoop &mainloop,
+                NativeProcessProtocolSP &process_sp);
 
     protected:
         lldb::pid_t m_pid;

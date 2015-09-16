@@ -12,6 +12,7 @@
 
 // C Includes
 // C++ Includes
+#include <functional>
 
 // Other libraries and framework includes
 #include "clang/AST/DeclCXX.h"
@@ -32,7 +33,7 @@
 #include "lldb/DataFormatters/TypeValidator.h"
 
 #include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangASTType.h"
+#include "lldb/Symbol/CompilerType.h"
 
 #include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
@@ -43,10 +44,6 @@
 
 namespace lldb_private {
     
-// this file (and its. cpp) contain the low-level implementation of LLDB Data Visualization
-// class DataVisualization is the high-level front-end of this feature
-// clients should refer to that class as the entry-point into the data formatters
-// unless they have a good reason to bypass it and prefer to use this file's objects directly
 class IFormatChangeListener
 {
 public:
@@ -96,7 +93,7 @@ public:
     typedef typename ValueType::SharedPointer ValueSP;
     typedef std::map<KeyType, ValueSP> MapType;
     typedef typename MapType::iterator MapIterator;
-    typedef bool(*CallbackType)(void*, KeyType, const ValueSP&);
+    typedef std::function<bool(void*, KeyType, const ValueSP&)> CallbackType;
     
     FormatMap(IFormatChangeListener* lst) :
     m_map(),
@@ -272,7 +269,7 @@ public:
         uint32_t* why = NULL)
     {
         uint32_t value = lldb_private::eFormatterChoiceCriterionDirectChoice;
-        ClangASTType ast_type(valobj.GetClangType());
+        CompilerType ast_type(valobj.GetCompilerType());
         bool ret = Get(valobj, ast_type, entry, use_dynamic, value);
         if (ret)
             entry = MapValueType(entry);
@@ -447,7 +444,6 @@ protected:
     {
         for (const FormattersMatchCandidate& candidate : candidates)
         {
-            // FIXME: could we do the IsMatch() check first?
             if (Get(candidate.GetTypeName(),entry))
             {
                 if (candidate.IsMatch(entry) == false)

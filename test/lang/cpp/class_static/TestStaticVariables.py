@@ -13,20 +13,21 @@ class StaticVariableTestCase(TestBase):
     mydir = TestBase.compute_mydir(__file__)
     failing_compilers = ['clang', 'gcc']
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym_and_run_command(self):
         """Test that file and class static variables display correctly."""
         self.buildDsym()
         self.static_variable_commands()
 
+    @expectedFailureWindows("llvm.org/pr24764")
     @dwarf_test
     def test_with_dwarf_and_run_command(self):
         """Test that file and class static variables display correctly."""
         self.buildDwarf()
         self.static_variable_commands()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @expectedFailureClang(9980907)
     @expectedFailureGcc(9980907)
     @python_api_test
@@ -38,6 +39,7 @@ class StaticVariableTestCase(TestBase):
 
     @expectedFailureDarwin(9980907)
     @expectedFailureClang('Clang emits incomplete debug info.')
+    @expectedFailureFreeBSD('llvm.org/pr20550 failing on FreeBSD-11')
     @expectedFailureGcc('GCC emits incomplete debug info.')
     @python_api_test
     @dwarf_test
@@ -73,7 +75,7 @@ class StaticVariableTestCase(TestBase):
 
         # On Mac OS X, gcc 4.2 emits the wrong debug info for A::g_points.
         # A::g_points is an array of two elements.
-        if sys.platform.startswith("darwin") or sys.platform.startswith("linux"):
+        if self.platformIsDarwin() or self.getPlatform() == "linux":
             self.expect("target variable A::g_points[1].x", VARIABLES_DISPLAYED_CORRECTLY,
                 startstr = "(int) A::g_points[1].x = 11")
 

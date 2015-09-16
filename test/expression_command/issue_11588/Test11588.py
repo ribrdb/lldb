@@ -14,6 +14,7 @@ class Issue11581TestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
+    @expectedFailureWindows("llvm.org/pr24778")
     def test_11581_commands(self):
         # This is the function to remove the custom commands in order to have a
         # clean slate for the next test case.
@@ -51,12 +52,11 @@ class Issue11581TestCase(TestBase):
             "addr = ",
             "load_address = "])
 
-
-        target = lldb.debugger.GetSelectedTarget()
-        process = target.GetProcess()
-# register r14 does not exist on 32-bit architectures, it is an x86_64 extension
-# let's skip this part of the test if we are in 32-bit mode
-        if process.GetAddressByteSize() == 8:
+        # register r14 is an x86_64 extension let's skip this part of the test
+        # if we are on a different architecture
+        if self.getArchitecture() == 'x86_64':
+                target = lldb.debugger.GetSelectedTarget()
+                process = target.GetProcess()
                 frame = process.GetSelectedThread().GetSelectedFrame()
                 pointer = frame.FindVariable("r14")
                 addr = pointer.GetValueAsUnsigned(0)

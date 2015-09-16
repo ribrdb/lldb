@@ -24,8 +24,7 @@ class OptionValueFormatEntity : public OptionValue
 public:
     OptionValueFormatEntity (const char *default_format);
     
-    virtual
-    ~OptionValueFormatEntity()
+    ~OptionValueFormatEntity() override
     {
     }
     
@@ -43,7 +42,7 @@ public:
     DumpValue (const ExecutionContext *exe_ctx, Stream &strm, uint32_t dump_mask) override;
     
     Error
-    SetValueFromCString (const char *value,
+    SetValueFromString (llvm::StringRef value,
                          VarSetOperationType op = eVarSetOperationAssign) override;
     
     bool
@@ -94,7 +93,6 @@ public:
         return m_default_entry;
     }
 
-
 protected:
     std::string m_current_format;
     std::string m_default_format;
@@ -104,4 +102,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif  // liblldb_OptionValueFormatEntity_h_
+#endif // liblldb_OptionValueFormatEntity_h_

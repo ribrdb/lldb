@@ -18,6 +18,7 @@
 #include <utility>
 
 // Other libraries and framework includes
+#include "llvm/ADT/StringRef.h"
 // Project includes
 #include "lldb/lldb-private-types.h"
 #include "lldb/lldb-types.h"
@@ -75,11 +76,9 @@ public:
     ///     A NULL terminated command that will be copied and split up
     ///     into arguments.
     ///
-    /// @see Args::SetCommandString(const char *)
+    /// @see Args::SetCommandString(llvm::StringRef)
     //------------------------------------------------------------------
-    Args (const char *command = NULL);
-
-    Args (const char *command, size_t len);
+    Args (llvm::StringRef command = llvm::StringRef());
 
     Args (const Args &rhs);
     
@@ -108,7 +107,7 @@ public:
     /// that can be accessed via the accessor functions.
     ///
     /// @param[in] command
-    ///     A NULL terminated command that will be copied and split up
+    ///     A command StringRef that will be copied and split up
     ///     into arguments.
     ///
     /// @see Args::GetArgumentCount() const
@@ -118,10 +117,7 @@ public:
     /// @see Args::Unshift (const char *)
     //------------------------------------------------------------------
     void
-    SetCommandString (const char *command);
-
-    void
-    SetCommandString (const char *command, size_t len);
+    SetCommandString (llvm::StringRef command);
 
     bool
     GetCommandString (std::string &command) const;
@@ -428,6 +424,9 @@ public:
     static void
     ExpandEscapedCharacters (const char *src, std::string &dst);
 
+    static std::string
+    EscapeLLDBCommandArgument (const std::string& arg, char quote_char);
+
     // This one isn't really relevant to Arguments per se, but we're using the Args as a
     // general strings container, so...
     void
@@ -449,6 +448,9 @@ protected:
 
     void
     UpdateArgvFromArgs ();
+
+    llvm::StringRef
+    ParseSingleArgument (llvm::StringRef command);
 };
 
 } // namespace lldb_private

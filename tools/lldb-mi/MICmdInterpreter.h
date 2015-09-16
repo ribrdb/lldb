@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdInterpreter.h
-//
-// Overview:    CMICmdInterpreter interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // In-house headers:
@@ -35,9 +23,6 @@ class CMICmdFactory;
 //          matches Machine Interface (MI) format and commands defined in the
 //          MI application.
 //          A singleton class.
-// Gotchas: None.
-// Authors: Illya Rudkin 18/02/2014.
-// Changes: None.
 //--
 class CMICmdInterpreter : public CMICmnBase, public MI::ISingleton<CMICmdInterpreter>
 {
@@ -47,18 +32,18 @@ class CMICmdInterpreter : public CMICmnBase, public MI::ISingleton<CMICmdInterpr
   public:
     // Methods:
   public:
-    bool Initialize(void);
-    bool Shutdown(void);
+    bool Initialize() override;
+    bool Shutdown() override;
     bool ValidateIsMi(const CMIUtilString &vTextLine, bool &vwbYesValid, bool &vwbCmdNotInCmdFactor, SMICmdData &rwCmdData);
 
     // Methods:
   private:
-    /* ctor */ CMICmdInterpreter(void);
+    /* ctor */ CMICmdInterpreter();
     /* ctor */ CMICmdInterpreter(const CMICmdInterpreter &);
     void operator=(const CMICmdInterpreter &);
 
     bool HasCmdFactoryGotMiCmd(const SMICmdData &vCmdData) const;
-    bool MiHasCmdTokenEndingHypthen(const CMIUtilString &vTextLine);
+    bool MiHasCmdTokenEndingHyphen(const CMIUtilString &vTextLine);
     bool MiHasCmdTokenEndingAlpha(const CMIUtilString &vTextLine);
     bool MiHasCmd(const CMIUtilString &vTextLine);
     bool MiHasCmdTokenPresent(const CMIUtilString &vTextLine);
@@ -67,7 +52,7 @@ class CMICmdInterpreter : public CMICmnBase, public MI::ISingleton<CMICmdInterpr
     // Overridden:
   private:
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmdInterpreter(void);
+    /* dtor */ ~CMICmdInterpreter() override;
 
     // Attributes:
   private:

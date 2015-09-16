@@ -18,12 +18,16 @@
 
 // Computes the offset of the given FPR in the extended data area.
 #define FPR_OFFSET(regname)  \
-    (LLVM_EXTENSION offsetof(FPR, xstate) + \
-     LLVM_EXTENSION offsetof(FXSAVE, regname))
+    (LLVM_EXTENSION offsetof(UserArea, i387) + \
+     LLVM_EXTENSION offsetof(FPR_i386, regname))
 
 // Computes the offset of the YMM register assembled from register halves.
-#define YMM_OFFSET(regname) \
-    (LLVM_EXTENSION offsetof(YMM, regname))
+// Based on DNBArchImplI386.cpp from debugserver
+#define YMM_OFFSET(reg_index) \
+    (LLVM_EXTENSION offsetof(UserArea, i387) + \
+     LLVM_EXTENSION offsetof(FPR, xstate) + \
+     LLVM_EXTENSION offsetof(FXSAVE, xmm[7]) + \
+     sizeof(XMMReg) + (32 * reg_index))
 
 // Number of bytes needed to represent a FPR.
 #if !defined(FPR_SIZE)
@@ -48,7 +52,7 @@
     { #name, NULL, FPR_SIZE(reg), FPR_OFFSET(reg), eEncodingUint,   \
       eFormatHex, { kind1, kind2, kind3, kind4, lldb_##name##_i386 }, NULL, NULL }
 
-// RegisterKind: GCC, DWARF, Generic, GDB, LLDB
+// RegisterKind: EHFrame, DWARF, Generic, Stabs, LLDB
 
 #define DEFINE_FP_ST(reg, i)                                       \
     { #reg#i, NULL, FP_SIZE, LLVM_EXTENSION FPR_OFFSET(stmm[i]),    \
@@ -70,7 +74,7 @@
 
 // I believe the YMM registers use dwarf_xmm_%_i386 register numbers and then differentiate based on register size.
 #define DEFINE_YMM(reg, i)                                         \
-    { #reg#i, NULL, YMM_SIZE, LLVM_EXTENSION YMM_OFFSET(reg[i]),   \
+    { #reg#i, NULL, YMM_SIZE, LLVM_EXTENSION YMM_OFFSET(i),        \
       eEncodingVector, eFormatVectorOfUInt8,                       \
       { LLDB_INVALID_REGNUM, dwarf_xmm##i##_i386, LLDB_INVALID_REGNUM, gdb_##reg##i##h_i386, lldb_##reg##i##_i386 }, \
       NULL, NULL }

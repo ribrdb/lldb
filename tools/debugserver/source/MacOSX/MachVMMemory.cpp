@@ -19,6 +19,8 @@
 #include <sys/sysctl.h>
 #include <dlfcn.h>
 
+static const vm_size_t kInvalidPageSize = ~0;
+
 MachVMMemory::MachVMMemory() :
     m_page_size    (kInvalidPageSize),
     m_err        (0)
@@ -180,27 +182,39 @@ MachVMMemory::GetStolenPages(task_t task)
         
 		/* These are all declared as QUAD/uint64_t sysctls in the kernel. */
         
-		if(-1 == sysctl(mib_reserved, mib_reserved_len, &reserved,
-                        &reserved_len, NULL, 0))
+		if (sysctl (mib_reserved,
+                    static_cast<u_int>(mib_reserved_len),
+                    &reserved,
+                    &reserved_len,
+                    NULL,
+                    0))
         {
 			return 0;
 		}
         
-		if(-1 == sysctl(mib_unusable, mib_unusable_len, &unusable,
-                        &unusable_len, NULL, 0))
+		if (sysctl (mib_unusable,
+                    static_cast<u_int>(mib_unusable_len),
+                    &unusable,
+                    &unusable_len,
+                    NULL,
+                    0))
         {
 			return 0;
 		}
         
-		if(-1 == sysctl(mib_other, mib_other_len, &other,
-                        &other_len, NULL, 0))
+		if (sysctl (mib_other,
+                    static_cast<u_int>(mib_other_len),
+                    &other,
+                    &other_len,
+                    NULL,
+                    0))
         {
 			return 0;
 		}
         
-		if(reserved_len == sizeof(reserved)
-		   && unusable_len == sizeof(unusable)
-		   && other_len == sizeof(other))
+		if (reserved_len == sizeof(reserved) &&
+		    unusable_len == sizeof(unusable) &&
+            other_len == sizeof(other))
         {
 			uint64_t stolen = reserved + unusable + other;	
 			uint64_t mb128 = 128 * 1024 * 1024ULL;
@@ -224,11 +238,10 @@ static uint64_t GetPhysicalMemory()
     static bool calculated = false;
     if (calculated) return physical_memory;
     
-    int mib[2];
-    mib[0] = CTL_HW;
-    mib[1] = HW_MEMSIZE;
     size_t len = sizeof(physical_memory);
-    sysctl(mib, 2, &physical_memory, &len, NULL, 0);
+    sysctlbyname("hw.memsize", &physical_memory, &len, NULL, 0);
+    
+    calculated = true;
     return physical_memory;
 }
 
@@ -406,8 +419,13 @@ GetPurgeableAndAnonymous(task_t task, uint64_t &purgeable, uint64_t &anonymous)
 #endif
 }
 
+#if defined (HOST_VM_INFO64_COUNT)
 nub_bool_t
-MachVMMemory::GetMemoryProfile(DNBProfileDataScanType scanType, task_t task, struct task_basic_info ti, cpu_type_t cputype, nub_process_t pid, vm_statistics_data_t &vm_stats, uint64_t &physical_memory, mach_vm_size_t &rprvt, mach_vm_size_t &rsize, mach_vm_size_t &vprvt, mach_vm_size_t &vsize, mach_vm_size_t &dirty_size, mach_vm_size_t &purgeable, mach_vm_size_t &anonymous)
+MachVMMemory::GetMemoryProfile(DNBProfileDataScanType scanType, task_t task, struct task_basic_info ti, cpu_type_t cputype, nub_process_t pid, vm_statistics64_data_t &vminfo, uint64_t &physical_memory, mach_vm_size_t &rprvt, mach_vm_size_t &rsize, mach_vm_size_t &vprvt, mach_vm_size_t &vsize, mach_vm_size_t &dirty_size, mach_vm_size_t &purgeable, mach_vm_size_t &anonymous)
+#else
+nub_bool_t
+MachVMMemory::GetMemoryProfile(DNBProfileDataScanType scanType, task_t task, struct task_basic_info ti, cpu_type_t cputype, nub_process_t pid, vm_statistics_data_t &vminfo, uint64_t &physical_memory, mach_vm_size_t &rprvt, mach_vm_size_t &rsize, mach_vm_size_t &vprvt, mach_vm_size_t &vsize, mach_vm_size_t &dirty_size, mach_vm_size_t &purgeable, mach_vm_size_t &anonymous)
+#endif
 {
     if (scanType & eProfileHostMemory)
         physical_memory = GetPhysicalMemory();
@@ -415,12 +433,17 @@ MachVMMemory::GetMemoryProfile(DNBProfileDataScanType scanType, task_t task, str
     if (scanType & eProfileMemory)
     {
         static mach_port_t localHost = mach_host_self();
+#if defined (HOST_VM_INFO64_COUNT)
+        mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
+        host_statistics64(localHost, HOST_VM_INFO64, (host_info64_t)&vminfo, &count);
+#else
         mach_msg_type_number_t count = HOST_VM_INFO_COUNT;
-        host_statistics(localHost, HOST_VM_INFO, (host_info_t)&vm_stats, &count);
-        vm_stats.wire_count += GetStolenPages(task);
-    
+        host_statistics(localHost, HOST_VM_INFO, (host_info_t)&vminfo, &count);
+        vminfo.wire_count += GetStolenPages(task);
+#endif
+        
+        /* We are no longer reporting these. Let's not waste time.
         GetMemorySizes(task, cputype, pid, rprvt, vprvt);
-    
         rsize = ti.resident_size;
         vsize = ti.virtual_size;
         
@@ -429,6 +452,7 @@ MachVMMemory::GetMemoryProfile(DNBProfileDataScanType scanType, task_t task, str
             // This uses vmmap strategy. We don't use the returned rsize for now. We prefer to match top's version since that's what we do for the rest of the metrics.
             GetRegionSizes(task, rsize, dirty_size);
         }
+        */
         
         if (scanType & eProfileMemoryAnonymous)
         {
@@ -452,7 +476,7 @@ MachVMMemory::Read(task_t task, nub_addr_t address, void *data, nub_size_t data_
     {
         mach_vm_size_t curr_size = MaxBytesLeftInPage(task, curr_addr, data_count - total_bytes_read);
         mach_msg_type_number_t curr_bytes_read = 0;
-        vm_offset_t vm_memory = NULL;
+        vm_offset_t vm_memory = 0;
         m_err = ::mach_vm_read (task, curr_addr, curr_size, &vm_memory, &curr_bytes_read);
         
         if (DNBLogCheckLogBit(LOG_MEMORY))
@@ -546,7 +570,7 @@ MachVMMemory::WriteRegion(task_t task, const nub_addr_t address, const void *dat
     const uint8_t *curr_data = (const uint8_t*)data;
     while (total_bytes_written < data_count)
     {
-        mach_msg_type_number_t curr_data_count = MaxBytesLeftInPage(task, curr_addr, data_count - total_bytes_written);
+        mach_msg_type_number_t curr_data_count = static_cast<mach_msg_type_number_t>(MaxBytesLeftInPage(task, curr_addr, data_count - total_bytes_written));
         m_err = ::mach_vm_write (task, curr_addr, (pointer_t) curr_data, curr_data_count);
         if (DNBLogCheckLogBit(LOG_MEMORY) || m_err.Fail())
             m_err.LogThreaded("::mach_vm_write ( task = 0x%4.4x, addr = 0x%8.8llx, data = %8.8p, dataCnt = %u )", task, (uint64_t)curr_addr, curr_data, curr_data_count);

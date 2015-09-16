@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "PlatformLinux.h"
 #include "lldb/Host/Config.h"
 
@@ -38,12 +36,14 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Process.h"
 
-#if defined(__linux__)
-#include "../../Process/Linux/NativeProcessLinux.h"
-#endif
+// Define these constants from Linux mman.h for use when targeting
+// remote linux systems even when host has different values.
+#define MAP_PRIVATE 2
+#define MAP_ANON 0x20
 
 using namespace lldb;
 using namespace lldb_private;
+using namespace lldb_private::platform_linux;
 
 static uint32_t g_initialize_count = 0;
 
@@ -53,61 +53,51 @@ static uint32_t g_initialize_count = 0;
 
 namespace
 {
-    enum
+    class PlatformLinuxProperties : public Properties
     {
-        ePropertyUseLlgsForLocal = 0,
+    public:
+        static ConstString&
+        GetSettingName ();
+
+        PlatformLinuxProperties();
+
+        virtual
+        ~PlatformLinuxProperties() = default;
+
+    private:
+        static const PropertyDefinition*
+        GetStaticPropertyDefinitions();
     };
 
-    const PropertyDefinition*
-    GetStaticPropertyDefinitions ()
-    {
-        static PropertyDefinition
-        g_properties[] =
-        {
-            { "use-llgs-for-local" , OptionValue::eTypeBoolean, true, false, NULL, NULL, "Control whether the platform uses llgs for local debug sessions." },
-            {  NULL        , OptionValue::eTypeInvalid, false, 0  , NULL, NULL, NULL  }
-        };
+    typedef std::shared_ptr<PlatformLinuxProperties> PlatformLinuxPropertiesSP;
 
-        // Allow environment variable to force using llgs-local.
-        if (getenv("PLATFORM_LINUX_FORCE_LLGS_LOCAL"))
-            g_properties[ePropertyUseLlgsForLocal].default_uint_value = true;
+} // anonymous namespace
 
-        return g_properties;
-    }
+PlatformLinuxProperties::PlatformLinuxProperties() :
+    Properties ()
+{
+    m_collection_sp.reset (new OptionValueProperties(GetSettingName ()));
+    m_collection_sp->Initialize (GetStaticPropertyDefinitions ());
 }
 
-class PlatformLinuxProperties : public Properties
+ConstString&
+PlatformLinuxProperties::GetSettingName ()
 {
-public:
+    static ConstString g_setting_name("linux");
+    return g_setting_name;
+}
 
-    static ConstString &
-    GetSettingName ()
+const PropertyDefinition*
+PlatformLinuxProperties::GetStaticPropertyDefinitions()
+{
+    static PropertyDefinition
+    g_properties[] =
     {
-        static ConstString g_setting_name("linux");
-        return g_setting_name;
-    }
+        {  NULL        , OptionValue::eTypeInvalid, false, 0  , NULL, NULL, NULL  }
+    };
 
-    PlatformLinuxProperties() :
-    Properties ()
-    {
-        m_collection_sp.reset (new OptionValueProperties(GetSettingName ()));
-        m_collection_sp->Initialize (GetStaticPropertyDefinitions ());
-    }
-
-    virtual
-    ~PlatformLinuxProperties()
-    {
-    }
-
-    bool
-    GetUseLlgsForLocal() const
-    {
-        const uint32_t idx = ePropertyUseLlgsForLocal;
-        return m_collection_sp->GetPropertyAtIndexAsBoolean (NULL, idx, GetStaticPropertyDefinitions()[idx].default_uint_value != 0);
-    }
-};
-
-typedef std::shared_ptr<PlatformLinuxProperties> PlatformLinuxPropertiesSP;
+    return g_properties;
+}
 
 static const PlatformLinuxPropertiesSP &
 GetGlobalProperties()
@@ -119,7 +109,7 @@ GetGlobalProperties()
 }
 
 void
-PlatformLinux::DebuggerInitialize (lldb_private::Debugger &debugger)
+PlatformLinux::DebuggerInitialize (Debugger &debugger)
 {
     if (!PluginManager::GetSettingForPlatformPlugin (debugger, PlatformLinuxProperties::GetSettingName()))
     {
@@ -137,7 +127,7 @@ PlatformLinux::DebuggerInitialize (lldb_private::Debugger &debugger)
 PlatformSP
 PlatformLinux::CreateInstance (bool force, const ArchSpec *arch)
 {
-    Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_PLATFORM));
+    Log *log(GetLogIfAllCategoriesSet (LIBLLDB_LOG_PLATFORM));
     if (log)
     {
         const char *arch_name;
@@ -155,43 +145,22 @@ PlatformLinux::CreateInstance (bool force, const ArchSpec *arch)
     if (create == false && arch && arch->IsValid())
     {
         const llvm::Triple &triple = arch->GetTriple();
-        switch (triple.getVendor())
+        switch (triple.getOS())
         {
-            case llvm::Triple::PC:
+            case llvm::Triple::Linux:
                 create = true;
                 break;
 
 #if defined(__linux__)
-            // Only accept "unknown" for the vendor if the host is linux and
+            // Only accept "unknown" for the OS if the host is linux and
             // it "unknown" wasn't specified (it was just returned because it
-            // was NOT specified_
-            case llvm::Triple::VendorType::UnknownVendor:
-                create = !arch->TripleVendorWasSpecified();
+            // was NOT specified)
+            case llvm::Triple::OSType::UnknownOS:
+                create = !arch->TripleOSWasSpecified();
                 break;
 #endif
             default:
                 break;
-        }
-        
-        if (create)
-        {
-            switch (triple.getOS())
-            {
-                case llvm::Triple::Linux:
-                    break;
-                    
-#if defined(__linux__)
-                // Only accept "unknown" for the OS if the host is linux and
-                // it "unknown" wasn't specified (it was just returned because it
-                // was NOT specified)
-                case llvm::Triple::OSType::UnknownOS:
-                    create = !arch->TripleOSWasSpecified();
-                    break;
-#endif
-                default:
-                    create = false;
-                    break;
-            }
         }
     }
 
@@ -209,7 +178,7 @@ PlatformLinux::CreateInstance (bool force, const ArchSpec *arch)
 }
 
 
-lldb_private::ConstString
+ConstString
 PlatformLinux::GetPluginNameStatic (bool is_host)
 {
     if (is_host)
@@ -233,7 +202,7 @@ PlatformLinux::GetPluginDescriptionStatic (bool is_host)
         return "Remote Linux user platform plug-in.";
 }
 
-lldb_private::ConstString
+ConstString
 PlatformLinux::GetPluginName()
 {
     return GetPluginNameStatic(IsHost());
@@ -242,9 +211,11 @@ PlatformLinux::GetPluginName()
 void
 PlatformLinux::Initialize ()
 {
+    PlatformPOSIX::Initialize ();
+
     if (g_initialize_count++ == 0)
     {
-#if defined(__linux__)
+#if defined(__linux__) && !defined(__ANDROID__)
         PlatformSP default_platform_sp (new PlatformLinux(true));
         default_platform_sp->SetSystemArchitecture(HostInfo::GetArchitecture());
         Platform::SetHostPlatform (default_platform_sp);
@@ -266,6 +237,8 @@ PlatformLinux::Terminate ()
             PluginManager::UnregisterPlugin (PlatformLinux::CreateInstance);
         }
     }
+
+    PlatformPOSIX::Terminate ();
 }
 
 Error
@@ -278,7 +251,7 @@ PlatformLinux::ResolveExecutable (const ModuleSpec &ms,
 
     char exe_path[PATH_MAX];
     ModuleSpec resolved_module_spec (ms);
-    
+
     if (IsHost())
     {
         // If we have "ls" as the exe_file, resolve the executable location based on
@@ -303,14 +276,12 @@ PlatformLinux::ResolveExecutable (const ModuleSpec &ms,
     {
         if (m_remote_platform_sp)
         {
-            error = m_remote_platform_sp->ResolveExecutable (ms,
-                                                             exe_module_sp,
-                                                             NULL);
+            error = GetCachedExecutable (resolved_module_spec, exe_module_sp, module_search_paths_ptr, *m_remote_platform_sp);
         }
         else
         {
             // We may connect to a process and use the provided executable (Don't use local $PATH).
-            
+
             if (resolved_module_spec.GetFileSpec().Exists())
                 error.Clear();
             else
@@ -323,8 +294,8 @@ PlatformLinux::ResolveExecutable (const ModuleSpec &ms,
         if (resolved_module_spec.GetArchitecture().IsValid())
         {
             error = ModuleList::GetSharedModule (resolved_module_spec,
-                                                 exe_module_sp, 
-                                                 NULL, 
+                                                 exe_module_sp,
+                                                 NULL,
                                                  NULL,
                                                  NULL);
             if (error.Fail())
@@ -344,14 +315,14 @@ PlatformLinux::ResolveExecutable (const ModuleSpec &ms,
                         module_triple.setOSName (host_triple.getOSName());
 
                     error = ModuleList::GetSharedModule (resolved_module_spec,
-                                                         exe_module_sp, 
-                                                         NULL, 
+                                                         exe_module_sp,
+                                                         NULL,
                                                          NULL,
                                                          NULL);
                 }
             }
-        
-            // TODO find out why exe_module_sp might be NULL            
+
+            // TODO find out why exe_module_sp might be NULL
             if (!exe_module_sp || exe_module_sp->GetObjectFile() == NULL)
             {
                 exe_module_sp.reset();
@@ -369,11 +340,11 @@ PlatformLinux::ResolveExecutable (const ModuleSpec &ms,
             for (uint32_t idx = 0; GetSupportedArchitectureAtIndex (idx, resolved_module_spec.GetArchitecture()); ++idx)
             {
                 error = ModuleList::GetSharedModule (resolved_module_spec,
-                                                     exe_module_sp, 
-                                                     NULL, 
+                                                     exe_module_sp,
+                                                     NULL,
                                                      NULL,
                                                      NULL);
-                // Did we find an executable using one of the 
+                // Did we find an executable using one of the
                 if (error.Success())
                 {
                     if (exe_module_sp && exe_module_sp->GetObjectFile())
@@ -381,12 +352,12 @@ PlatformLinux::ResolveExecutable (const ModuleSpec &ms,
                     else
                         error.SetErrorToGenericError();
                 }
-                
+
                 if (idx > 0)
                     arch_names.PutCString (", ");
                 arch_names.PutCString (resolved_module_spec.GetArchitecture().GetArchitectureName());
             }
-            
+
             if (error.Fail() || !exe_module_sp)
             {
                 if (resolved_module_spec.GetFileSpec().Readable())
@@ -408,7 +379,7 @@ PlatformLinux::ResolveExecutable (const ModuleSpec &ms,
 }
 
 Error
-PlatformLinux::GetFileWithUUID (const FileSpec &platform_file, 
+PlatformLinux::GetFileWithUUID (const FileSpec &platform_file,
                                 const UUID *uuid_ptr, FileSpec &local_file)
 {
     if (IsRemote())
@@ -451,7 +422,7 @@ PlatformLinux::GetProcessInfo (lldb::pid_t pid, ProcessInstanceInfo &process_inf
     }
     else
     {
-        if (m_remote_platform_sp) 
+        if (m_remote_platform_sp)
             success = m_remote_platform_sp->GetProcessInfo (pid, process_info);
     }
     return success;
@@ -479,20 +450,57 @@ PlatformLinux::FindProcesses (const ProcessInstanceInfoMatch &match_info,
 bool
 PlatformLinux::GetSupportedArchitectureAtIndex (uint32_t idx, ArchSpec &arch)
 {
-    if (idx == 0)
+    if (IsHost())
     {
-        arch = HostInfo::GetArchitecture(HostInfo::eArchKindDefault);
-        return arch.IsValid();
-    }
-    else if (idx == 1)
-    {
-        // If the default host architecture is 64-bit, look for a 32-bit variant
         ArchSpec hostArch = HostInfo::GetArchitecture(HostInfo::eArchKindDefault);
-        if (hostArch.IsValid() && hostArch.GetTriple().isArch64Bit())
+        if (hostArch.GetTriple().isOSLinux())
         {
-            arch = HostInfo::GetArchitecture(HostInfo::eArchKind32);
-            return arch.IsValid();
+            if (idx == 0)
+            {
+                arch = hostArch;
+                return arch.IsValid();
+            }
+            else if (idx == 1)
+            {
+                // If the default host architecture is 64-bit, look for a 32-bit variant
+                if (hostArch.IsValid() && hostArch.GetTriple().isArch64Bit())
+                {
+                    arch = HostInfo::GetArchitecture(HostInfo::eArchKind32);
+                    return arch.IsValid();
+                }
+            }
         }
+    }
+    else
+    {
+        if (m_remote_platform_sp)
+            return m_remote_platform_sp->GetSupportedArchitectureAtIndex(idx, arch);
+
+        llvm::Triple triple;
+        // Set the OS to linux
+        triple.setOS(llvm::Triple::Linux);
+        // Set the architecture
+        switch (idx)
+        {
+            case 0: triple.setArchName("x86_64"); break;
+            case 1: triple.setArchName("i386"); break;
+            case 2: triple.setArchName("arm"); break;
+            case 3: triple.setArchName("aarch64"); break;
+            case 4: triple.setArchName("mips64"); break;
+            case 5: triple.setArchName("hexagon"); break;
+            case 6: triple.setArchName("mips"); break;
+            case 7: triple.setArchName("mips64el"); break;
+            case 8: triple.setArchName("mipsel"); break;
+            default: return false;
+        }
+        // Leave the vendor as "llvm::Triple:UnknownVendor" and don't specify the vendor by
+        // calling triple.SetVendorName("unknown") so that it is a "unspecified unknown".
+        // This means when someone calls triple.GetVendorName() it will return an empty string
+        // which indicates that the vendor can be set when two architectures are merged
+
+        // Now set the triple into "arch" and return true
+        arch.SetTriple(triple);
+        return true;
     }
     return false;
 }
@@ -521,7 +529,7 @@ PlatformLinux::GetStatus (Stream &strm)
 }
 
 size_t
-PlatformLinux::GetSoftwareBreakpointTrapOpcode (Target &target, 
+PlatformLinux::GetSoftwareBreakpointTrapOpcode (Target &target,
                                                 BreakpointSite *bp_site)
 {
     ArchSpec arch = target.GetArchitecture();
@@ -533,7 +541,7 @@ PlatformLinux::GetSoftwareBreakpointTrapOpcode (Target &target,
     default:
         assert(false && "CPU type not supported!");
         break;
-            
+
     case llvm::Triple::aarch64:
         {
             static const uint8_t g_aarch64_opcode[] = { 0x00, 0x00, 0x20, 0xd4 };
@@ -569,9 +577,8 @@ PlatformLinux::GetSoftwareBreakpointTrapOpcode (Target &target,
             if (bp_loc_sp)
                 addr_class = bp_loc_sp->GetAddress ().GetAddressClass ();
 
-            if (addr_class == eAddressClassCodeAlternateISA 
-                || (addr_class == eAddressClassUnknown 
-                    && bp_loc_sp->GetAddress().GetOffset() & 1))
+            if (addr_class == eAddressClassCodeAlternateISA
+                || (addr_class == eAddressClassUnknown && (bp_site->GetLoadAddress() & 1)))
             {
                 trap_opcode = g_thumb_breakpoint_opcode;
                 trap_opcode_size = sizeof(g_thumb_breakpoint_opcode);
@@ -583,9 +590,18 @@ PlatformLinux::GetSoftwareBreakpointTrapOpcode (Target &target,
             }
         }
         break;
+    case llvm::Triple::mips:
     case llvm::Triple::mips64:
         {
             static const uint8_t g_hex_opcode[] = { 0x00, 0x00, 0x00, 0x0d };
+            trap_opcode = g_hex_opcode;
+            trap_opcode_size = sizeof(g_hex_opcode);
+        }
+        break;
+    case llvm::Triple::mipsel:
+    case llvm::Triple::mips64el:
+        {
+            static const uint8_t g_hex_opcode[] = { 0x0d, 0x00, 0x00, 0x00 };
             trap_opcode = g_hex_opcode;
             trap_opcode_size = sizeof(g_hex_opcode);
         }
@@ -638,21 +654,11 @@ PlatformLinux::GetResumeCountForLaunchInfo (ProcessLaunchInfo &launch_info)
 }
 
 bool
-PlatformLinux::UseLlgsForLocalDebugging ()
-{
-    PlatformLinuxPropertiesSP properties_sp = GetGlobalProperties ();
-    assert (properties_sp && "global properties shared pointer is null");
-    return properties_sp ? properties_sp->GetUseLlgsForLocal () : false;
-}
-
-bool
 PlatformLinux::CanDebugProcess ()
 {
     if (IsHost ())
     {
-        // The platform only does local debugging (i.e. uses llgs) when the setting indicates we do that.
-        // Otherwise, we'll use ProcessLinux/ProcessPOSIX to handle with ProcessMonitor.
-        return UseLlgsForLocalDebugging ();
+        return true;
     }
     else
     {
@@ -670,7 +676,7 @@ PlatformLinux::DebugProcess (ProcessLaunchInfo &launch_info,
                              Target *target,       // Can be NULL, if NULL create a new target, else use existing one
                              Error &error)
 {
-    Log *log(lldb_private::GetLogIfAllCategoriesSet (LIBLLDB_LOG_PLATFORM));
+    Log *log(GetLogIfAllCategoriesSet (LIBLLDB_LOG_PLATFORM));
     if (log)
         log->Printf ("PlatformLinux::%s entered (target %p)", __FUNCTION__, static_cast<void*>(target));
 
@@ -683,14 +689,6 @@ PlatformLinux::DebugProcess (ProcessLaunchInfo &launch_info,
     //
 
     ProcessSP process_sp;
-
-    // Ensure we're using llgs for local debugging.
-    if (!UseLlgsForLocalDebugging ())
-    {
-        assert (false && "we're trying to debug a local process but platform.plugin.linux.use-llgs-for-local is false, should never get here");
-        error.SetErrorString ("attempted to start gdb-remote-based debugging for local process but platform.plugin.linux.use-llgs-for-local is false");
-        return process_sp;
-    }
 
     // Make sure we stop at the entry point
     launch_info.GetFlags ().Set (eLaunchFlagDebug);
@@ -756,12 +754,8 @@ PlatformLinux::DebugProcess (ProcessLaunchInfo &launch_info,
             log->Printf ("PlatformLinux::%s successfully created process", __FUNCTION__);
     }
 
-    // Set the unix signals properly.
-    process_sp->SetUnixSignals (Host::GetUnixSignals ());
-
     // Adjust launch for a hijacker.
     ListenerSP listener_sp;
-#if 0
     if (!launch_info.GetHijackListener ())
     {
         if (log)
@@ -771,7 +765,6 @@ PlatformLinux::DebugProcess (ProcessLaunchInfo &launch_info,
         launch_info.SetHijackListener (listener_sp);
         process_sp->HijackProcessEvents (listener_sp.get ());
     }
-#endif
 
     // Log file actions.
     if (log)
@@ -797,7 +790,6 @@ PlatformLinux::DebugProcess (ProcessLaunchInfo &launch_info,
         if (listener_sp)
         {
             const StateType state = process_sp->WaitForProcessToStop (NULL, NULL, false, listener_sp.get());
-            process_sp->RestoreProcessEvents();
 
             if (state == eStateStopped)
             {
@@ -843,56 +835,33 @@ PlatformLinux::CalculateTrapHandlerSymbolNames ()
     m_trap_handlers.push_back (ConstString ("_sigtramp"));
 }
 
-Error
-PlatformLinux::LaunchNativeProcess (
-    ProcessLaunchInfo &launch_info,
-    lldb_private::NativeProcessProtocol::NativeDelegate &native_delegate,
-    NativeProcessProtocolSP &process_sp)
+uint64_t
+PlatformLinux::ConvertMmapFlagsToPlatform(const ArchSpec &arch, unsigned flags)
 {
-#if !defined(__linux__) || defined(__ANDROID_NDK__)
-    return Error("only implemented on Linux hosts");
-#else
-    if (!IsHost ())
-        return Error("PlatformLinux::%s (): cannot launch a debug process when not the host", __FUNCTION__);
+    uint64_t flags_platform = 0;
+    uint64_t map_anon = MAP_ANON;
 
-    // Retrieve the exe module.
-    lldb::ModuleSP exe_module_sp;
-    ModuleSpec exe_module_spec(launch_info.GetExecutableFile(), launch_info.GetArchitecture());
+    // To get correct flags for MIPS Architecture
+    if (arch.GetTriple ().getArch () == llvm::Triple::mips64
+       || arch.GetTriple ().getArch () == llvm::Triple::mips64el 
+       || arch.GetTriple ().getArch () == llvm::Triple::mips 
+       || arch.GetTriple ().getArch () == llvm::Triple::mipsel)
+           map_anon = 0x800;
 
-    Error error = ResolveExecutable (
-        exe_module_spec,
-        exe_module_sp,
-        NULL);
-
-    if (!error.Success ())
-        return error;
-
-    if (!exe_module_sp)
-        return Error("exe_module_sp could not be resolved for %s", launch_info.GetExecutableFile ().GetPath ().c_str ());
-
-    // Launch it for debugging
-    error = NativeProcessLinux::LaunchProcess (
-        exe_module_sp.get (),
-        launch_info,
-        native_delegate,
-        process_sp);
-
-    return error;
-#endif
+    if (flags & eMmapFlagsPrivate)
+        flags_platform |= MAP_PRIVATE;
+    if (flags & eMmapFlagsAnon)
+        flags_platform |= map_anon;
+    return flags_platform;
 }
 
-Error
-PlatformLinux::AttachNativeProcess (lldb::pid_t pid,
-                                    lldb_private::NativeProcessProtocol::NativeDelegate &native_delegate,
-                                    NativeProcessProtocolSP &process_sp)
+ConstString
+PlatformLinux::GetFullNameForDylib (ConstString basename)
 {
-#if !defined(__linux__) || defined(__ANDROID_NDK__)
-    return Error("only implemented on Linux hosts");
-#else
-    if (!IsHost ())
-        return Error("PlatformLinux::%s (): cannot attach to a debug process when not the host", __FUNCTION__);
-
-    // Launch it for debugging
-    return NativeProcessLinux::AttachToProcess (pid, native_delegate, process_sp);
-#endif
+    if (basename.IsEmpty())
+        return basename;
+    
+    StreamString stream;
+    stream.Printf("lib%s.so", basename.GetCString());
+    return ConstString(stream.GetData());
 }

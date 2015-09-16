@@ -116,6 +116,12 @@ public:
         else
             m_description.clear();
     }
+
+    virtual bool
+    IsValidForOperatingSystemThread (Thread &thread)
+    {
+        return true;
+    }
     
     // Sometimes the thread plan logic will know that it wants a given stop to stop or not,
     // regardless of what the ordinary logic for that StopInfo would dictate.  The main example
@@ -155,10 +161,10 @@ public:
     CreateStopReasonWithBreakpointSiteID (Thread &thread, lldb::break_id_t break_id, bool should_stop);
 
     static lldb::StopInfoSP
-    CreateStopReasonWithWatchpointID (Thread &thread, lldb::break_id_t watch_id);
+    CreateStopReasonWithWatchpointID (Thread &thread, lldb::break_id_t watch_id, lldb::addr_t watch_hit_addr = LLDB_INVALID_ADDRESS);
 
     static lldb::StopInfoSP
-    CreateStopReasonWithSignal (Thread &thread, int signo);
+    CreateStopReasonWithSignal (Thread &thread, int signo, const char *description = nullptr);
 
     static lldb::StopInfoSP
     CreateStopReasonToTrace (Thread &thread);
@@ -166,7 +172,7 @@ public:
     static lldb::StopInfoSP
     CreateStopReasonWithPlan (lldb::ThreadPlanSP &plan,
                               lldb::ValueObjectSP return_valobj_sp,
-                              lldb::ClangExpressionVariableSP expression_variable_sp);
+                              lldb::ExpressionVariableSP expression_variable_sp);
 
     static lldb::StopInfoSP
     CreateStopReasonWithException (Thread &thread, const char *description);
@@ -177,7 +183,7 @@ public:
     static lldb::ValueObjectSP
     GetReturnValueObject (lldb::StopInfoSP &stop_info_sp);
 
-    static lldb::ClangExpressionVariableSP
+    static lldb::ExpressionVariableSP
     GetExpressionVariable (lldb::StopInfoSP &stop_info_sp);
 
 protected:

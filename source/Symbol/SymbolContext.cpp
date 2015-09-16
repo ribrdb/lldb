@@ -129,15 +129,15 @@ SymbolContext::Clear(bool clear_target)
 }
 
 bool
-SymbolContext::DumpStopContext
-(
+SymbolContext::DumpStopContext (
     Stream *s,
     ExecutionContextScope *exe_scope,
     const Address &addr,
     bool show_fullpaths,
     bool show_module,
     bool show_inlined_frames,
-    bool show_function_arguments
+    bool show_function_arguments,
+    bool show_function_name
 ) const
 {
     bool dumped_something = false;
@@ -155,21 +155,32 @@ SymbolContext::DumpStopContext
     {
         SymbolContext inline_parent_sc;
         Address inline_parent_addr;
-        if (show_function_arguments == false && function->GetMangled().GetName(Mangled::ePreferDemangledWithoutArguments))
+        if (show_function_name == false)
         {
+            s->Printf("<");
             dumped_something = true;
-            function->GetMangled().GetName(Mangled::ePreferDemangledWithoutArguments).Dump(s);
         }
-        else if (function->GetMangled().GetName())
+        else
         {
-            dumped_something = true;
-            function->GetMangled().GetName().Dump(s);
+            ConstString name;
+            if (show_function_arguments == false)
+                name = function->GetNameNoArguments();
+            if (!name)
+                name = function->GetName();
+            if (name)
+                name.Dump(s);
         }
         
         if (addr.IsValid())
         {
             const addr_t function_offset = addr.GetOffset() - function->GetAddressRange().GetBaseAddress().GetOffset();
-            if (function_offset)
+            if (show_function_name == false)
+            {
+                // Print +offset even if offset is 0
+                dumped_something = true;
+                s->Printf("+%" PRIu64 ">", function_offset);
+            }
+            else if (function_offset)
             {
                 dumped_something = true;
                 s->Printf(" + %" PRIu64, function_offset);
@@ -181,7 +192,7 @@ SymbolContext::DumpStopContext
             dumped_something = true;
             Block *inlined_block = block->GetContainingInlinedBlock();
             const InlineFunctionInfo* inlined_block_info = inlined_block->GetInlinedFunctionInfo();
-            s->Printf (" [inlined] %s", inlined_block_info->GetName().GetCString());
+            s->Printf (" [inlined] %s", inlined_block_info->GetName(function->GetLanguage()).GetCString());
             
             lldb_private::AddressRange block_range;
             if (inlined_block->GetRangeContainingAddress(addr, block_range))
@@ -202,7 +213,8 @@ SymbolContext::DumpStopContext
             {
                 s->EOL();
                 s->Indent();
-                return inline_parent_sc.DumpStopContext (s, exe_scope, inline_parent_addr, show_fullpaths, show_module, show_inlined_frames, show_function_arguments);
+                const bool show_function_name = true;
+                return inline_parent_sc.DumpStopContext (s, exe_scope, inline_parent_addr, show_fullpaths, show_module, show_inlined_frames, show_function_arguments, show_function_name);
             }
         }
         else
@@ -218,18 +230,29 @@ SymbolContext::DumpStopContext
     }
     else if (symbol != nullptr)
     {
-        if (symbol->GetMangled().GetName())
+        if (show_function_name == false)
+        {
+            s->Printf("<");
+            dumped_something = true;
+        }
+        else if (symbol->GetName())
         {
             dumped_something = true;
             if (symbol->GetType() == eSymbolTypeTrampoline)
                 s->PutCString("symbol stub for: ");
-            symbol->GetMangled().GetName().Dump(s);
+            symbol->GetName().Dump(s);
         }
 
         if (addr.IsValid() && symbol->ValueIsAddress())
         {
-            const addr_t symbol_offset = addr.GetOffset() - symbol->GetAddress().GetOffset();
-            if (symbol_offset)
+            const addr_t symbol_offset = addr.GetOffset() - symbol->GetAddressRef().GetOffset();
+            if (show_function_name == false)
+            {
+                // Print +offset even if offset is 0
+                dumped_something = true;
+                s->Printf("+%" PRIu64 ">", symbol_offset);
+            }
+            else if (symbol_offset)
             {
                 dumped_something = true;
                 s->Printf(" + %" PRIu64, symbol_offset);
@@ -368,24 +391,24 @@ SymbolContext::GetResolvedMask () const
 void
 SymbolContext::Dump(Stream *s, Target *target) const
 {
-    *s << (void *)this << ": ";
+    *s << this << ": ";
     s->Indent();
     s->PutCString("SymbolContext");
     s->IndentMore();
     s->EOL();
     s->IndentMore();
     s->Indent();
-    *s << "Module       = " << (void *)module_sp.get() << ' ';
+    *s << "Module       = " << module_sp.get() << ' ';
     if (module_sp)
         module_sp->GetFileSpec().Dump(s);
     s->EOL();
     s->Indent();
-    *s << "CompileUnit  = " << (void *)comp_unit;
+    *s << "CompileUnit  = " << comp_unit;
     if (comp_unit != nullptr)
         *s << " {0x" << comp_unit->GetID() << "} " << *(static_cast<FileSpec*> (comp_unit));
     s->EOL();
     s->Indent();
-    *s << "Function     = " << (void *)function;
+    *s << "Function     = " << function;
     if (function != nullptr)
     {
         *s << " {0x" << function->GetID() << "} " << function->GetType()->GetName() << ", address-range = ";
@@ -401,7 +424,7 @@ SymbolContext::Dump(Stream *s, Target *target) const
     }
     s->EOL();
     s->Indent();
-    *s << "Block        = " << (void *)block;
+    *s << "Block        = " << block;
     if (block != nullptr)
         *s << " {0x" << block->GetID() << '}';
     // Dump the block and pass it a negative depth to we print all the parent blocks
@@ -413,11 +436,11 @@ SymbolContext::Dump(Stream *s, Target *target) const
     line_entry.Dump (s, target, true, Address::DumpStyleLoadAddress, Address::DumpStyleModuleWithFileAddress, true);
     s->EOL();
     s->Indent();
-    *s << "Symbol       = " << (void *)symbol;
+    *s << "Symbol       = " << symbol;
     if (symbol != nullptr && symbol->GetMangled())
-        *s << ' ' << symbol->GetMangled().GetName().AsCString();
+        *s << ' ' << symbol->GetName().AsCString();
     s->EOL();
-    *s << "Variable     = " << (void *)variable;
+    *s << "Variable     = " << variable;
     if (variable != nullptr)
     {
         *s << " {0x" << variable->GetID() << "} " << variable->GetType()->GetName();
@@ -492,7 +515,7 @@ SymbolContext::GetAddressRange (uint32_t scope,
         {
             if (symbol->ValueIsAddress())
             {
-                range.GetBaseAddress() = symbol->GetAddress();
+                range.GetBaseAddress() = symbol->GetAddressRef();
                 range.SetByteSize (symbol->GetByteSize());
                 return true;
             }
@@ -626,22 +649,13 @@ SymbolContext::GetFunctionMethodInfo (lldb::LanguageType &language,
 
 
 {
-    Block *function_block = GetFunctionBlock ();
+    Block *function_block = GetFunctionBlock();
     if (function_block)
     {
-        clang::DeclContext *decl_context = function_block->GetClangDeclContext();
-        
-        if (decl_context)
-        {
-            return ClangASTContext::GetClassMethodInfoForDeclContext (decl_context,
-                                                                      language,
-                                                                      is_instance_method,
-                                                                      language_object_name);
-        }
+        CompilerDeclContext decl_ctx = function_block->GetDeclContext();
+        if (decl_ctx)
+            return decl_ctx.IsClassMethod(&language, &is_instance_method, &language_object_name);
     }
-    language = eLanguageTypeUnknown;
-    is_instance_method = false;
-    language_object_name.Clear();
     return false;
 }
 
@@ -658,14 +672,14 @@ SymbolContext::GetFunctionName (Mangled::NamePreference preference) const
             {
                 const InlineFunctionInfo *inline_info = inlined_block->GetInlinedFunctionInfo();
                 if (inline_info)
-                    return inline_info->GetName();
+                    return inline_info->GetName(function->GetLanguage());
             }
         }
-        return function->GetMangled().GetName(preference);
+        return function->GetMangled().GetName(function->GetLanguage(), preference);
     }
     else if (symbol && symbol->ValueIsAddress())
     {
-        return symbol->GetMangled().GetName(preference);
+        return symbol->GetMangled().GetName(symbol->GetLanguage(), preference);
     }
     else
     {
@@ -893,7 +907,7 @@ SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc)
             {
                 was_inlined = true;
                 const Mangled &name = inline_info->GetMangled();
-                if (!name.NameMatches (func_name))
+                if (!name.NameMatches (func_name, sc.function->GetLanguage()))
                     return false;
             }
         }
@@ -902,12 +916,12 @@ SymbolContextSpecifier::SymbolContextMatches(SymbolContext &sc)
         {
             if (sc.function != nullptr)
             {
-                if (!sc.function->GetMangled().NameMatches(func_name))
+                if (!sc.function->GetMangled().NameMatches(func_name, sc.function->GetLanguage()))
                     return false;
             }
             else if (sc.symbol != nullptr)
             {
-                if (!sc.symbol->GetMangled().NameMatches(func_name))
+                if (!sc.symbol->GetMangled().NameMatches(func_name, sc.function->GetLanguage()))
                     return false;
             }
         }
@@ -1083,7 +1097,7 @@ SymbolContextList::AppendIfUnique (const SymbolContext& sc, bool merge_symbol_in
 
                 if (pos->function)
                 {
-                    if (pos->function->GetAddressRange().GetBaseAddress() == sc.symbol->GetAddress())
+                    if (pos->function->GetAddressRange().GetBaseAddress() == sc.symbol->GetAddressRef())
                     {
                         // Do we already have a function with this symbol?
                         if (pos->symbol == sc.symbol)
@@ -1125,7 +1139,7 @@ SymbolContextList::MergeSymbolContextIntoFunctionContext (const SymbolContext& s
                 
                 if (function_sc.function)
                 {
-                    if (function_sc.function->GetAddressRange().GetBaseAddress() == symbol_sc.symbol->GetAddress())
+                    if (function_sc.function->GetAddressRange().GetBaseAddress() == symbol_sc.symbol->GetAddressRef())
                     {
                         // Do we already have a function with this symbol?
                         if (function_sc.symbol == symbol_sc.symbol)
@@ -1155,7 +1169,7 @@ void
 SymbolContextList::Dump(Stream *s, Target *target) const
 {
 
-    *s << (void *)this << ": ";
+    *s << this << ": ";
     s->Indent();
     s->PutCString("SymbolContextList");
     s->EOL();

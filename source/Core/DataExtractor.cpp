@@ -653,7 +653,7 @@ DataExtractor::GetMaxU32 (offset_t *offset_ptr, size_t byte_size) const
     case 2: return GetU16(offset_ptr); break;
     case 4: return GetU32(offset_ptr); break;
     default:
-        assert("GetMaxU32 unhandled case!" == NULL);
+        assert(false && "GetMaxU32 unhandled case!");
         break;
     }
     return 0;
@@ -679,7 +679,7 @@ DataExtractor::GetMaxU64 (offset_t *offset_ptr, size_t size) const
     case 4: return GetU32(offset_ptr); break;
     case 8: return GetU64(offset_ptr); break;
     default:
-        assert("GetMax64 unhandled case!" == NULL);
+        assert(false && "GetMax64 unhandled case!");
         break;
     }
     return 0;
@@ -695,7 +695,7 @@ DataExtractor::GetMaxU64_unchecked (offset_t *offset_ptr, size_t size) const
         case 4: return GetU32_unchecked (offset_ptr); break;
         case 8: return GetU64_unchecked (offset_ptr); break;
         default:
-            assert("GetMax64 unhandled case!" == NULL);
+            assert(false && "GetMax64 unhandled case!");
             break;
     }
     return 0;
@@ -711,7 +711,7 @@ DataExtractor::GetMaxS64 (offset_t *offset_ptr, size_t size) const
     case 4: return (int32_t)GetU32(offset_ptr); break;
     case 8: return (int64_t)GetU64(offset_ptr); break;
     default:
-        assert("GetMax64 unhandled case!" == NULL);
+        assert(false && "GetMax64 unhandled case!");
         break;
     }
     return 0;
@@ -1710,7 +1710,7 @@ DataExtractor::Dump (Stream *s,
             {
                 size_t complex_int_byte_size = item_byte_size / 2;
                 
-                if (complex_int_byte_size <= 8)
+                if (complex_int_byte_size > 0 && complex_int_byte_size <= 8)
                 {
                     s->Printf("%" PRIu64, GetMaxU64Bitfield(&offset, complex_int_byte_size, 0, 0));
                     s->Printf(" + %" PRIu64 "i", GetMaxU64Bitfield(&offset, complex_int_byte_size, 0, 0));
@@ -1830,26 +1830,14 @@ DataExtractor::Dump (Stream *s,
                             }
                             else if (item_bit_size == ast->getTypeSize(ast->LongDoubleTy))
                             {
+                                const auto &semantics = ast->getFloatTypeSemantics(ast->LongDoubleTy);
+                                const auto byte_size = (llvm::APFloat::getSizeInBits(semantics) + 7) / 8;
+
                                 llvm::APInt apint;
-                                switch (target_sp->GetArchitecture().GetMachine())
+                                if (GetAPInt(*this, &offset, byte_size, apint))
                                 {
-                                    case llvm::Triple::x86:
-                                    case llvm::Triple::x86_64:
-                                        // clang will assert when constructing the apfloat if we use a 16 byte integer value
-                                        if (GetAPInt (*this, &offset, 10, apint))
-                                        {
-                                            llvm::APFloat apfloat (ast->getFloatTypeSemantics(ast->LongDoubleTy), apint);
-                                            apfloat.toString(sv, format_precision, format_max_padding);
-                                        }
-                                        break;
-                                        
-                                    default:
-                                        if (GetAPInt (*this, &offset, item_byte_size, apint))
-                                        {
-                                            llvm::APFloat apfloat (ast->getFloatTypeSemantics(ast->LongDoubleTy), apint);
-                                            apfloat.toString(sv, format_precision, format_max_padding);
-                                        }
-                                        break;
+                                    llvm::APFloat apfloat(semantics, apint);
+                                    apfloat.toString(sv, format_precision, format_max_padding);
                                 }
                             }
                             else if (item_bit_size == ast->getTypeSize(ast->HalfTy))

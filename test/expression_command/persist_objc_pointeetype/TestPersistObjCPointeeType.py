@@ -17,15 +17,21 @@ class PersistObjCPointeeType(TestBase):
         # Find the line number to break for main.cpp.
         self.line = line_number('main.m','// break here')
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
+    @expectedFailureAll(
+        bugnumber='http://llvm.org/pr23504',
+        oslist=['macosx'], compiler='clang', compiler_version=['<', '7.0.0'])
     def test_with_dsym(self):
         """Test that we can p *objcObject"""
         self.buildDsym()
         self.do_my_test()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin due to ObjC test case")
+    @skipUnlessDarwin
     @dwarf_test
+    @expectedFailureAll(
+        bugnumber='http://llvm.org/pr23504',
+        oslist=['macosx'], compiler='clang', compiler_version=['<', '7.0.0'])
     def test_with_dwarf(self):
         """Test that we can p *objcObject"""
         self.buildDwarf()
@@ -34,7 +40,7 @@ class PersistObjCPointeeType(TestBase):
     def do_my_test(self):
         def cleanup():
             pass
-        
+
         # Execute the cleanup function during test case tear down.
         self.addTearDownHook(cleanup)
 

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test 'watchpoint command'.
 """
 
@@ -25,7 +25,7 @@ class WatchpointPythonCommandTestCase(TestBase):
         self.exe_name = self.testMethodName
         self.d = {'CXX_SOURCES': self.source, 'EXE': self.exe_name}
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_watchpoint_command_with_dsym(self):
         """Test 'watchpoint command'."""
@@ -34,6 +34,9 @@ class WatchpointPythonCommandTestCase(TestBase):
         self.watchpoint_command()
 
     @dwarf_test
+    @skipIfFreeBSD # timing out on buildbot
+    @expectedFailureWindows("llvm.org/pr24446") # WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows
+    @expectedFailureAndroid(archs=['arm', 'aarch64']) # Watchpoints not supported
     def test_watchpoint_command_with_dwarf(self):
         """Test 'watchpoint command'."""
         self.buildDwarf(dictionary=self.d)

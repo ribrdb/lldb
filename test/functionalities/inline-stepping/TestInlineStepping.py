@@ -10,7 +10,7 @@ class TestInlineStepping(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_with_dsym_and_python_api(self):
@@ -22,12 +22,16 @@ class TestInlineStepping(TestBase):
     @dwarf_test
     @expectedFailureFreeBSD('llvm.org/pr17214')
     @expectedFailureIcc # Not really a bug.  ICC combines two inlined functions.
+    @expectedFailureAll("llvm.org/pr23139", oslist=["linux"], compiler="gcc", compiler_version=[">=","4.9"], archs=["i386"])
+    @expectedFailureWindows("llvm.org/pr24778")
+    # failed 1/365 dosep runs, (i386-clang), TestInlineStepping.py:237 failed to stop at first breakpoint in main
+    @expectedFailureAll(oslist=["linux"], archs=["i386"])
     def test_with_dwarf_and_python_api(self):
         """Test stepping over and into inlined functions."""
         self.buildDwarf()
         self.inline_stepping()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_step_over_with_dsym_and_python_api(self):
@@ -37,10 +41,26 @@ class TestInlineStepping(TestBase):
 
     @python_api_test
     @dwarf_test
+    @expectedFailureAll("llvm.org/pr23139", oslist=["linux"], compiler="gcc", compiler_version=[">=","4.9"], archs=["i386"])
     def test_step_over_with_dwarf_and_python_api(self):
         """Test stepping over and into inlined functions."""
         self.buildDwarf()
         self.inline_stepping_step_over()
+    
+    @skipUnlessDarwin
+    @python_api_test
+    @dsym_test
+    def test_step_in_template_with_dsym_and_python_api(self):
+        """Test stepping in to templated functions."""
+        self.buildDsym()
+        self.step_in_template()
+
+    @python_api_test
+    @dwarf_test
+    def test_step_in_template_with_dwarf_and_python_api(self):
+        """Test stepping in to templated functions."""
+        self.buildDwarf()
+        self.step_in_template()
 
     def setUp(self):
         # Call super's setUp().
@@ -108,7 +128,7 @@ class TestInlineStepping(TestBase):
         test_stack_depth = True
         # Work around for <rdar://problem/16363195>, the darwin unwinder seems flakey about whether it duplicates the first frame 
         # or not, which makes counting stack depth unreliable.
-        if "darwin" in sys.platform:
+        if self.platformIsDarwin():
             test_stack_depth = False
 
         for step_pattern in step_sequence:
@@ -116,7 +136,6 @@ class TestInlineStepping(TestBase):
             target_line_entry.SetLine(step_stop_line)
             self.do_step (step_pattern[1], target_line_entry, test_stack_depth)
         
-
     def inline_stepping(self):
         """Use Python APIs to test stepping over and hitting breakpoints."""
         exe = os.path.join(os.getcwd(), "a.out")
@@ -241,8 +260,40 @@ class TestInlineStepping(TestBase):
                          ["// At increment in caller_ref_2.", "over"]]
         self.run_step_sequence (step_sequence)
 
+    def step_in_template(self):
+        """Use Python APIs to test stepping in to templated functions."""
+        exe = os.path.join(os.getcwd(), "a.out")
+
+        target = self.dbg.CreateTarget(exe)
+        self.assertTrue(target, VALID_TARGET)
+
+        break_1_in_main = target.BreakpointCreateBySourceRegex ('// Call max_value template', self.main_source_spec)
+        self.assertTrue(break_1_in_main, VALID_BREAKPOINT)
         
+        break_2_in_main = target.BreakpointCreateBySourceRegex ('// Call max_value specialized', self.main_source_spec)
+        self.assertTrue(break_2_in_main, VALID_BREAKPOINT)
+
+        # Now launch the process, and do not stop at entry point.
+        self.process = target.LaunchSimple (None, None, self.get_process_working_directory())
+        self.assertTrue(self.process, PROCESS_IS_VALID)
+
+        # The stop reason of the thread should be breakpoint.
+        threads = lldbutil.get_threads_stopped_at_breakpoint (self.process, break_1_in_main)
+
+        if len(threads) != 1:
+            self.fail ("Failed to stop at first breakpoint in main.")
+
+        self.thread = threads[0]
+
+        step_sequence = [["// In max_value template", "into"]]
+        self.run_step_sequence(step_sequence)
         
+        threads = lldbutil.continue_to_breakpoint (self.process, break_2_in_main)
+        self.assertEqual(len(threads), 1, "Successfully ran to call site of second caller_trivial_1 call.")
+        self.thread = threads[0]
+        
+        step_sequence = [["// In max_value specialized", "into"]]
+        self.run_step_sequence(step_sequence)
 
 if __name__ == '__main__':
     import atexit

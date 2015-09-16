@@ -1,4 +1,4 @@
-//===-- MICmnThreadMgr.cpp --------------------------------------*- C++ -*-===//
+//===-- MICmnThreadMgrStd.cpp -----------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -6,18 +6,6 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-
-//++
-// File:        MICmnThreadMgr.cpp
-//
-// Overview:    CMICmnThreadMgr implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 // In-house headers:
 #include "MICmnThreadMgrStd.h"
@@ -32,7 +20,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnThreadMgrStd::CMICmnThreadMgrStd(void)
+CMICmnThreadMgrStd::CMICmnThreadMgrStd()
 {
 }
 
@@ -43,7 +31,7 @@ CMICmnThreadMgrStd::CMICmnThreadMgrStd(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmnThreadMgrStd::~CMICmnThreadMgrStd(void)
+CMICmnThreadMgrStd::~CMICmnThreadMgrStd()
 {
     Shutdown();
 }
@@ -57,7 +45,7 @@ CMICmnThreadMgrStd::~CMICmnThreadMgrStd(void)
 // Throws:  None.
 //--
 bool
-CMICmnThreadMgrStd::Initialize(void)
+CMICmnThreadMgrStd::Initialize()
 {
     m_clientUsageRefCnt++;
 
@@ -94,7 +82,7 @@ CMICmnThreadMgrStd::Initialize(void)
 // Throws:  None.
 //--
 bool
-CMICmnThreadMgrStd::Shutdown(void)
+CMICmnThreadMgrStd::Shutdown()
 {
     if (--m_clientUsageRefCnt > 0)
         return MIstatus::success;
@@ -133,7 +121,7 @@ CMICmnThreadMgrStd::Shutdown(void)
 // Throws:  None.
 //--
 bool
-CMICmnThreadMgrStd::ThreadAllTerminate(void)
+CMICmnThreadMgrStd::ThreadAllTerminate()
 {
     ThreadList_t::const_iterator it = m_threadList.begin();
     for (; it != m_threadList.end(); ++it)

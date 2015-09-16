@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MIUtilDebug.h
-//
-// Overview:    CMIUtilDebug interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 #define MI_USE_DEBUG_TRACE_FN // Undefine to compile out fn trace code
@@ -31,25 +19,22 @@ class CMICmnLog;
 
 //++ ============================================================================
 // Details: MI debugging aid utility class.
-// Gotchas: None.
-// Authors:
-// Changes: None.
 //--
 class CMIUtilDebug
 {
     // Statics:
   public:
-    static void ShowDlgWaitForDbgAttach(void);
-    static void WaitForDbgAttachInfinteLoop(void);
+    static void ShowDlgWaitForDbgAttach();
+    static void WaitForDbgAttachInfinteLoop();
 
     // Methods:
   public:
-    /* ctor */ CMIUtilDebug(void);
+    /* ctor */ CMIUtilDebug();
 
     // Overrideable:
   public:
     // From CMICmnBase
-    /* dtor */ virtual ~CMIUtilDebug(void);
+    /* dtor */ virtual ~CMIUtilDebug();
 };
 
 //++ ============================================================================
@@ -60,9 +45,6 @@ class CMIUtilDebug
 //          the functions you wish to build up a trace off.
 //          Use preprocessor definition MI_USE_DEBUG_TRACE_FN to turn off or on
 //          tracing code.
-// Gotchas: None.
-// Authors: Illya Rudkin 07/03/2014.
-// Changes: None.
 //--
 class CMIUtilDebugFnTrace
 {
@@ -73,7 +55,7 @@ class CMIUtilDebugFnTrace
     // Overrideable:
   public:
     // From CMICmnBase
-    /* dtor */ virtual ~CMIUtilDebugFnTrace(void);
+    /* dtor */ virtual ~CMIUtilDebugFnTrace();
 
     // Attributes:
   private:

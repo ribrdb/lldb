@@ -7,20 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdMiscellanous.cpp
-//
 // Overview:    CMICmdCmdGdbExit                implementation.
 //              CMICmdCmdListThreadGroups       implementation.
 //              CMICmdCmdInterpreterExec        implementation.
 //              CMICmdCmdInferiorTtySet         implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 // Third Party Headers:
 #include "lldb/API/SBCommandInterpreter.h"
@@ -51,7 +41,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdGdbExit::CMICmdCmdGdbExit(void)
+CMICmdCmdGdbExit::CMICmdCmdGdbExit()
 {
     // Command factory matches this name with that received from the stdin stream
     m_strMiCmd = "gdb-exit";
@@ -67,7 +57,7 @@ CMICmdCmdGdbExit::CMICmdCmdGdbExit(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdGdbExit::~CMICmdCmdGdbExit(void)
+CMICmdCmdGdbExit::~CMICmdCmdGdbExit()
 {
 }
 
@@ -81,10 +71,10 @@ CMICmdCmdGdbExit::~CMICmdCmdGdbExit(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdGdbExit::Execute(void)
+CMICmdCmdGdbExit::Execute()
 {
     CMICmnLLDBDebugger::Instance().GetDriver().SetExitApplicationFlag(true);
-    const lldb::SBError sbErr = m_rLLDBDebugSessionInfo.GetProcess().Detach();
+    const lldb::SBError sbErr = m_rLLDBDebugSessionInfo.GetProcess().Destroy();
     // Do not check for sbErr.Fail() here, m_lldbProcess is likely !IsValid()
 
     return MIstatus::success;
@@ -100,7 +90,7 @@ CMICmdCmdGdbExit::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdGdbExit::Acknowledge(void)
+CMICmdCmdGdbExit::Acknowledge()
 {
     const CMICmnMIResultRecord miRecordResult(m_cmdData.strMiCmdToken, CMICmnMIResultRecord::eResultClass_Exit);
     m_miResultRecord = miRecordResult;
@@ -125,7 +115,7 @@ CMICmdCmdGdbExit::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdGdbExit::CreateSelf(void)
+CMICmdCmdGdbExit::CreateSelf()
 {
     return new CMICmdCmdGdbExit();
 }
@@ -141,7 +131,7 @@ CMICmdCmdGdbExit::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdListThreadGroups::CMICmdCmdListThreadGroups(void)
+CMICmdCmdListThreadGroups::CMICmdCmdListThreadGroups()
     : m_bIsI1(false)
     , m_bHaveArgOption(false)
     , m_bHaveArgRecurse(false)
@@ -164,7 +154,7 @@ CMICmdCmdListThreadGroups::CMICmdCmdListThreadGroups(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdListThreadGroups::~CMICmdCmdListThreadGroups(void)
+CMICmdCmdListThreadGroups::~CMICmdCmdListThreadGroups()
 {
     m_vecMIValueTuple.clear();
 }
@@ -179,22 +169,20 @@ CMICmdCmdListThreadGroups::~CMICmdCmdListThreadGroups(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdListThreadGroups::ParseArgs(void)
+CMICmdCmdListThreadGroups::ParseArgs()
 {
-    bool bOk = m_setCmdArgs.Add(*(new CMICmdArgValOptionLong(m_constStrArgNamedAvailable, false, true)));
-    bOk = bOk &&
-          m_setCmdArgs.Add(
-              *(new CMICmdArgValOptionLong(m_constStrArgNamedRecurse, false, true, CMICmdArgValListBase::eArgValType_Number, 1)));
-    bOk =
-        bOk && m_setCmdArgs.Add(*(new CMICmdArgValListOfN(m_constStrArgNamedGroup, false, true, CMICmdArgValListBase::eArgValType_Number)));
-    bOk = bOk && m_setCmdArgs.Add(*(new CMICmdArgValThreadGrp(m_constStrArgNamedThreadGroup, false, true)));
-    return (bOk && ParseValidateCmdOptions());
+    m_setCmdArgs.Add(new CMICmdArgValOptionLong(m_constStrArgNamedAvailable, false, true));
+    m_setCmdArgs.Add(
+        new CMICmdArgValOptionLong(m_constStrArgNamedRecurse, false, true, CMICmdArgValListBase::eArgValType_Number, 1));
+    m_setCmdArgs.Add(new CMICmdArgValListOfN(m_constStrArgNamedGroup, false, true, CMICmdArgValListBase::eArgValType_Number));
+    m_setCmdArgs.Add(new CMICmdArgValThreadGrp(m_constStrArgNamedThreadGroup, false, true));
+    return ParseValidateCmdOptions();
 }
 
 //++ ------------------------------------------------------------------------------------
 // Details: The invoker requires this function. The command does work in this function.
 //          The command is likely to communicate with the LLDB SBDebugger in here.
-//          Synopis: -list-thread-groups [ --available ] [ --recurse 1 ] [ group ... ]
+//          Synopsis: -list-thread-groups [ --available ] [ --recurse 1 ] [ group ... ]
 //          This command does not follow the MI documentation exactly. Has an extra
 //          argument "i1" to handle.
 //          Ref:
@@ -206,7 +194,7 @@ CMICmdCmdListThreadGroups::ParseArgs(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdListThreadGroups::Execute(void)
+CMICmdCmdListThreadGroups::Execute()
 {
     if (m_setCmdArgs.IsArgContextEmpty())
         // No options so "top level thread groups"
@@ -249,7 +237,7 @@ CMICmdCmdListThreadGroups::Execute(void)
         if (thread.IsValid())
         {
             CMICmnMIValueTuple miTuple;
-            if (!rSessionInfo.MIResponseFormThreadInfo2(m_cmdData, thread, miTuple))
+            if (!rSessionInfo.MIResponseFormThreadInfo(m_cmdData, thread, CMICmnLLDBDebugSessionInfo::eThreadInfoFormat_NoFrames, miTuple))
                 return MIstatus::failure;
 
             m_vecMIValueTuple.push_back(miTuple);
@@ -269,7 +257,7 @@ CMICmdCmdListThreadGroups::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdListThreadGroups::Acknowledge(void)
+CMICmdCmdListThreadGroups::Acknowledge()
 {
     if (m_bHaveArgOption)
     {
@@ -340,8 +328,8 @@ CMICmdCmdListThreadGroups::Acknowledge(void)
         if (rSessionInfo.GetTarget().IsValid())
         {
             lldb::SBTarget sbTrgt = rSessionInfo.GetTarget();
-            const MIchar *pDir = sbTrgt.GetExecutable().GetDirectory();
-            const MIchar *pFileName = sbTrgt.GetExecutable().GetFilename();
+            const char *pDir = sbTrgt.GetExecutable().GetDirectory();
+            const char *pFileName = sbTrgt.GetExecutable().GetFilename();
             const CMIUtilString strFile(CMIUtilString::Format("%s/%s", pDir, pFileName));
             const CMICmnMIValueConst miValueConst4(strFile);
             const CMICmnMIValueResult miValueResult4("executable", miValueConst4);
@@ -392,7 +380,7 @@ CMICmdCmdListThreadGroups::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdListThreadGroups::CreateSelf(void)
+CMICmdCmdListThreadGroups::CreateSelf()
 {
     return new CMICmdCmdListThreadGroups();
 }
@@ -408,8 +396,8 @@ CMICmdCmdListThreadGroups::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdInterpreterExec::CMICmdCmdInterpreterExec(void)
-    : m_constStrArgNamedInterpreter("intepreter")
+CMICmdCmdInterpreterExec::CMICmdCmdInterpreterExec()
+    : m_constStrArgNamedInterpreter("interpreter")
     , m_constStrArgNamedCommand("command")
 {
     // Command factory matches this name with that received from the stdin stream
@@ -426,7 +414,7 @@ CMICmdCmdInterpreterExec::CMICmdCmdInterpreterExec(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdInterpreterExec::~CMICmdCmdInterpreterExec(void)
+CMICmdCmdInterpreterExec::~CMICmdCmdInterpreterExec()
 {
 }
 
@@ -440,11 +428,11 @@ CMICmdCmdInterpreterExec::~CMICmdCmdInterpreterExec(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdInterpreterExec::ParseArgs(void)
+CMICmdCmdInterpreterExec::ParseArgs()
 {
-    bool bOk = m_setCmdArgs.Add(*(new CMICmdArgValString(m_constStrArgNamedInterpreter, true, true)));
-    bOk = bOk && m_setCmdArgs.Add(*(new CMICmdArgValString(m_constStrArgNamedCommand, true, true, true)));
-    return (bOk && ParseValidateCmdOptions());
+    m_setCmdArgs.Add(new CMICmdArgValString(m_constStrArgNamedInterpreter, true, true));
+    m_setCmdArgs.Add(new CMICmdArgValString(m_constStrArgNamedCommand, true, true, true));
+    return ParseValidateCmdOptions();
 }
 
 //++ ------------------------------------------------------------------------------------
@@ -457,7 +445,7 @@ CMICmdCmdInterpreterExec::ParseArgs(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdInterpreterExec::Execute(void)
+CMICmdCmdInterpreterExec::Execute()
 {
     CMICMDBASE_GETOPTION(pArgInterpreter, String, m_constStrArgNamedInterpreter);
     CMICMDBASE_GETOPTION(pArgCommand, String, m_constStrArgNamedCommand);
@@ -486,26 +474,19 @@ CMICmdCmdInterpreterExec::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdInterpreterExec::Acknowledge(void)
+CMICmdCmdInterpreterExec::Acknowledge()
 {
     if (m_lldbResult.GetOutputSize() > 0)
     {
         CMIUtilString strMsg(m_lldbResult.GetOutput());
         strMsg = strMsg.StripCREndOfLine();
         CMICmnStreamStdout::TextToStdout(strMsg);
-
-        // Send the LLDB result message to console so the user can see the result of the
-        // command they typed. It is not necessary an error message.
-        CMICmnStreamStderr::LLDBMsgToConsole(strMsg);
     }
     if (m_lldbResult.GetErrorSize() > 0)
     {
         CMIUtilString strMsg(m_lldbResult.GetError());
         strMsg = strMsg.StripCREndOfLine();
         CMICmnStreamStderr::LLDBMsgToConsole(strMsg);
-
-        // Send LLDB's error message to the MI Driver's Log file
-        CMICmnStreamStdout::TextToStdout(strMsg);
     }
 
     const CMICmnMIResultRecord miRecordResult(m_cmdData.strMiCmdToken, CMICmnMIResultRecord::eResultClass_Done);
@@ -523,7 +504,7 @@ CMICmdCmdInterpreterExec::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdInterpreterExec::CreateSelf(void)
+CMICmdCmdInterpreterExec::CreateSelf()
 {
     return new CMICmdCmdInterpreterExec();
 }
@@ -539,7 +520,7 @@ CMICmdCmdInterpreterExec::CreateSelf(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdInferiorTtySet::CMICmdCmdInferiorTtySet(void)
+CMICmdCmdInferiorTtySet::CMICmdCmdInferiorTtySet()
 {
     // Command factory matches this name with that received from the stdin stream
     m_strMiCmd = "inferior-tty-set";
@@ -555,7 +536,7 @@ CMICmdCmdInferiorTtySet::CMICmdCmdInferiorTtySet(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdCmdInferiorTtySet::~CMICmdCmdInferiorTtySet(void)
+CMICmdCmdInferiorTtySet::~CMICmdCmdInferiorTtySet()
 {
 }
 
@@ -569,7 +550,7 @@ CMICmdCmdInferiorTtySet::~CMICmdCmdInferiorTtySet(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdInferiorTtySet::Execute(void)
+CMICmdCmdInferiorTtySet::Execute()
 {
     // Do nothing
 
@@ -586,7 +567,7 @@ CMICmdCmdInferiorTtySet::Execute(void)
 // Throws:  None.
 //--
 bool
-CMICmdCmdInferiorTtySet::Acknowledge(void)
+CMICmdCmdInferiorTtySet::Acknowledge()
 {
     const CMICmnMIResultRecord miRecordResult(m_cmdData.strMiCmdToken, CMICmnMIResultRecord::eResultClass_Error);
     m_miResultRecord = miRecordResult;
@@ -603,7 +584,7 @@ CMICmdCmdInferiorTtySet::Acknowledge(void)
 // Throws:  None.
 //--
 CMICmdBase *
-CMICmdCmdInferiorTtySet::CreateSelf(void)
+CMICmdCmdInferiorTtySet::CreateSelf()
 {
     return new CMICmdCmdInferiorTtySet();
 }

@@ -12,7 +12,7 @@ class ValueAPITestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_with_dsym(self):
@@ -22,6 +22,7 @@ class ValueAPITestCase(TestBase):
         self.setTearDownCleanup(dictionary=d)
         self.value_api(self.exe_name)
 
+    @expectedFailureWindows("llvm.org/pr24772")
     @python_api_test
     @dwarf_test
     def test_with_dwarf(self):
@@ -137,6 +138,12 @@ class ValueAPITestCase(TestBase):
         self.DebugSBValue(val2)
         self.assertTrue(child.GetValue() == val2.GetValue() and
                         child.GetSummary() == val2.GetSummary())
+
+        val_i = target.EvaluateExpression('i')
+        val_s = target.EvaluateExpression('s')
+        val_a = target.EvaluateExpression('a')
+        self.assertTrue(val_s.GetChildMemberWithName('a').AddressOf(), VALID_VARIABLE)
+        self.assertTrue(val_a.Cast(val_i.GetType()).AddressOf(), VALID_VARIABLE)
         
 if __name__ == '__main__':
     import atexit

@@ -12,7 +12,7 @@ class ThreadSpecificBreakTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_with_dsym_python(self):
@@ -20,9 +20,12 @@ class ThreadSpecificBreakTestCase(TestBase):
         self.buildDsym()
         self.do_thread_specific_break()
 
+    @skipIfFreeBSD # test frequently times out or hangs
     @expectedFailureFreeBSD('llvm.org/pr18522') # hits break in another thread in testrun
+    @expectedFailureWindows("llvm.org/pr24777")
     @python_api_test
     @dwarf_test
+    @expectedFlakeyLinux # this test fails 6/100 dosep runs
     def test_with_dwarf_python(self):
         """Test that we obey thread conditioned breakpoints."""
         self.buildDwarf()
@@ -36,7 +39,7 @@ class ThreadSpecificBreakTestCase(TestBase):
         target = self.dbg.CreateTarget(exe)
         self.assertTrue(target, VALID_TARGET)
 
-        main_source_spec = lldb.SBFileSpec ("main.c")
+        main_source_spec = lldb.SBFileSpec ("main.cpp")
 
         # Set a breakpoint in the thread body, and make it active for only the first thread.
         break_thread_body = target.BreakpointCreateBySourceRegex ("Break here in thread body.", main_source_spec)

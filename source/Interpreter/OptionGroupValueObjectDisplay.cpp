@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
 #include "lldb/Interpreter/OptionGroupValueObjectDisplay.h"
 
 // C Includes
@@ -164,7 +162,7 @@ OptionGroupValueObjectDisplay::GetAsDumpOptions (LanguageRuntimeDescriptionDispl
                                                  lldb::TypeSummaryImplSP summary_sp)
 {
     DumpValueObjectOptions options;
-    options.SetMaximumPointerDepth(ptr_depth);
+    options.SetMaximumPointerDepth( {DumpValueObjectOptions::PointerDepth::Mode::Always,ptr_depth} );
     if (use_objc)
         options.SetShowSummary(false);
     else

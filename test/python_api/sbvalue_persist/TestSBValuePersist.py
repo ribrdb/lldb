@@ -10,7 +10,7 @@ class SBValuePersistTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_with_dsym(self):
@@ -20,6 +20,7 @@ class SBValuePersistTestCase(TestBase):
         self.doTest()
 
     @python_api_test
+    @expectedFailureWindows("llvm.org/pr24772")
     @dwarf_test
     def test_with_dwarf(self):
         """Test SBValue::Persist"""

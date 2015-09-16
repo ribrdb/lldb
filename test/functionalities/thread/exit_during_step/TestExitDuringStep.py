@@ -12,7 +12,7 @@ class ExitDuringStepTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @expectedFailureDarwin("llvm.org/pr15824") # thread states not properly maintained
     @dsym_test
     def test_thread_state_is_stopped_with_dsym(self):
@@ -22,28 +22,29 @@ class ExitDuringStepTestCase(TestBase):
 
     @expectedFailureDarwin("llvm.org/pr15824") # thread states not properly maintained
     @expectedFailureFreeBSD("llvm.org/pr18190") # thread states not properly maintained
-    @expectedFailureLLGS("llvm.org/pr15824") # thread states not properly maintained
+    @expectedFailureLinux("llvm.org/pr15824") # thread states not properly maintained
+    @expectedFailureWindows("llvm.org/pr24681")
     @dwarf_test
     def test_thread_state_is_stopped_with_dwarf(self):
         """Test thread exit during step handling."""
         self.buildDwarf(dictionary=self.getBuildFlags())
         self.thread_state_is_stopped()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym(self):
         """Test thread exit during step handling."""
         self.buildDsym(dictionary=self.getBuildFlags())
         self.exit_during_step_inst_test()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_step_over_with_dsym(self):
         """Test thread exit during step-over handling."""
         self.buildDsym(dictionary=self.getBuildFlags())
         self.exit_during_step_over_test()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_step_in_with_dsym(self):
         """Test thread exit during step-in handling."""
@@ -51,6 +52,7 @@ class ExitDuringStepTestCase(TestBase):
         self.exit_during_step_in_test()
 
     @skipIfFreeBSD # llvm.org/pr21411: test is hanging
+    @expectedFailureWindows("llvm.org/pr24681")
     @dwarf_test
     def test_with_dwarf(self):
         """Test thread exit during step handling."""
@@ -58,7 +60,7 @@ class ExitDuringStepTestCase(TestBase):
         self.exit_during_step_inst_test()
 
     @skipIfFreeBSD # llvm.org/pr21411: test is hanging
-    @expectedFailureLLGS("llvm.org/pr15824") # thread states not properly maintained
+    @expectedFailureWindows("llvm.org/pr24681")
     @dwarf_test
     def test_step_over_with_dwarf(self):
         """Test thread exit during step-over handling."""
@@ -66,7 +68,7 @@ class ExitDuringStepTestCase(TestBase):
         self.exit_during_step_over_test()
 
     @skipIfFreeBSD # llvm.org/pr21411: test is hanging
-    @expectedFailureLLGS("llvm.org/pr15824") # thread states not properly maintained
+    @expectedFailureWindows("llvm.org/pr24681")
     @dwarf_test
     def test_step_in_with_dwarf(self):
         """Test thread exit during step-in handling."""
@@ -106,7 +108,7 @@ class ExitDuringStepTestCase(TestBase):
 
         # The breakpoint list should show 1 location.
         self.expect("breakpoint list -f", "Breakpoint location shown correctly",
-            substrs = ["1: file = 'main.cpp', line = %d, locations = 1" % self.breakpoint])
+            substrs = ["1: file = 'main.cpp', line = %d, exact_match = 0, locations = 1" % self.breakpoint])
 
         # Run the program.
         self.runCmd("run", RUN_SUCCEEDED)

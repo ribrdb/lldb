@@ -123,7 +123,7 @@ public:
     /// @return
     ///     A const reference to the method name object.
     //------------------------------------------------------------------
-    const ConstString&
+    ConstString
     GetName () const;
 
     //------------------------------------------------------------------
@@ -146,7 +146,6 @@ protected:
     ConstString m_name; ///< Function method name (not a mangled name).
     Declaration m_declaration; ///< Information describing where this function information was defined.
 };
-
 
 //----------------------------------------------------------------------
 /// @class InlineFunctionInfo Function.h "lldb/Symbol/Function.h"
@@ -203,7 +202,7 @@ public:
     //------------------------------------------------------------------
     /// Destructor.
     //------------------------------------------------------------------
-    ~InlineFunctionInfo();
+    ~InlineFunctionInfo() override;
 
     //------------------------------------------------------------------
     /// Compare two inlined function information objects.
@@ -240,11 +239,14 @@ public:
     Dump(Stream *s, bool show_fullpaths) const;
 
     void
-    DumpStopContext (Stream *s) const;
+    DumpStopContext (Stream *s, lldb::LanguageType language) const;
 
-    const ConstString &
-    GetName () const;
+    ConstString
+    GetName (lldb::LanguageType language) const;
 
+    ConstString
+    GetDisplayName (lldb::LanguageType language) const;
+    
     //------------------------------------------------------------------
     /// Get accessor for the call site declaration information.
     ///
@@ -291,8 +293,8 @@ public:
     ///
     /// @see ConstString::StaticMemorySize ()
     //------------------------------------------------------------------
-    virtual size_t
-    MemorySize() const;
+    size_t
+    MemorySize() const override;
 
 private:
     //------------------------------------------------------------------
@@ -412,24 +414,24 @@ public:
     //------------------------------------------------------------------
     /// Destructor.
     //------------------------------------------------------------------
-    ~Function ();
+    ~Function() override;
 
     //------------------------------------------------------------------
     /// @copydoc SymbolContextScope::CalculateSymbolContext(SymbolContext*)
     ///
     /// @see SymbolContextScope
     //------------------------------------------------------------------
-    virtual void
-    CalculateSymbolContext(SymbolContext* sc);
+    void
+    CalculateSymbolContext(SymbolContext* sc) override;
 
-    virtual lldb::ModuleSP
-    CalculateSymbolContextModule ();
+    lldb::ModuleSP
+    CalculateSymbolContextModule() override;
     
-    virtual CompileUnit *
-    CalculateSymbolContextCompileUnit ();
+    CompileUnit *
+    CalculateSymbolContextCompileUnit() override;
     
-    virtual Function *
-    CalculateSymbolContextFunction ();
+    Function *
+    CalculateSymbolContextFunction() override;
 
     const AddressRange &
     GetAddressRange()
@@ -437,6 +439,8 @@ public:
         return m_range;
     }
 
+    lldb::LanguageType
+    GetLanguage() const;
     //------------------------------------------------------------------
     /// Find the file and line number of the source location of the start
     /// of the function.  This will use the declaration if present and fall
@@ -524,11 +528,14 @@ public:
         return m_frame_base;
     }
 
-    const ConstString &
-    GetName() const
-    {
-        return m_mangled.GetName();
-    }
+    ConstString
+    GetName() const;
+
+    ConstString
+    GetNameNoArguments () const;
+    
+    ConstString
+    GetDisplayName () const;
 
     const Mangled &
     GetMangled() const
@@ -542,8 +549,8 @@ public:
     /// @return
     ///     The DeclContext, or NULL if none exists.
     //------------------------------------------------------------------
-    clang::DeclContext *
-    GetClangDeclContext();
+    CompilerDeclContext
+    GetDeclContext();
     
     //------------------------------------------------------------------
     /// Get accessor for the type that describes the function
@@ -565,8 +572,8 @@ public:
     const Type*
     GetType() const;
     
-    ClangASTType
-    GetClangType ();
+    CompilerType
+    GetCompilerType ();
 
     uint32_t
     GetPrologueByteSize ();
@@ -592,8 +599,8 @@ public:
     ///
     /// @see SymbolContextScope
     //------------------------------------------------------------------
-    virtual void
-    DumpSymbolContext(Stream *s);
+    void
+    DumpSymbolContext(Stream *s) override;
 
     //------------------------------------------------------------------
     /// Get the memory cost of this object.
@@ -607,6 +614,24 @@ public:
     //------------------------------------------------------------------
     size_t
     MemorySize () const;
+
+    //------------------------------------------------------------------
+    /// Get whether compiler optimizations were enabled for this function
+    ///
+    /// The debug information may provide information about whether this
+    /// function was compiled with optimization or not.  In this case,
+    /// "optimized" means that the debug experience may be difficult
+    /// for the user to understand.  Variables may not be available when
+    /// the developer would expect them, stepping through the source lines
+    /// in the function may appear strange, etc.
+    /// 
+    /// @return
+    ///     Returns 'true' if this function was compiled with 
+    ///     optimization.  'false' indicates that either the optimization
+    ///     is unknown, or this function was built without optimization.
+    //------------------------------------------------------------------
+    bool
+    GetIsOptimized ();
 
     lldb::DisassemblerSP
     GetInstructions (const ExecutionContext &exe_ctx,
@@ -626,8 +651,6 @@ protected:
         flagsCalculatedPrologueSize = (1 << 0)  ///< Have we already tried to calculate the prologue size?
     };
 
-
-
     //------------------------------------------------------------------
     // Member variables.
     //------------------------------------------------------------------
@@ -646,4 +669,4 @@ private:
 
 } // namespace lldb_private
 
-#endif  // liblldb_Function_h_
+#endif // liblldb_Function_h_

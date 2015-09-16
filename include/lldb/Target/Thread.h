@@ -30,8 +30,7 @@ class ThreadProperties : public Properties
 public:
     ThreadProperties(bool is_global);
     
-    virtual
-    ~ThreadProperties();
+    ~ThreadProperties() override;
     
     //------------------------------------------------------------------
     /// The regular expression returned determines symbols that this
@@ -82,7 +81,7 @@ public:
 
     static ConstString &GetStaticBroadcasterClass ();
     
-    virtual ConstString &GetBroadcasterClass() const
+    ConstString &GetBroadcasterClass() const override
     {
         return GetStaticBroadcasterClass();
     }
@@ -97,19 +96,19 @@ public:
         
         ThreadEventData();
         
-        virtual ~ThreadEventData();
+        ~ThreadEventData() override;
         
         static const ConstString &
         GetFlavorString ();
 
-        virtual const ConstString &
-        GetFlavor () const
+        const ConstString &
+        GetFlavor() const override
         {
             return ThreadEventData::GetFlavorString ();
         }
         
-        virtual void
-        Dump (Stream *s) const;
+        void
+        Dump(Stream *s) const override;
     
         static const ThreadEventData *
         GetEventDataFromEvent (const Event *event_ptr);
@@ -179,7 +178,7 @@ public:
     //------------------------------------------------------------------
     Thread (Process &process, lldb::tid_t tid, bool use_invalid_index_id = false);
 
-    virtual ~Thread();
+    ~Thread() override;
 
     lldb::ProcessSP
     GetProcess() const
@@ -205,22 +204,23 @@ public:
     void
     SetState (lldb::StateType state);
 
-    lldb::StateType
-    GetResumeState () const
-    {
-        return m_resume_state;
-    }
-    
-    // This sets the "external resume state" of the thread.  If the thread is suspended here, it should never
-    // get scheduled.  Note that just because a thread is marked as "running" does not mean we will let it run in
-    // a given bit of process control.  For instance "step" tries to stay on the selected thread it was issued on,
-    // which may involve suspending other threads temporarily.  This temporary suspension is NOT reflected in the
-    // state set here and reported in GetResumeState.
-    //
-    // If you are just preparing all threads to run, you should not override the threads that are
-    // marked as suspended by the debugger.  In that case, pass override_suspend = false.  If you want
-    // to force the thread to run (e.g. the "thread continue" command, or are resetting the state
-    // (e.g. in SBThread::Resume()), then pass true to override_suspend.
+    //------------------------------------------------------------------
+    /// Sets the USER resume state for this thread.  If you set a thread to suspended with
+    /// this API, it won't take part in any of the arbitration for ShouldResume, and will stay
+    /// suspended even when other threads do get to run.
+    ///
+    /// N.B. This is not the state that is used internally by thread plans to implement
+    /// staying on one thread while stepping over a breakpoint, etc.  The is the
+    /// TemporaryResume state, and if you are implementing some bit of strategy in the stepping
+    /// machinery you should be using that state and not the user resume state.
+    ///
+    /// If you are just preparing all threads to run, you should not override the threads that are
+    /// marked as suspended by the debugger.  In that case, pass override_suspend = false.  If you want
+    /// to force the thread to run (e.g. the "thread continue" command, or are resetting the state
+    /// (e.g. in SBThread::Resume()), then pass true to override_suspend.
+    /// @return
+    ///    The User resume state for this thread.
+    //------------------------------------------------------------------
     void
     SetResumeState (lldb::StateType state, bool override_suspend = false)
     {
@@ -229,6 +229,21 @@ public:
         m_resume_state = state;
     }
 
+    //------------------------------------------------------------------
+    /// Gets the USER resume state for this thread.  This is not the same as what
+    /// this thread is going to do for any particular step, however if this thread
+    /// returns eStateSuspended, then the process control logic will never allow this
+    /// thread to run.
+    ///
+    /// @return
+    ///    The User resume state for this thread.
+    //------------------------------------------------------------------
+    lldb::StateType
+    GetResumeState () const
+    {
+        return m_resume_state;
+    }
+    
     // This function is called on all the threads before "ShouldResume" and
     // "WillResume" in case a thread needs to change its state before the
     // ThreadList polls all the threads to figure out which ones actually
@@ -286,6 +301,9 @@ public:
 
     lldb::StopReason
     GetStopReason();
+
+    bool
+    StopInfoIsUpToDate() const;
 
     // This sets the stop reason to a "blank" stop reason, so you can call functions on the thread
     // without having the called function run with whatever stop reason you stopped with.
@@ -476,11 +494,7 @@ public:
     }
 
     lldb::StackFrameSP
-    GetSelectedFrame ()
-    {
-        lldb::StackFrameListSP stack_frame_list_sp(GetStackFrameList());
-        return stack_frame_list_sp->GetFrameAtIndex (stack_frame_list_sp->GetSelectedFrameIndex());
-    }
+    GetSelectedFrame ();
 
     uint32_t
     SetSelectedFrame (lldb_private::StackFrame *frame, bool broadcast = false);
@@ -974,11 +988,11 @@ public:
     /// Gets the outer-most expression variable from the completed plans
     ///
     /// @return
-    ///     A ClangExpressionVariableSP, either empty if there is no
+    ///     A ExpressionVariableSP, either empty if there is no
     ///     plan completed an expression during the current stop
     ///     or the expression variable that was made for the completed expression.
     //------------------------------------------------------------------
-    lldb::ClangExpressionVariableSP
+    lldb::ExpressionVariableSP
     GetExpressionVariable ();
 
     //------------------------------------------------------------------
@@ -1131,20 +1145,20 @@ public:
     //------------------------------------------------------------------
     // lldb::ExecutionContextScope pure virtual functions
     //------------------------------------------------------------------
-    virtual lldb::TargetSP
-    CalculateTarget ();
+    lldb::TargetSP
+    CalculateTarget() override;
     
-    virtual lldb::ProcessSP
-    CalculateProcess ();
+    lldb::ProcessSP
+    CalculateProcess() override;
     
-    virtual lldb::ThreadSP
-    CalculateThread ();
+    lldb::ThreadSP
+    CalculateThread() override;
     
-    virtual lldb::StackFrameSP
-    CalculateStackFrame ();
+    lldb::StackFrameSP
+    CalculateStackFrame() override;
 
-    virtual void
-    CalculateExecutionContext (ExecutionContext &exe_ctx);
+    void
+    CalculateExecutionContext(ExecutionContext &exe_ctx) override;
     
     lldb::StackFrameSP
     GetStackFrameSPForStackFramePtr (StackFrame *stack_frame_ptr);
@@ -1309,14 +1323,17 @@ protected:
     GetStackFrameList ();
     
 
+    void
+    FunctionOptimizationWarning (lldb_private::StackFrame *frame);
+
     //------------------------------------------------------------------
     // Classes that inherit from Process can see and modify these
     //------------------------------------------------------------------
     lldb::ProcessWP     m_process_wp;           ///< The process that owns this thread.
     lldb::StopInfoSP    m_stop_info_sp;         ///< The private stop reason for this thread
     uint32_t            m_stop_info_stop_id;    // This is the stop id for which the StopInfo is valid.  Can use this so you know that
-    uint32_t            m_stop_info_override_stop_id;    // The stop ID containing the last time the stop info was checked against the stop info override
     // the thread's m_stop_info_sp is current and you don't have to fetch it again
+    uint32_t            m_stop_info_override_stop_id;    // The stop ID containing the last time the stop info was checked against the stop info override
     const uint32_t      m_index_id;             ///< A unique 1 based index assigned to each thread for easy UI/command line access.
     lldb::RegisterContextSP m_reg_context_sp;   ///< The register context for this thread's current register state.
     lldb::StateType     m_state;                ///< The state of our process.
@@ -1342,9 +1359,8 @@ private:
     //------------------------------------------------------------------
 
     DISALLOW_COPY_AND_ASSIGN (Thread);
-
 };
 
 } // namespace lldb_private
 
-#endif  // liblldb_Thread_h_
+#endif // liblldb_Thread_h_

@@ -17,9 +17,6 @@
 #include "lldb/Core/RegisterValue.h"
 #include "lldb/Core/Scalar.h"
 #include "lldb/Core/StreamString.h"
-#ifndef LLDB_DISABLE_PYTHON
-#include "lldb/Interpreter/PythonDataObjects.h"
-#endif
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/Utils.h"
@@ -28,11 +25,12 @@
 #include "ProcessGDBRemote.h"
 #include "ProcessGDBRemoteLog.h"
 #include "ThreadGDBRemote.h"
-#include "Utility/ARM_GCC_Registers.h"
+#include "Utility/ARM_Stabs_Registers.h"
 #include "Utility/ARM_DWARF_Registers.h"
 
 using namespace lldb;
 using namespace lldb_private;
+using namespace lldb_private::process_gdb_remote;
 
 //----------------------------------------------------------------------
 // GDBRemoteRegisterContext constructor
@@ -151,7 +149,7 @@ GDBRemoteRegisterContext::PrivateSetRegisterValue (uint32_t reg, StringExtractor
 
 // Helper function for GDBRemoteRegisterContext::ReadRegisterBytes().
 bool
-GDBRemoteRegisterContext::GetPrimordialRegister(const lldb_private::RegisterInfo *reg_info,
+GDBRemoteRegisterContext::GetPrimordialRegister(const RegisterInfo *reg_info,
                                                 GDBRemoteCommunicationClient &gdb_comm)
 {
     const uint32_t reg = reg_info->kinds[eRegisterKindLLDB];
@@ -265,7 +263,7 @@ GDBRemoteRegisterContext::WriteRegister (const RegisterInfo *reg_info,
 
 // Helper function for GDBRemoteRegisterContext::WriteRegisterBytes().
 bool
-GDBRemoteRegisterContext::SetPrimordialRegister(const lldb_private::RegisterInfo *reg_info,
+GDBRemoteRegisterContext::SetPrimordialRegister(const RegisterInfo *reg_info,
                                                 GDBRemoteCommunicationClient &gdb_comm)
 {
     StreamString packet;
@@ -316,7 +314,7 @@ GDBRemoteRegisterContext::SyncThreadState(Process *process)
 }
 
 bool
-GDBRemoteRegisterContext::WriteRegisterBytes (const lldb_private::RegisterInfo *reg_info, DataExtractor &data, uint32_t data_offset)
+GDBRemoteRegisterContext::WriteRegisterBytes (const RegisterInfo *reg_info, DataExtractor &data, uint32_t data_offset)
 {
     ExecutionContext exe_ctx (CalculateThread());
 
@@ -460,7 +458,7 @@ GDBRemoteRegisterContext::WriteRegisterBytes (const lldb_private::RegisterInfo *
 }
 
 bool
-GDBRemoteRegisterContext::ReadAllRegisterValues (lldb_private::RegisterCheckpoint &reg_checkpoint)
+GDBRemoteRegisterContext::ReadAllRegisterValues (RegisterCheckpoint &reg_checkpoint)
 {
     ExecutionContext exe_ctx (CalculateThread());
     
@@ -486,7 +484,7 @@ GDBRemoteRegisterContext::ReadAllRegisterValues (lldb_private::RegisterCheckpoin
 }
 
 bool
-GDBRemoteRegisterContext::WriteAllRegisterValues (const lldb_private::RegisterCheckpoint &reg_checkpoint)
+GDBRemoteRegisterContext::WriteAllRegisterValues (const RegisterCheckpoint &reg_checkpoint)
 {
     uint32_t save_id = reg_checkpoint.GetID();
     if (save_id != 0)
@@ -676,15 +674,16 @@ GDBRemoteRegisterContext::WriteAllRegisterValues (const lldb::DataBufferSP &data
                         // This means buffer will be a little more than 2x larger than necessary but we resize
                         // it down once we've extracted all hex ascii chars from the packet.
                         DataBufferHeap buffer (G_packet_len, 0);
+
+                        const uint32_t bytes_extracted = response.GetHexBytes (buffer.GetBytes(),
+                                                                               buffer.GetByteSize(),
+                                                                               '\xcc');
+
                         DataExtractor restore_data (buffer.GetBytes(),
                                                     buffer.GetByteSize(),
                                                     m_reg_data.GetByteOrder(),
                                                     m_reg_data.GetAddressByteSize());
-    
-                        const uint32_t bytes_extracted = response.GetHexBytes ((void *)restore_data.GetDataStart(),
-                                                                               restore_data.GetByteSize(),
-                                                                               '\xcc');
-    
+
                         if (bytes_extracted < restore_data.GetByteSize())
                             restore_data.SetData(restore_data.GetDataStart(), bytes_extracted, m_reg_data.GetByteOrder());
     
@@ -939,7 +938,7 @@ GDBRemoteDynamicRegisterInfo::HardcodeARMRegisters(bool from_scratch)
     };
 
     static RegisterInfo g_register_infos[] = {
-//   NAME    ALT    SZ  OFF  ENCODING          FORMAT          COMPILER             DWARF                GENERIC                 GDB    LLDB      VALUE REGS    INVALIDATE REGS
+//   NAME    ALT    SZ  OFF  ENCODING          FORMAT          EH_FRAME             DWARF                GENERIC                 STABS  LLDB      VALUE REGS    INVALIDATE REGS
 //   ======  ====== === ===  =============     ============    ===================  ===================  ======================  ===    ====      ==========    ===============
     { "r0", "arg1",   4,   0, eEncodingUint,    eFormatHex,   { gcc_r0,              dwarf_r0,            LLDB_REGNUM_GENERIC_ARG1,0,      0 },        NULL,              NULL},
     { "r1", "arg2",   4,   0, eEncodingUint,    eFormatHex,   { gcc_r1,              dwarf_r1,            LLDB_REGNUM_GENERIC_ARG2,1,      1 },        NULL,              NULL},

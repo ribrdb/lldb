@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdArgValOptionLong.cpp
-//
-// Overview:    CMICmdArgValOptionLong implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmdArgValOptionLong.h"
 #include "MICmdArgContext.h"
@@ -30,7 +18,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValOptionLong::CMICmdArgValOptionLong(void)
+CMICmdArgValOptionLong::CMICmdArgValOptionLong()
     : m_nExpectingNOptions(0)
     , m_eExpectingOptionType(eArgValType_invalid)
 {
@@ -78,7 +66,7 @@ CMICmdArgValOptionLong::CMICmdArgValOptionLong(const CMIUtilString &vrArgName, c
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValOptionLong::~CMICmdArgValOptionLong(void)
+CMICmdArgValOptionLong::~CMICmdArgValOptionLong()
 {
     // Tidy up
     Destroy();
@@ -92,7 +80,7 @@ CMICmdArgValOptionLong::~CMICmdArgValOptionLong(void)
 // Throws:  None.
 //--
 void
-CMICmdArgValOptionLong::Destroy(void)
+CMICmdArgValOptionLong::Destroy()
 {
     // Tidy up
     VecArgObjPtr_t::const_iterator it = m_vecArgsExpected.begin();
@@ -120,7 +108,7 @@ bool
 CMICmdArgValOptionLong::Validate(CMICmdArgContext &vwArgContext)
 {
     if (vwArgContext.IsEmpty())
-        return MIstatus::success;
+        return m_bMandatory ? MIstatus::failure : MIstatus::success;
 
     if (vwArgContext.GetNumberArgsPresent() == 1)
     {
@@ -261,12 +249,12 @@ CMICmdArgValOptionLong::ExtractExpectedOptions(CMICmdArgContext &vrwTxt, const M
 bool
 CMICmdArgValOptionLong::IsArgLongOption(const CMIUtilString &vrTxt) const
 {
-    const bool bHavePosSlash = (vrTxt.find_first_of("/") != std::string::npos);
-    const bool bHaveBckSlash = (vrTxt.find_first_of("\\") != std::string::npos);
+    const bool bHavePosSlash = (vrTxt.find('/') != std::string::npos);
+    const bool bHaveBckSlash = (vrTxt.find('\\') != std::string::npos);
     if (bHavePosSlash || bHaveBckSlash)
         return false;
 
-    const MIint nPos = vrTxt.find_first_of("--");
+    const size_t nPos = vrTxt.find("--");
     if (nPos != 0)
         return false;
 
@@ -319,7 +307,7 @@ CMICmdArgValOptionLong::ArgNameMatch(const CMIUtilString &vrTxt) const
 // Throws:  None.
 //--
 const CMICmdArgValListBase::VecArgObjPtr_t &
-CMICmdArgValOptionLong::GetExpectedOptions(void) const
+CMICmdArgValOptionLong::GetExpectedOptions() const
 {
     return m_vecArgsExpected;
 }

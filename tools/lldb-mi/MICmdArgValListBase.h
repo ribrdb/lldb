@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdArgValListBase.h
-//
-// Overview:    CMICmdArgValListBase interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // Third party headers:
@@ -43,9 +31,6 @@ class CMICmdArgContext;
 //          container. The option arguments belong to that derived class and will
 //          be deleted that object goes out of scope.
 //          Based on the Interpreter pattern.
-// Gotchas: None.
-// Authors: Illya Rudkin 16/04/2014.
-// Changes: None.
 //--
 class CMICmdArgValListBase : public CMICmdArgValBaseTemplate<std::vector<CMICmdArgValBase *>>
 {
@@ -79,7 +64,7 @@ class CMICmdArgValListBase : public CMICmdArgValBaseTemplate<std::vector<CMICmdA
 
     // Methods:
   public:
-    /* ctor */ CMICmdArgValListBase(void);
+    /* ctor */ CMICmdArgValListBase();
     /* ctor */ CMICmdArgValListBase(const CMIUtilString &vrArgName, const bool vbMandatory, const bool vbHandleByCmd);
     /* ctor */ CMICmdArgValListBase(const CMIUtilString &vrArgName, const bool vbMandatory, const bool vbHandleByCmd,
                                     const ArgValType_e veType);
@@ -87,7 +72,7 @@ class CMICmdArgValListBase : public CMICmdArgValBaseTemplate<std::vector<CMICmdA
     // Overridden:
   public:
     // From CMICmdArgValBase
-    /* dtor */ virtual ~CMICmdArgValListBase(void);
+    /* dtor */ ~CMICmdArgValListBase() override;
 
     // Methods:
   protected:
@@ -100,5 +85,5 @@ class CMICmdArgValListBase : public CMICmdArgValBaseTemplate<std::vector<CMICmdA
 
     // Methods:
   private:
-    void Destroy(void);
+    void Destroy();
 };

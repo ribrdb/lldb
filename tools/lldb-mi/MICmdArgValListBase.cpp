@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdArgValListBase.cpp
-//
-// Overview:    CMICmdArgValListBase implementation.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // In-house headers:
 #include "MICmdArgValListBase.h"
 #include "MICmdArgContext.h"
@@ -37,7 +25,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValListBase::CMICmdArgValListBase(void)
+CMICmdArgValListBase::CMICmdArgValListBase()
     : m_eArgType(eArgValType_invalid)
 {
 }
@@ -81,7 +69,7 @@ CMICmdArgValListBase::CMICmdArgValListBase(const CMIUtilString &vrArgName, const
 // Return:  None.
 // Throws:  None.
 //--
-CMICmdArgValListBase::~CMICmdArgValListBase(void)
+CMICmdArgValListBase::~CMICmdArgValListBase()
 {
     // Tidy up
     Destroy();
@@ -95,7 +83,7 @@ CMICmdArgValListBase::~CMICmdArgValListBase(void)
 // Throws:  None.
 //--
 void
-CMICmdArgValListBase::Destroy(void)
+CMICmdArgValListBase::Destroy()
 {
     // Tidy up
     VecArgObjPtr_t::const_iterator it = m_argValue.begin();

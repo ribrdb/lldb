@@ -17,7 +17,7 @@ class ConditionalBreakTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @python_api_test
     @dsym_test
     def test_with_dsym_python(self):
@@ -25,6 +25,7 @@ class ConditionalBreakTestCase(TestBase):
         self.buildDsym()
         self.do_conditional_break()
 
+    @expectedFailureWindows("llvm.org/pr24778")
     @python_api_test
     @dwarf_test
     def test_with_dwarf_python(self):
@@ -32,7 +33,7 @@ class ConditionalBreakTestCase(TestBase):
         self.buildDwarf()
         self.do_conditional_break()
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym_command(self):
         """Simulate a user using lldb commands to break on c() if called from a()."""

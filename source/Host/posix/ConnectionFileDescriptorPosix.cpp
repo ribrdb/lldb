@@ -33,13 +33,14 @@
 #endif
 
 // C++ Includes
+#include <sstream>
+
 // Other libraries and framework includes
 #include "llvm/Support/ErrorHandling.h"
 #if defined(__APPLE__)
 #include "llvm/ADT/SmallVector.h"
 #endif
 // Project includes
-#include "lldb/lldb-private-log.h"
 #include "lldb/Core/Communication.h"
 #include "lldb/Core/Log.h"
 #include "lldb/Core/StreamString.h"
@@ -47,6 +48,8 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Host/Socket.h"
 #include "lldb/Interpreter/Args.h"
+
+#include "Utility/UriParser.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -80,6 +83,17 @@ ConnectionFileDescriptor::ConnectionFileDescriptor(int fd, bool owns_fd)
         log->Printf("%p ConnectionFileDescriptor::ConnectionFileDescriptor (fd = %i, owns_fd = %i)", static_cast<void *>(this), fd,
                     owns_fd);
     OpenCommandPipe();
+}
+
+ConnectionFileDescriptor::ConnectionFileDescriptor(Socket* socket)
+    : Connection()
+    , m_pipe()
+    , m_mutex(Mutex::eMutexTypeRecursive)
+    , m_shutting_down(false)
+    , m_waiting_for_accept(false)
+    , m_child_processes_inherit(false)
+{
+    InitializeSocket(socket);
 }
 
 ConnectionFileDescriptor::~ConnectionFileDescriptor()
@@ -155,6 +169,20 @@ ConnectionFileDescriptor::Connect(const char *s, Error *error_ptr)
         {
             // unix://SOCKNAME
             return NamedSocketAccept(s + strlen("unix-accept://"), error_ptr);
+        }
+        else if (strstr(s, "adb://") == s)
+        {
+            int port = -1;
+            std::string scheme, host, path;
+            if (!UriParser::Parse(s, scheme, host, port, path))
+            {
+                if (error_ptr)
+                    error_ptr->SetErrorStringWithFormat("Failed to parse URL '%s'", s);
+                return eConnectionStatusError;
+            }
+            std::ostringstream host_and_port;
+            host_and_port << "localhost:" << port;
+            return ConnectTCP(host_and_port.str().c_str(), error_ptr);
         }
         else if (strstr(s, "connect://") == s)
         {
@@ -354,6 +382,9 @@ ConnectionFileDescriptor::Disconnect(Error *error_ptr)
     if (error_ptr)
         *error_ptr = error.Fail() ? error : error2;
 
+    // Close any pipes we were using for async interrupts
+    m_pipe.Close();
+
     m_uri.clear();
     m_shutting_down = false;
     return status;
@@ -376,8 +407,12 @@ ConnectionFileDescriptor::Read(void *dst, size_t dst_len, uint32_t timeout_usec,
         status = eConnectionStatusTimedOut;
         return 0;
     }
-    else if (m_shutting_down)
-        return eConnectionStatusError;
+
+    if (m_shutting_down)
+    {
+        status = eConnectionStatusError;
+        return 0;
+    }
 
     status = BytesAvailable(timeout_usec, error_ptr);
     if (status != eConnectionStatusSuccess)
@@ -671,8 +706,10 @@ ConnectionFileDescriptor::BytesAvailable(uint32_t timeout_usec, Error *error_ptr
                     return eConnectionStatusSuccess;
                 if (have_pipe_fd && FD_ISSET(pipe_fd, FD_SET_DATA(read_fds)))
                 {
-                    // We got a command to exit.  Read the data from that pipe:
-                    char buffer[16];
+                    // There is an interrupt or exit command in the command pipe
+                    // Read the data from that pipe:
+                    char buffer[1];
+
                     ssize_t bytes_read;
 
                     do
@@ -684,8 +721,9 @@ ConnectionFileDescriptor::BytesAvailable(uint32_t timeout_usec, Error *error_ptr
                     {
                         case 'q':
                             if (log)
-                                log->Printf("%p ConnectionFileDescriptor::BytesAvailable() got data: %*s from the command channel.",
-                                            static_cast<void *>(this), static_cast<int>(bytes_read), buffer);
+                                log->Printf("%p ConnectionFileDescriptor::BytesAvailable() "
+                                            "got data: %c from the command channel.",
+                                            static_cast<void *>(this), buffer[0]);
                             return eConnectionStatusEndOfFile;
                         case 'i':
                             // Interrupt the current read
@@ -759,15 +797,7 @@ ConnectionFileDescriptor::SocketListenAndAccept(const char *s, Error *error_ptr)
     if (error.Fail())
         return eConnectionStatusError;
 
-    m_write_sp.reset(socket);
-    m_read_sp = m_write_sp;
-    if (error.Fail())
-    {
-        return eConnectionStatusError;
-    }
-    StreamString strm;
-    strm.Printf("connect://%s:%u",socket->GetRemoteIPAddress().c_str(), socket->GetRemotePortNumber());
-    m_uri.swap(strm.GetString());
+    InitializeSocket(socket);
     return eConnectionStatusSuccess;
 }
 
@@ -831,4 +861,14 @@ void
 ConnectionFileDescriptor::SetChildProcessesInherit(bool child_processes_inherit)
 {
     m_child_processes_inherit = child_processes_inherit;
+}
+
+void
+ConnectionFileDescriptor::InitializeSocket(Socket* socket)
+{
+    m_write_sp.reset(socket);
+    m_read_sp = m_write_sp;
+    StreamString strm;
+    strm.Printf("connect://%s:%u",socket->GetRemoteIPAddress().c_str(), socket->GetRemotePortNumber());
+    m_uri.swap(strm.GetString());
 }

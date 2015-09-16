@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnStreamStderr.h
-//
-// Overview:    CMICmnStreamStderr interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
 
 // In-house headers:
@@ -32,9 +20,6 @@
 //          CMICmnStreamStderr sets up and tears downs stderr for the driver.
 //
 //          Singleton class.
-// Gotchas: None.
-// Authors: Illya Rudkin 19/03/2014.
-// Changes: None.
 //--
 class CMICmnStreamStderr : public CMICmnBase, public MI::ISingleton<CMICmnStreamStderr>
 {
@@ -47,17 +32,17 @@ class CMICmnStreamStderr : public CMICmnBase, public MI::ISingleton<CMICmnStream
 
     // Methods:
   public:
-    bool Initialize(void);
-    bool Shutdown(void);
+    bool Initialize() override;
+    bool Shutdown() override;
     //
-    bool Lock(void);
-    bool Unlock(void);
+    bool Lock();
+    bool Unlock();
     bool Write(const CMIUtilString &vText, const bool vbSendToLog = true);
     bool WriteLLDBMsg(const CMIUtilString &vText, const bool vbSendToLog = true);
 
     // Methods:
   private:
-    /* ctor */ CMICmnStreamStderr(void);
+    /* ctor */ CMICmnStreamStderr();
     /* ctor */ CMICmnStreamStderr(const CMICmnStreamStderr &);
     void operator=(const CMICmnStreamStderr &);
     //
@@ -66,7 +51,7 @@ class CMICmnStreamStderr : public CMICmnBase, public MI::ISingleton<CMICmnStream
     // Overridden:
   private:
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmnStreamStderr(void);
+    /* dtor */ ~CMICmnStreamStderr() override;
 
     // Attributes:
   private:

@@ -11,7 +11,7 @@ class StopHookForMultipleThreadsTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_stop_hook_multiple_threads_with_dsym(self):
         """Test that lldb stop-hook works for multiple threads."""
@@ -20,9 +20,9 @@ class StopHookForMultipleThreadsTestCase(TestBase):
         self.stop_hook_multiple_threads()
 
     @dwarf_test
-    @expectedFailureFreeBSD("llvm.org/pr15037")
-    @expectedFailureLinux("llvm.org/pr15037") # stop hooks sometimes fail to fire on Linux
-    @expectedFailureWindows("llvm.org/pr22274: need a pexpect replacement for windows")
+    @expectedFlakeyFreeBSD("llvm.org/pr15037")
+    @expectedFlakeyLinux("llvm.org/pr15037") # stop hooks sometimes fail to fire on Linux
+    @expectedFailureHostWindows("llvm.org/pr22274: need a pexpect replacement for windows")
     def test_stop_hook_multiple_threads_with_dwarf(self):
         """Test that lldb stop-hook works for multiple threads."""
         self.buildDwarf(dictionary=self.d)
@@ -48,11 +48,22 @@ class StopHookForMultipleThreadsTestCase(TestBase):
         prompt = "(lldb) "
 
         # So that the child gets torn down after the test.
-        self.child = pexpect.spawn('%s %s %s' % (self.lldbHere, self.lldbOption, exe))
+        self.child = pexpect.spawn('%s %s' % (lldbtest_config.lldbExec, self.lldbOption))
         child = self.child
         # Turn on logging for what the child sends back.
         if self.TraceOn():
             child.logfile_read = sys.stdout
+
+        if lldb.remote_platform:
+            child.expect_exact(prompt)
+            child.sendline('platform select %s' % lldb.remote_platform.GetName())
+            child.expect_exact(prompt)
+            child.sendline('platform connect %s' % lldb.platform_url)
+            child.expect_exact(prompt)
+            child.sendline('platform settings -w %s' % lldb.remote_platform_working_dir)
+
+        child.expect_exact(prompt)
+        child.sendline('target create %s' % exe)
 
         # Set the breakpoint, followed by the target stop-hook commands.
         child.expect_exact(prompt)
@@ -61,7 +72,7 @@ class StopHookForMultipleThreadsTestCase(TestBase):
         child.sendline('breakpoint set -f main.cpp -l %d' % self.thread_function)
         child.expect_exact(prompt)
 
-        # Now run the program, expect to stop at the the first breakpoint which is within the stop-hook range.
+        # Now run the program, expect to stop at the first breakpoint which is within the stop-hook range.
         child.sendline('run')
         child.expect_exact("Process")   # 'Process 2415 launched', 'Process 2415 stopped'
         child.expect_exact(prompt)
@@ -71,7 +82,7 @@ class StopHookForMultipleThreadsTestCase(TestBase):
 
         # Continue and expect to find the output emitted by the firing of our stop hook.
         child.sendline('continue')
-        child.expect_exact('(uint32_t) g_val = ')
+        child.expect_exact('(uint32_t) ::g_val = ')
 
 
 if __name__ == '__main__':

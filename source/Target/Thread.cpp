@@ -7,23 +7,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/lldb-python.h"
-
-#include "lldb/lldb-private-log.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Log.h"
 #include "lldb/Core/FormatEntity.h"
+#include "lldb/Core/Module.h"
 #include "lldb/Core/State.h"
 #include "lldb/Core/Stream.h"
 #include "lldb/Core/StreamString.h"
 #include "lldb/Core/RegularExpression.h"
+#include "lldb/Core/ValueObject.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/OptionValueFileSpecList.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
+#include "lldb/Interpreter/Property.h"
 #include "lldb/Symbol/Function.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/ExecutionContext.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StopInfo.h"
@@ -360,12 +361,22 @@ Thread::BroadcastSelectedFrameChange(StackID &new_frame_id)
         BroadcastEvent(eBroadcastBitSelectedFrameChanged, new ThreadEventData (this->shared_from_this(), new_frame_id));
 }
 
+lldb::StackFrameSP
+Thread::GetSelectedFrame()
+{
+    StackFrameListSP stack_frame_list_sp(GetStackFrameList());
+    StackFrameSP frame_sp = stack_frame_list_sp->GetFrameAtIndex (stack_frame_list_sp->GetSelectedFrameIndex());
+    FunctionOptimizationWarning (frame_sp.get());
+    return frame_sp;
+}
+
 uint32_t
 Thread::SetSelectedFrame (lldb_private::StackFrame *frame, bool broadcast)
 {
     uint32_t ret_value = GetStackFrameList()->SetSelectedFrame(frame);
     if (broadcast)
         BroadcastSelectedFrameChange(frame->GetStackID());
+    FunctionOptimizationWarning (frame);
     return ret_value;
 }
 
@@ -378,6 +389,7 @@ Thread::SetSelectedFrameByIndex (uint32_t frame_idx, bool broadcast)
         GetStackFrameList()->SetSelectedFrame(frame_sp.get());
         if (broadcast)
             BroadcastSelectedFrameChange(frame_sp->GetStackID());
+        FunctionOptimizationWarning (frame_sp.get());
         return true;
     }
     else
@@ -403,12 +415,23 @@ Thread::SetSelectedFrameByIndexNoisily (uint32_t frame_idx, Stream &output_strea
 
             bool show_frame_info = true;
             bool show_source = !already_shown;
+            FunctionOptimizationWarning (frame_sp.get());
             return frame_sp->GetStatus (output_stream, show_frame_info, show_source);
         }
         return false;
     }
     else
         return false;
+}
+
+void
+Thread::FunctionOptimizationWarning (StackFrame *frame)
+{
+    if (frame && frame->HasDebugInformation() && GetProcess()->GetWarningsOptimization() == true)
+    {
+        SymbolContext sc = frame->GetSymbolContext (eSymbolContextFunction | eSymbolContextModule);
+        GetProcess()->PrintWarningOptimization (sc);
+    }
 }
 
 
@@ -501,6 +524,15 @@ Thread::GetStopReason()
 }
 
 
+bool
+Thread::StopInfoIsUpToDate() const
+{
+    ProcessSP process_sp (GetProcess());
+    if (process_sp)
+        return m_stop_info_stop_id == process_sp->GetStopID();
+    else
+        return true; // Process is no longer around so stop info is always up to date...
+}
 
 void
 Thread::SetStopInfo (const lldb::StopInfoSP &stop_info_sp)
@@ -655,11 +687,6 @@ Thread::SetupForResume ()
         // telling the current plan it will resume, since we might change what the current
         // plan is.
 
-//      StopReason stop_reason = lldb::eStopReasonInvalid;
-//      StopInfoSP stop_info_sp = GetStopInfo();
-//      if (stop_info_sp.get())
-//          stop_reason = stop_info_sp->GetStopReason();
-//      if (stop_reason == lldb::eStopReasonBreakpoint)
         lldb::RegisterContextSP reg_ctx_sp (GetRegisterContext());
         if (reg_ctx_sp)
         {
@@ -725,7 +752,7 @@ Thread::ShouldResume (StateType resume_state)
     // the target, 'cause that slows down single stepping.  So assume that if we got to the point where
     // we're about to resume, and we haven't yet had to fetch the stop reason, then it doesn't need to know
     // about the fact that we are resuming...
-        const uint32_t process_stop_id = GetProcess()->GetStopID();
+    const uint32_t process_stop_id = GetProcess()->GetStopID();
     if (m_stop_info_stop_id == process_stop_id &&
         (m_stop_info_sp && m_stop_info_sp->IsValid()))
     {
@@ -1211,26 +1238,26 @@ Thread::GetReturnValueObject ()
             ValueObjectSP return_valobj_sp;
             return_valobj_sp = m_completed_plan_stack[i]->GetReturnValueObject();
             if (return_valobj_sp)
-            return return_valobj_sp;
+                return return_valobj_sp;
         }
     }
     return ValueObjectSP();
 }
 
-ClangExpressionVariableSP
+ExpressionVariableSP
 Thread::GetExpressionVariable ()
 {
     if (!m_completed_plan_stack.empty())
     {
         for (int i = m_completed_plan_stack.size() - 1; i >= 0; i--)
         {
-            ClangExpressionVariableSP expression_variable_sp;
+            ExpressionVariableSP expression_variable_sp;
             expression_variable_sp = m_completed_plan_stack[i]->GetExpressionVariable();
             if (expression_variable_sp)
-            return expression_variable_sp;
+                return expression_variable_sp;
         }
     }
-    return ClangExpressionVariableSP();
+    return ExpressionVariableSP();
 }
 
 bool
@@ -1896,7 +1923,7 @@ Thread::ReturnFromFrame (lldb::StackFrameSP frame_sp, lldb::ValueObjectSP return
             Type *function_type = sc.function->GetType();
             if (function_type)
             {
-                ClangASTType return_type = sc.function->GetClangType().GetFunctionReturnType();
+                CompilerType return_type = sc.function->GetCompilerType().GetFunctionReturnType();
                 if (return_type)
                 {
                     StreamString s;
@@ -2207,8 +2234,7 @@ Thread::GetDescription (Stream &strm, lldb::DescriptionLevel level, bool print_j
     strm.Printf("\n");
 
     StructuredData::ObjectSP thread_info = GetExtendedInfo();
-    StructuredData::ObjectSP stop_info = m_stop_info_sp->GetExtendedInfo();
-    
+
     if (print_json_thread || print_json_stopinfo)
     {
         if (thread_info && print_json_thread)
@@ -2216,13 +2242,17 @@ Thread::GetDescription (Stream &strm, lldb::DescriptionLevel level, bool print_j
             thread_info->Dump (strm);
             strm.Printf("\n");
         }
-        
-        if (stop_info && print_json_stopinfo)
+
+        if (print_json_stopinfo && m_stop_info_sp)
         {
-            stop_info->Dump (strm);
-            strm.Printf("\n");
+            StructuredData::ObjectSP stop_info = m_stop_info_sp->GetExtendedInfo();
+            if (stop_info)
+            {
+                stop_info->Dump (strm);
+                strm.Printf("\n");
+            }
         }
-        
+
         return true;
     }
 
@@ -2315,7 +2345,10 @@ Thread::GetUnwinder ()
             case llvm::Triple::arm:
             case llvm::Triple::aarch64:
             case llvm::Triple::thumb:
+            case llvm::Triple::mips:
+            case llvm::Triple::mipsel:
             case llvm::Triple::mips64:
+            case llvm::Triple::mips64el:
             case llvm::Triple::ppc:
             case llvm::Triple::ppc64:
             case llvm::Triple::hexagon:

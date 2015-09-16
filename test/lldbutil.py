@@ -466,7 +466,7 @@ def check_breakpoint_result (test, break_results, file_name=None, line_number=-1
         test.assertTrue (file_name == out_file_name, "Breakpoint file name '%s' doesn't match resultant name '%s'."%(file_name, out_file_name))
 
     if line_number != -1:
-        out_file_line = -1
+        out_line_number = -1
         if 'line_no' in break_results:
             out_line_number = break_results['line_no']
 
@@ -486,7 +486,7 @@ def check_breakpoint_result (test, break_results, file_name=None, line_number=-1
             test.assertTrue(out_symbol_name.find(symbol_name) != -1, "Symbol name '%s' isn't in resultant symbol '%s'."%(symbol_name, out_symbol_name))
 
     if module_name:
-        out_nodule_name = None
+        out_module_name = None
         if 'module' in break_results:
             out_module_name = break_results['module']
         
@@ -551,6 +551,25 @@ def get_threads_stopped_at_breakpoint (process, bkpt):
         if break_id == bkpt.GetID():
             threads.append(thread)
 
+    return threads
+
+def is_thread_crashed (test, thread):
+    """In the test suite we dereference a null pointer to simulate a crash. The way this is
+    reported depends on the platform."""
+    if test.platformIsDarwin():
+        return thread.GetStopReason() == lldb.eStopReasonException and "EXC_BAD_ACCESS" in thread.GetStopDescription(100)
+    elif test.getPlatform() == "linux":
+        return thread.GetStopReason() == lldb.eStopReasonSignal and thread.GetStopReasonDataAtIndex(0) == thread.GetProcess().GetUnixSignals().GetSignalNumberFromName("SIGSEGV")
+    else:
+        return "invalid address" in thread.GetStopDescription(100)
+
+def get_crashed_threads (test, process):
+    threads = []
+    if process.GetState() != lldb.eStateStopped:
+        return threads
+    for thread in process:
+        if is_thread_crashed(test, thread):
+            threads.append(thread)
     return threads
 
 def continue_to_breakpoint (process, bkpt):
@@ -701,6 +720,21 @@ def print_stacktraces(process, string_buffer = False):
 
     if string_buffer:
         return output.getvalue()
+
+def expect_state_changes(test, listener, states, timeout = 5):
+    """Listens for state changed events on the listener and makes sure they match what we
+    expect. Stop-and-restart events (where GetRestartedFromEvent() returns true) are ignored."""
+    event = lldb.SBEvent()
+    for expected_state in states:
+        if not listener.WaitForEvent(timeout, event):
+            test.Fail("Timed out while waiting for a transition to state %s" %
+                lldb.SBDebugger.StateAsCString(expected_state))
+
+        got_state = lldb.SBProcess.GetStateFromEvent(event)
+        if got_state == lldb.eStateStopped and lldb.SBProcess.GetRestartedFromEvent(event):
+            continue
+
+        test.assertEqual(expected_state, got_state)
 
 # ===================================
 # Utility functions related to Frames
@@ -890,3 +924,36 @@ class RecursiveDecentFormatter(BasicFormatter):
                     BasicFormatter.format(self, child, buffer=output, indent=new_indent)
 
         return output.getvalue()
+
+# ===========================================================
+# Utility functions for path manipulation on remote platforms
+# ===========================================================
+
+def join_remote_paths(*paths):
+    # TODO: update with actual platform name for remote windows once it exists
+    if lldb.remote_platform.GetName() == 'remote-windows':
+        return os.path.join(*paths).replace(os.path.sep, '\\')
+    return os.path.join(*paths).replace(os.path.sep, '/')
+
+def append_to_process_working_directory(*paths):
+    remote = lldb.remote_platform
+    if remote:
+        return join_remote_paths(remote.GetWorkingDirectory(), *paths)
+    return os.path.join(os.getcwd(), *paths)
+
+# ==================================================
+# Utility functions to get the correct signal number
+# ==================================================
+
+import signal
+
+def get_signal_number(signal_name):
+    platform = lldb.remote_platform
+    if platform and platform.IsValid():
+        signals = platform.GetUnixSignals()
+        if signals.IsValid():
+            signal_number = signals.GetSignalNumberFromName(signal_name)
+            if signal_number > 0:
+                return signal_number
+    # No remote platform; fall back to using local python signals.
+    return getattr(signal, signal_name)

@@ -25,6 +25,18 @@
   }
 }
 
+%typemap(in) lldb::tid_t {
+    if (PyInt_Check($input))
+        $1 = PyInt_AsLong($input);
+    else if (PyLong_Check($input))
+        $1 = PyLong_AsLongLong($input);
+    else
+    {
+        PyErr_SetString(PyExc_ValueError, "Expecting an integer");
+        return NULL;
+    }
+}
+
 %typemap(typecheck) char ** {
   /* Check if is a list  */
   $1 = 1;
@@ -244,8 +256,16 @@
       if (PyInt_Check(o)) {
         $1[i] = PyInt_AsLong(o);
       }
+      else if (PyLong_Check(o)) {
+        $1[i] = PyLong_AsUnsignedLongLong(o);
+      }
       else {
         PyErr_SetString(PyExc_TypeError,"list must contain numbers");
+        free($1);
+        return NULL;
+      }
+
+      if (PyErr_Occurred()) {
         free($1);
         return NULL;
       }
@@ -275,8 +295,16 @@
       if (PyInt_Check(o)) {
         $1[i] = PyInt_AsLong(o);
       }
+      else if (PyLong_Check(o)) {
+        $1[i] = PyLong_AsUnsignedLong(o);
+      }
       else {
         PyErr_SetString(PyExc_TypeError,"list must contain numbers");
+        free($1);
+        return NULL;
+      }
+
+      if (PyErr_Occurred()) {
         free($1);
         return NULL;
       }
@@ -306,8 +334,16 @@
       if (PyInt_Check(o)) {
         $1[i] = PyInt_AsLong(o);
       }
+      else if (PyLong_Check(o)) {
+        $1[i] = PyLong_AsLongLong(o);
+      }
       else {
         PyErr_SetString(PyExc_TypeError,"list must contain numbers");
+        free($1);
+        return NULL;
+      }
+
+      if (PyErr_Occurred()) {
         free($1);
         return NULL;
       }
@@ -337,8 +373,16 @@
       if (PyInt_Check(o)) {
         $1[i] = PyInt_AsLong(o);
       }
+      else if (PyLong_Check(o)) {
+        $1[i] = PyLong_AsLong(o);
+      }
       else {
         PyErr_SetString(PyExc_TypeError,"list must contain numbers");
+        free($1);
+        return NULL;
+      }
+
+      if (PyErr_Occurred()) {
         free($1);
         return NULL;
       }

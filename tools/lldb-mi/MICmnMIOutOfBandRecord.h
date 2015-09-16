@@ -7,26 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmnMIOutOfBandRecord.h
-//
-// Overview:    CMICmnMIOutOfBandRecord interface.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 #pragma once
-
-// Third party headers:
-#include <map>
 
 // In-house headers:
 #include "MICmnBase.h"
 #include "MIUtilString.h"
+#include "MICmnMIValueConst.h"
 #include "MICmnMIValueResult.h"
 
 //++ ============================================================================
@@ -48,9 +34,6 @@
 //
 //          More information see:
 //          http://ftp.gnu.org/old-gnu/Manuals/gdb-5.1.1/html_chapter/gdb_22.html//
-//          Gotchas: None.
-// Authors: Illya Rudkin 24/02/2014.
-// Changes: None.
 //--
 class CMICmnMIOutOfBandRecord : public CMICmnBase
 {
@@ -73,38 +56,27 @@ class CMICmnMIOutOfBandRecord : public CMICmnBase
         eOutOfBand_ThreadCreated,
         eOutOfBand_ThreadExited,
         eOutOfBand_ThreadSelected,
-        eOutOfBand_count // Always the last one
+        eOutOfBand_TargetModuleLoaded,
+        eOutOfBand_TargetModuleUnloaded,
+        eOutOfBand_TargetStreamOutput
     };
-
-    // Typedefs:
-  public:
-    typedef std::map<OutOfBand_e, CMIUtilString> MapOutOfBandToOutOfBandText_t;
-    typedef std::map<OutOfBand_e, CMIUtilString> MapOutOfBandToToken_t;
 
     // Methods:
   public:
-    /* ctor */ CMICmnMIOutOfBandRecord(void);
-    /* ctor */ CMICmnMIOutOfBandRecord(const OutOfBand_e veType);
-    /* ctor */ CMICmnMIOutOfBandRecord(const OutOfBand_e veType, const CMICmnMIValueResult &vValue);
+    /* ctor */ CMICmnMIOutOfBandRecord();
+    /* ctor */ CMICmnMIOutOfBandRecord(OutOfBand_e veType);
+    /* ctor */ CMICmnMIOutOfBandRecord(OutOfBand_e veType, const CMICmnMIValueConst &vConst);
+    /* ctor */ CMICmnMIOutOfBandRecord(OutOfBand_e veType, const CMICmnMIValueResult &vResult);
     //
-    const CMIUtilString &GetString(void) const;
-    bool Add(const CMICmnMIValue &vMIValue);
+    const CMIUtilString &GetString() const;
+    void Add(const CMICmnMIValueResult &vResult);
 
     // Overridden:
   public:
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmnMIOutOfBandRecord(void);
-
-    // Methods:
-  private:
-    bool BuildAsyncRecord(void);
+    /* dtor */ ~CMICmnMIOutOfBandRecord() override;
 
     // Attributes:
   private:
-    static MapOutOfBandToOutOfBandText_t ms_constMapOutOfBandToAsyncRecordText;
-    static MapOutOfBandToToken_t ms_constMapOutOfBandTextToToken;
-    //
-    OutOfBand_e m_eResultAsyncRecordClass;
     CMIUtilString m_strAsyncRecord; // Holds the text version of the result record to date
-    CMICmnMIValueResult m_partResult;
 };

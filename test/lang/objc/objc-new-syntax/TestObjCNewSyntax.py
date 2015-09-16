@@ -14,8 +14,10 @@ class ObjCNewSyntaxTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
+    @expectedFailureAll(
+        oslist=['macosx'], compiler='clang', compiler_version=['<', '7.0.0'])
     def test_expr_with_dsym(self):
         self.buildDsym()
         self.expr()
@@ -23,6 +25,9 @@ class ObjCNewSyntaxTestCase(TestBase):
     @dwarf_test
     @skipIfFreeBSD
     @skipIfLinux
+    @skipIfWindows
+    @expectedFailureAll(
+        oslist=['macosx'], compiler='clang', compiler_version=['<', '7.0.0'])
     def test_expr_with_dwarf(self):
         self.buildDwarf()
         self.expr()

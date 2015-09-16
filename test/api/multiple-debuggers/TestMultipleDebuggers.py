@@ -14,12 +14,13 @@ class TestMultipleSimultaneousDebuggers(TestBase):
     def setUp(self):
         TestBase.setUp(self)
         self.lib_dir = os.environ["LLDB_LIB_DIR"]
+        self.implib_dir = os.environ["LLDB_IMPLIB_DIR"]
 
     @skipIfi386
     @skipIfNoSBHeaders
-    @expectedFailureDarwin("llvm.org/pr20282") # intermittent
     @expectedFailureFreeBSD("llvm.org/pr20282")
     @expectedFailureLinux("llvm.org/pr20282")
+    @expectedFlakeyDarwin()
     def test_multiple_debuggers(self):
         env = {self.dylibPath : self.getLLDBLibraryEnvVal()}
 

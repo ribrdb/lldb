@@ -12,7 +12,7 @@ class CPPBreakpointTestCase(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @dsym_test
     def test_with_dsym(self):
         """Test lldb exception breakpoint command for CPP."""
@@ -20,6 +20,7 @@ class CPPBreakpointTestCase(TestBase):
         self.cpp_exceptions()
 
     @dwarf_test
+    @expectedFailureWindows("llvm.org/pr24538") # clang-cl does not support throw or catch
     def test_with_dwarf(self):
         """Test lldb exception breakpoint command for CPP."""
         self.buildDwarf()

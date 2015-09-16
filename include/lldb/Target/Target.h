@@ -18,24 +18,15 @@
 // Project includes
 #include "lldb/lldb-public.h"
 #include "lldb/Breakpoint/BreakpointList.h"
-#include "lldb/Breakpoint/BreakpointLocationCollection.h"
 #include "lldb/Breakpoint/WatchpointList.h"
 #include "lldb/Core/ArchSpec.h"
 #include "lldb/Core/Broadcaster.h"
 #include "lldb/Core/Disassembler.h"
-#include "lldb/Core/Event.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/UserSettingsController.h"
-#include "lldb/Expression/ClangModulesDeclVendor.h"
-#include "lldb/Expression/ClangPersistentVariables.h"
-#include "lldb/Interpreter/Args.h"
-#include "lldb/Interpreter/OptionValueBoolean.h"
-#include "lldb/Interpreter/OptionValueEnumeration.h"
-#include "lldb/Interpreter/OptionValueFileSpec.h"
-#include "lldb/Symbol/SymbolContext.h"
-#include "lldb/Target/ABI.h"
 #include "lldb/Target/ExecutionContextScope.h"
 #include "lldb/Target/PathMappingList.h"
+#include "lldb/Target/ProcessLaunchInfo.h"
 #include "lldb/Target/SectionLoadHistory.h"
 
 namespace lldb_private {
@@ -64,8 +55,7 @@ class TargetProperties : public Properties
 public:
     TargetProperties(Target *target);
 
-    virtual
-    ~TargetProperties();
+    ~TargetProperties() override;
     
     ArchSpec
     GetDefaultArchitecture () const;
@@ -73,9 +63,15 @@ public:
     void
     SetDefaultArchitecture (const ArchSpec& arch);
 
+    bool
+    GetMoveToNearestCode () const;
+
     lldb::DynamicValueType
     GetPreferDynamicValue() const;
-    
+
+    bool
+    SetPreferDynamicValue (lldb::DynamicValueType d);
+
     bool
     GetDisableASLR () const;
     
@@ -117,7 +113,10 @@ public:
     
     size_t
     GetEnvironmentAsArgs (Args &env) const;
-    
+
+    void
+    SetEnvironmentFromArgs (const Args &env);
+
     bool
     GetSkipPrologue() const;
     
@@ -129,6 +128,12 @@ public:
 
     FileSpecList &
     GetDebugFileSearchPaths ();
+    
+    FileSpecList &
+    GetClangModuleSearchPaths ();
+    
+    bool
+    GetEnableAutoImportClangModules () const;
     
     bool
     GetEnableSyntheticValue () const;
@@ -163,6 +168,9 @@ public:
     bool
     GetBreakpointsConsultPlatformAvoidList ();
     
+    lldb::LanguageType
+    GetLanguage () const;
+
     const char *
     GetExpressionPrefixContentsAsCString ();
 
@@ -189,15 +197,46 @@ public:
 
     void
     SetUserSpecifiedTrapHandlerNames (const Args &args);
-    
+
+    bool
+    GetNonStopModeEnabled () const;
+
+    void
+    SetNonStopModeEnabled (bool b);
+
     bool
     GetDisplayRuntimeSupportValues () const;
     
     void
     SetDisplayRuntimeSupportValues (bool b);
-};
 
-typedef std::shared_ptr<TargetProperties> TargetPropertiesSP;
+    const ProcessLaunchInfo &
+    GetProcessLaunchInfo();
+
+    void
+    SetProcessLaunchInfo(const ProcessLaunchInfo &launch_info);
+
+private:
+    //------------------------------------------------------------------
+    // Callbacks for m_launch_info.
+    //------------------------------------------------------------------
+    static void Arg0ValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void RunArgsValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void EnvVarsValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void InheritEnvValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void InputPathValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void OutputPathValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void ErrorPathValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void DetachOnErrorValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void DisableASLRValueChangedCallback(void *target_property_ptr, OptionValue *);
+    static void DisableSTDIOValueChangedCallback(void *target_property_ptr, OptionValue *);
+
+private:
+    //------------------------------------------------------------------
+    // Member variables.
+    //------------------------------------------------------------------
+    ProcessLaunchInfo m_launch_info;
+};
 
 class EvaluateExpressionOptions
 {
@@ -206,19 +245,20 @@ public:
     EvaluateExpressionOptions() :
         m_execution_policy(eExecutionPolicyOnlyWhenNeeded),
         m_language (lldb::eLanguageTypeUnknown),
-        m_coerce_to_id(false),
-        m_unwind_on_error(true),
+        m_prefix (), // A prefix specific to this expression that is added after the prefix from the settings (if any)
+        m_coerce_to_id (false),
+        m_unwind_on_error (true),
         m_ignore_breakpoints (false),
-        m_keep_in_memory(false),
-        m_try_others(true),
-        m_stop_others(true),
-        m_debug(false),
-        m_trap_exceptions(true),
-        m_generate_debug_info(false),
-        m_result_is_internal(false),
-        m_use_dynamic(lldb::eNoDynamicValues),
-        m_timeout_usec(default_timeout),
-        m_one_thread_timeout_usec(0),
+        m_keep_in_memory (false),
+        m_try_others (true),
+        m_stop_others (true),
+        m_debug (false),
+        m_trap_exceptions (true),
+        m_generate_debug_info (false),
+        m_result_is_internal (false),
+        m_use_dynamic (lldb::eNoDynamicValues),
+        m_timeout_usec (default_timeout),
+        m_one_thread_timeout_usec (0),
         m_cancel_callback (nullptr),
         m_cancel_callback_baton (nullptr)
     {
@@ -253,7 +293,24 @@ public:
     {
         return m_coerce_to_id;
     }
-    
+
+    const char *
+    GetPrefix () const
+    {
+        if (m_prefix.empty())
+            return NULL;
+        return m_prefix.c_str();
+    }
+
+    void
+    SetPrefix (const char *prefix)
+    {
+        if (prefix && prefix[0])
+            m_prefix = prefix;
+        else
+            m_prefix.clear();
+    }
+
     void
     SetCoerceToId (bool coerce = true)
     {
@@ -425,6 +482,7 @@ public:
 private:
     ExecutionPolicy m_execution_policy;
     lldb::LanguageType m_language;
+    std::string m_prefix;
     bool m_coerce_to_id;
     bool m_unwind_on_error;
     bool m_ignore_breakpoints;
@@ -471,7 +529,7 @@ public:
     
     static ConstString &GetStaticBroadcasterClass ();
 
-    virtual ConstString &GetBroadcasterClass() const
+    ConstString &GetBroadcasterClass() const override
     {
         return GetStaticBroadcasterClass();
     }
@@ -480,35 +538,48 @@ public:
     class TargetEventData : public EventData
     {
     public:
+        TargetEventData (const lldb::TargetSP &target_sp);
+
+        TargetEventData (const lldb::TargetSP &target_sp, const ModuleList &module_list);
+
+        ~TargetEventData() override;
 
         static const ConstString &
         GetFlavorString ();
 
-        virtual const ConstString &
-        GetFlavor () const;
+        const ConstString &
+        GetFlavor() const override
+        {
+            return TargetEventData::GetFlavorString ();
+        }
 
-        TargetEventData (const lldb::TargetSP &new_target_sp);
-        
-        lldb::TargetSP &
-        GetTarget()
+        void
+        Dump(Stream *s) const override;
+
+        static const TargetEventData *
+        GetEventDataFromEvent (const Event *event_ptr);
+
+        static lldb::TargetSP
+        GetTargetFromEvent (const Event *event_ptr);
+
+        static ModuleList
+        GetModuleListFromEvent (const Event *event_ptr);
+
+        const lldb::TargetSP &
+        GetTarget() const
         {
             return m_target_sp;
         }
 
-        virtual
-        ~TargetEventData();
-        
-        virtual void
-        Dump (Stream *s) const;
-
-        static const lldb::TargetSP
-        GetTargetFromEvent (const lldb::EventSP &event_sp);
-        
-        static const TargetEventData *
-        GetEventDataFromEvent (const Event *event_sp);
+        const ModuleList &
+        GetModuleList() const
+        {
+            return m_module_list;
+        }
 
     private:
         lldb::TargetSP m_target_sp;
+        ModuleList     m_module_list;
 
         DISALLOW_COPY_AND_ASSIGN (TargetEventData);
     };
@@ -519,14 +590,14 @@ public:
     static void
     SettingsTerminate ();
 
-//    static lldb::UserSettingsControllerSP &
-//    GetSettingsController ();
-
     static FileSpecList
     GetDefaultExecutableSearchPaths ();
 
     static FileSpecList
     GetDefaultDebugFileSearchPaths ();
+    
+    static FileSpecList
+    GetDefaultClangModuleSearchPaths ();
 
     static ArchSpec
     GetDefaultArchitecture ();
@@ -545,9 +616,8 @@ public:
     // Settings accessors
     //----------------------------------------------------------------------
 
-    static const TargetPropertiesSP &
+    static const lldb::TargetPropertiesSP &
     GetGlobalProperties();
-
 
 private:
     //------------------------------------------------------------------
@@ -576,7 +646,7 @@ private:
     AddBreakpoint(lldb::BreakpointSP breakpoint_sp, bool internal);
 
 public:
-    ~Target();
+    ~Target() override;
 
     Mutex &
     GetAPIMutex ()
@@ -656,7 +726,8 @@ public:
                       LazyBool check_inlines,
                       LazyBool skip_prologue,
                       bool internal,
-                      bool request_hardware);
+                      bool request_hardware,
+                      LazyBool move_to_nearest_code);
 
     // Use this to create breakpoint that matches regex against the source lines in files given in source_file_list:
     lldb::BreakpointSP
@@ -664,7 +735,8 @@ public:
                                  const FileSpecList *source_file_list,
                                  RegularExpression &source_regex,
                                  bool internal,
-                                 bool request_hardware);
+                                 bool request_hardware,
+                                 LazyBool move_to_nearest_code);
 
     // Use this to create a breakpoint from a load address
     lldb::BreakpointSP
@@ -691,28 +763,37 @@ public:
 
     // Use this to create a function breakpoint by name in containingModule, or all modules if it is NULL
     // When "skip_prologue is set to eLazyBoolCalculate, we use the current target 
-    // setting, else we use the values passed in
+    // setting, else we use the values passed in.
+    // func_name_type_mask is or'ed values from the FunctionNameType enum.
     lldb::BreakpointSP
     CreateBreakpoint (const FileSpecList *containingModules,
                       const FileSpecList *containingSourceFiles,
                       const char *func_name,
                       uint32_t func_name_type_mask, 
+                      lldb::LanguageType language,
                       LazyBool skip_prologue,
                       bool internal,
                       bool request_hardware);
                       
     lldb::BreakpointSP
-    CreateExceptionBreakpoint (enum lldb::LanguageType language, bool catch_bp, bool throw_bp, bool internal);
+    CreateExceptionBreakpoint (enum lldb::LanguageType language,
+                               bool catch_bp,
+                               bool throw_bp,
+                               bool internal,
+                               Args *additional_args = nullptr,
+                               Error *additional_args_error = nullptr);
     
     // This is the same as the func_name breakpoint except that you can specify a vector of names.  This is cheaper
     // than a regular expression breakpoint in the case where you just want to set a breakpoint on a set of names
     // you already know.
+    // func_name_type_mask is or'ed values from the FunctionNameType enum.
     lldb::BreakpointSP
     CreateBreakpoint (const FileSpecList *containingModules,
                       const FileSpecList *containingSourceFiles,
                       const char *func_names[],
                       size_t num_names, 
                       uint32_t func_name_type_mask, 
+                      lldb::LanguageType language,
                       LazyBool skip_prologue,
                       bool internal,
                       bool request_hardware);
@@ -722,10 +803,10 @@ public:
                       const FileSpecList *containingSourceFiles,
                       const std::vector<std::string> &func_names,
                       uint32_t func_name_type_mask,
+                      lldb::LanguageType language,
                       LazyBool skip_prologue,
                       bool internal,
                       bool request_hardware);
-
 
     // Use this to create a general breakpoint:
     lldb::BreakpointSP
@@ -739,7 +820,7 @@ public:
     lldb::WatchpointSP
     CreateWatchpoint (lldb::addr_t addr,
                       size_t size,
-                      const ClangASTType *type,
+                      const CompilerType *type,
                       uint32_t kind,
                       Error &error);
 
@@ -835,23 +916,31 @@ public:
     lldb::addr_t
     GetOpcodeLoadAddress (lldb::addr_t load_addr, lldb::AddressClass addr_class = lldb::eAddressClassInvalid) const;
 
+    // Get load_addr as breakable load address for this target.
+    // Take a addr and check if for any reason there is a better address than this to put a breakpoint on.
+    // If there is then return that address.
+    // For MIPS, if instruction at addr is a delay slot instruction then this method will find the address of its
+    // previous instruction and return that address.
+    lldb::addr_t
+    GetBreakableLoadAddress (lldb::addr_t addr);
+
 protected:
     //------------------------------------------------------------------
     /// Implementing of ModuleList::Notifier.
     //------------------------------------------------------------------
     
-    virtual void
-    ModuleAdded (const ModuleList& module_list, const lldb::ModuleSP& module_sp);
+    void
+    ModuleAdded(const ModuleList& module_list, const lldb::ModuleSP& module_sp) override;
     
-    virtual void
-    ModuleRemoved (const ModuleList& module_list, const lldb::ModuleSP& module_sp);
+    void
+    ModuleRemoved(const ModuleList& module_list, const lldb::ModuleSP& module_sp) override;
     
-    virtual void
-    ModuleUpdated (const ModuleList& module_list,
-                   const lldb::ModuleSP& old_module_sp,
-                   const lldb::ModuleSP& new_module_sp);
-    virtual void
-    WillClearList (const ModuleList& module_list);
+    void
+    ModuleUpdated(const ModuleList& module_list,
+		  const lldb::ModuleSP& old_module_sp,
+		  const lldb::ModuleSP& new_module_sp) override;
+    void
+    WillClearList(const ModuleList& module_list) override;
 
 public:
     
@@ -1014,12 +1103,6 @@ public:
     bool
     ModuleIsExcludedForUnconstrainedSearches (const lldb::ModuleSP &module_sp);
 
-    ArchSpec &
-    GetArchitecture ()
-    {
-        return m_arch;
-    }
-    
     const ArchSpec &
     GetArchitecture () const
     {
@@ -1046,6 +1129,9 @@ public:
     //------------------------------------------------------------------
     bool
     SetArchitecture (const ArchSpec &arch_spec);
+
+    bool
+    MergeArchitecture (const ArchSpec &arch_spec);
 
     Debugger &
     GetDebugger ()
@@ -1123,26 +1209,29 @@ public:
     //------------------------------------------------------------------
     // lldb::ExecutionContextScope pure virtual functions
     //------------------------------------------------------------------
-    virtual lldb::TargetSP
-    CalculateTarget ();
+    lldb::TargetSP
+    CalculateTarget() override;
     
-    virtual lldb::ProcessSP
-    CalculateProcess ();
+    lldb::ProcessSP
+    CalculateProcess() override;
     
-    virtual lldb::ThreadSP
-    CalculateThread ();
+    lldb::ThreadSP
+    CalculateThread() override;
     
-    virtual lldb::StackFrameSP
-    CalculateStackFrame ();
+    lldb::StackFrameSP
+    CalculateStackFrame() override;
 
-    virtual void
-    CalculateExecutionContext (ExecutionContext &exe_ctx);
+    void
+    CalculateExecutionContext(ExecutionContext &exe_ctx) override;
 
     PathMappingList &
     GetImageSearchPathList ();
     
     ClangASTContext *
     GetScratchClangASTContext(bool create_on_demand=true);
+    
+    TypeSystem*
+    GetTypeSystemForLanguage (lldb::LanguageType language);
     
     ClangASTImporter *
     GetClangASTImporter();
@@ -1195,10 +1284,7 @@ public:
                         const EvaluateExpressionOptions& options = EvaluateExpressionOptions());
 
     ClangPersistentVariables &
-    GetPersistentVariables()
-    {
-        return m_persistent_variables;
-    }
+    GetPersistentVariables();
 
     //------------------------------------------------------------------
     // Target Stop Hooks
@@ -1236,10 +1322,7 @@ public:
         
         // Set the specifier.  The stop hook will own the specifier, and is responsible for deleting it when we're done.
         void
-        SetSpecifier (SymbolContextSpecifier *specifier)
-        {
-            m_specifier_sp.reset (specifier);
-        }
+        SetSpecifier (SymbolContextSpecifier *specifier);
         
         SymbolContextSpecifier *
         GetSpecifier ()
@@ -1400,13 +1483,13 @@ protected:
     lldb::ProcessSP m_process_sp;
     lldb::SearchFilterSP  m_search_filter_sp;
     PathMappingList m_image_search_paths;
-    std::unique_ptr<ClangASTContext> m_scratch_ast_context_ap;
-    std::unique_ptr<ClangASTSource> m_scratch_ast_source_ap;
-    std::unique_ptr<ClangASTImporter> m_ast_importer_ap;
-    std::unique_ptr<ClangModulesDeclVendor> m_clang_modules_decl_vendor_ap;
-    ClangPersistentVariables m_persistent_variables;      ///< These are the persistent variables associated with this process for the expression parser.
+    lldb::ClangASTContextUP m_scratch_ast_context_ap;
+    lldb::ClangASTSourceUP m_scratch_ast_source_ap;
+    lldb::ClangASTImporterUP m_ast_importer_ap;
+    lldb::ClangModulesDeclVendorUP m_clang_modules_decl_vendor_ap;
+    lldb::ClangPersistentVariablesUP m_persistent_variables;      ///< These are the persistent variables associated with this process for the expression parser.
 
-    std::unique_ptr<SourceManager> m_source_manager_ap;
+    lldb::SourceManagerUP m_source_manager_ap;
 
     typedef std::map<lldb::user_id_t, StopHookSP> StopHookCollection;
     StopHookCollection      m_stop_hooks;
@@ -1425,4 +1508,4 @@ private:
 
 } // namespace lldb_private
 
-#endif  // liblldb_Target_h_
+#endif // liblldb_Target_h_

@@ -250,7 +250,7 @@ ABISysV_ppc64::PrepareTrivialCall (Thread &thread,
                     (uint64_t)return_addr);
 
         for (size_t i = 0; i < args.size(); ++i)
-            s.Printf (", arg%zd = 0x%" PRIx64, i + 1, args[i]);
+            s.Printf (", arg%" PRIu64 " = 0x%" PRIx64, static_cast<uint64_t>(i + 1), args[i]);
         s.PutCString (")");
         log->PutCString(s.GetString().c_str());
     }
@@ -268,7 +268,7 @@ ABISysV_ppc64::PrepareTrivialCall (Thread &thread,
     {
         reg_info = reg_ctx->GetRegisterInfo(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_ARG1 + i);
         if (log)
-            log->Printf("About to write arg%zd (0x%" PRIx64 ") into %s", i + 1, args[i], reg_info->name);
+            log->Printf("About to write arg%" PRIu64 " (0x%" PRIx64 ") into %s", static_cast<uint64_t>(i + 1), args[i], reg_info->name);
         if (!reg_ctx->WriteRegisterFromUnsigned(reg_info, args[i]))
             return false;
     }
@@ -390,7 +390,7 @@ static bool ReadIntegerArgument(Scalar           &scalar,
 
 bool
 ABISysV_ppc64::GetArgumentValues (Thread &thread,
-                                   ValueList &values) const
+                                  ValueList &values) const
 {
     unsigned int num_values = values.GetSize();
     unsigned int value_index;
@@ -436,7 +436,7 @@ ABISysV_ppc64::GetArgumentValues (Thread &thread,
 
         // We currently only support extracting values with Clang QualTypes.
         // Do we care about others?
-        ClangASTType clang_type = value->GetClangType();
+        CompilerType clang_type = value->GetCompilerType();
         if (!clang_type)
             return false;
         bool is_signed;
@@ -444,7 +444,7 @@ ABISysV_ppc64::GetArgumentValues (Thread &thread,
         if (clang_type.IsIntegerType (is_signed))
         {
             ReadIntegerArgument(value->GetScalar(),
-                                clang_type.GetBitSize(nullptr),
+                                clang_type.GetBitSize(&thread),
                                 is_signed,
                                 thread,
                                 argument_register_ids,
@@ -454,7 +454,7 @@ ABISysV_ppc64::GetArgumentValues (Thread &thread,
         else if (clang_type.IsPointerType ())
         {
             ReadIntegerArgument(value->GetScalar(),
-                                clang_type.GetBitSize(nullptr),
+                                clang_type.GetBitSize(&thread),
                                 false,
                                 thread,
                                 argument_register_ids,
@@ -476,7 +476,7 @@ ABISysV_ppc64::SetReturnValueObject(lldb::StackFrameSP &frame_sp, lldb::ValueObj
         return error;
     }
 
-    ClangASTType clang_type = new_value_sp->GetClangType();
+    CompilerType clang_type = new_value_sp->GetCompilerType();
     if (!clang_type)
     {
         error.SetErrorString ("Null clang type for return value.");
@@ -524,7 +524,7 @@ ABISysV_ppc64::SetReturnValueObject(lldb::StackFrameSP &frame_sp, lldb::ValueObj
             error.SetErrorString ("We don't support returning complex values at present");
         else
         {
-            size_t bit_width = clang_type.GetBitSize(nullptr);
+            size_t bit_width = clang_type.GetBitSize(frame_sp.get());
             if (bit_width <= 64)
             {
                 DataExtractor data;
@@ -563,7 +563,7 @@ ABISysV_ppc64::SetReturnValueObject(lldb::StackFrameSP &frame_sp, lldb::ValueObj
 
 ValueObjectSP
 ABISysV_ppc64::GetReturnValueObjectSimple (Thread &thread,
-                                            ClangASTType &return_clang_type) const
+                                           CompilerType &return_clang_type) const
 {
     ValueObjectSP return_valobj_sp;
     Value value;
@@ -572,7 +572,7 @@ ABISysV_ppc64::GetReturnValueObjectSimple (Thread &thread,
         return return_valobj_sp;
 
     //value.SetContext (Value::eContextTypeClangType, return_value_type);
-    value.SetClangType (return_clang_type);
+    value.SetCompilerType (return_clang_type);
 
     RegisterContext *reg_ctx = thread.GetRegisterContext().get();
     if (!reg_ctx)
@@ -724,7 +724,7 @@ ABISysV_ppc64::GetReturnValueObjectSimple (Thread &thread,
 }
 
 ValueObjectSP
-ABISysV_ppc64::GetReturnValueObjectImpl (Thread &thread, ClangASTType &return_clang_type) const
+ABISysV_ppc64::GetReturnValueObjectImpl (Thread &thread, CompilerType &return_clang_type) const
 {
     ValueObjectSP return_valobj_sp;
 
@@ -740,7 +740,7 @@ ABISysV_ppc64::GetReturnValueObjectImpl (Thread &thread, ClangASTType &return_cl
     if (!reg_ctx_sp)
         return return_valobj_sp;
 
-    const size_t bit_width = return_clang_type.GetBitSize(nullptr);
+    const size_t bit_width = return_clang_type.GetBitSize(&thread);
     if (return_clang_type.IsAggregateType())
     {
         Target *target = exe_ctx.GetTargetPtr();
@@ -781,8 +781,8 @@ ABISysV_ppc64::GetReturnValueObjectImpl (Thread &thread, ClangASTType &return_cl
                 bool is_complex;
                 uint32_t count;
 
-                ClangASTType field_clang_type = return_clang_type.GetFieldAtIndex (idx, name, &field_bit_offset, NULL, NULL);
-                const size_t field_bit_width = field_clang_type.GetBitSize(nullptr);
+                CompilerType field_clang_type = return_clang_type.GetFieldAtIndex (idx, name, &field_bit_offset, NULL, NULL);
+                const size_t field_bit_width = field_clang_type.GetBitSize(&thread);
 
                 // If there are any unaligned fields, this is stored in memory.
                 if (field_bit_offset % field_bit_width != 0)
@@ -858,7 +858,7 @@ ABISysV_ppc64::GetReturnValueObjectImpl (Thread &thread, ClangASTType &return_cl
                             else
                             {
                                 uint64_t next_field_bit_offset = 0;
-                                ClangASTType next_field_clang_type = return_clang_type.GetFieldAtIndex (idx + 1,
+                                CompilerType next_field_clang_type = return_clang_type.GetFieldAtIndex (idx + 1,
                                                                                                         name,
                                                                                                         &next_field_bit_offset,
                                                                                                         NULL,
@@ -882,7 +882,7 @@ ABISysV_ppc64::GetReturnValueObjectImpl (Thread &thread, ClangASTType &return_cl
                             else
                             {
                                 uint64_t prev_field_bit_offset = 0;
-                                ClangASTType prev_field_clang_type = return_clang_type.GetFieldAtIndex (idx - 1,
+                                CompilerType prev_field_clang_type = return_clang_type.GetFieldAtIndex (idx - 1,
                                                                                                         name,
                                                                                                         &prev_field_bit_offset,
                                                                                                         NULL,
@@ -985,7 +985,7 @@ ABISysV_ppc64::CreateFunctionEntryUnwindPlan (UnwindPlan &unwind_plan)
     UnwindPlan::RowSP row(new UnwindPlan::Row);
 
     // Our Call Frame Address is the stack pointer value
-    row->SetCFARegister (sp_reg_num);
+    row->GetCFAValue().SetIsRegisterPlusOffset(sp_reg_num, 0);
 
     // The previous PC is in the LR
     row->SetRegisterLocationToRegister(pc_reg_num, lr_reg_num, true);
@@ -1011,8 +1011,7 @@ ABISysV_ppc64::CreateDefaultUnwindPlan (UnwindPlan &unwind_plan)
     UnwindPlan::RowSP row(new UnwindPlan::Row);
 
     const int32_t ptr_size = 8;
-    row->SetCFARegister (sp_reg_num);
-    row->SetCFAType(lldb_private::UnwindPlan::Row::CFAIsRegisterDereferenced);
+    row->GetCFAValue().SetIsRegisterDereferenced(sp_reg_num);
 
     row->SetRegisterLocationToAtCFAPlusOffset(pc_reg_num, ptr_size * 2, true);
     row->SetRegisterLocationToIsCFAPlusOffset(sp_reg_num, 0, true);

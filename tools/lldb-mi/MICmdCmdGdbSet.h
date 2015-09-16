@@ -1,4 +1,4 @@
-//===-- MICmdCmdGdbSet.h -------------      ---------------------*- C++ -*-===//
+//===-- MICmdCmdGdbSet.h ----------------------------------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,12 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MICmdCmdGdbSet.h
-//
 // Overview:    CMICmdCmdGdbSet interface.
 //
-//              To implement new MI commands derive a new command class from the command base
+//              To implement new MI commands, derive a new command class from the command base
 //              class. To enable the new command for interpretation add the new command class
 //              to the command factory. The files of relevance are:
 //                  MICmdCommands.cpp
@@ -20,13 +17,6 @@
 //                  MICmdCmd.h / .cpp
 //              For an introduction to adding a new command see CMICmdCmdSupportInfoMiCmdQuery
 //              command class as an example.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
 
 #pragma once
 
@@ -47,29 +37,26 @@
 //          class instantiates a request info command for a matching request. The
 //          design/code of *this class then does not then become bloated. Use a
 //          lightweight version of the current MI command system.
-// Gotchas: None.
-// Authors: Illya Rudkin 03/03/2014.
-// Changes: None.
 //--
 class CMICmdCmdGdbSet : public CMICmdBase
 {
     // Statics:
   public:
     // Required by the CMICmdFactory when registering *this command
-    static CMICmdBase *CreateSelf(void);
+    static CMICmdBase *CreateSelf();
 
     // Methods:
   public:
-    /* ctor */ CMICmdCmdGdbSet(void);
+    /* ctor */ CMICmdCmdGdbSet();
 
     // Overridden:
   public:
     // From CMICmdInvoker::ICmd
-    virtual bool Execute(void);
-    virtual bool Acknowledge(void);
-    virtual bool ParseArgs(void);
+    bool Execute() override;
+    bool Acknowledge() override;
+    bool ParseArgs() override;
     // From CMICmnBase
-    /* dtor */ virtual ~CMICmdCmdGdbSet(void);
+    /* dtor */ ~CMICmdCmdGdbSet() override;
 
     // Typedefs:
   private:
@@ -79,7 +66,10 @@ class CMICmdCmdGdbSet : public CMICmdBase
     // Methods:
   private:
     bool GetOptionFn(const CMIUtilString &vrGdbOptionName, FnGdbOptionPtr &vrwpFn) const;
+    bool OptionFnTargetAsync(const CMIUtilString::VecString_t &vrWords);
+    bool OptionFnPrint(const CMIUtilString::VecString_t &vrWords);
     bool OptionFnSolibSearchPath(const CMIUtilString::VecString_t &vrWords);
+    bool OptionFnOutputRadix(const CMIUtilString::VecString_t &vrWords);
     bool OptionFnFallback(const CMIUtilString::VecString_t &vrWords);
 
     // Attributes:

@@ -32,10 +32,10 @@ public:
                                 const FileSpec &resolver,
                                 uint32_t line_no,
                                 bool check_inlines,
-                                bool skip_prologue);
+                                bool skip_prologue,
+                                bool exact_match);
 
-    virtual
-    ~BreakpointResolverFileLine ();
+    ~BreakpointResolverFileLine() override;
 
     Searcher::CallbackReturn
     SearchCallback (SearchFilter &filter,
@@ -67,6 +67,7 @@ protected:
     uint32_t m_line_number; // This is the line number that we are looking for.
     bool m_inlines; // This determines whether the resolver looks for inlined functions or not.
     bool m_skip_prologue;
+    bool m_exact_match;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(BreakpointResolverFileLine);
@@ -74,4 +75,4 @@ private:
 
 } // namespace lldb_private
 
-#endif  // liblldb_BreakpointResolverFileLine_h_
+#endif // liblldb_BreakpointResolverFileLine_h_

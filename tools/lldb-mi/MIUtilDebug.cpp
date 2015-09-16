@@ -7,18 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-//++
-// File:        MIUtilDebug.h
-//
-// Overview:    Terminal setting termios functions.
-//
-// Environment: Compilers:  Visual C++ 12.
-//                          gcc (Ubuntu/Linaro 4.8.1-10ubuntu9) 4.8.1
-//              Libraries:  See MIReadmetxt.
-//
-// Copyright:   None.
-//--
-
 // Third party headers:
 #ifdef _WIN32
 #include <Windows.h>
@@ -36,7 +24,7 @@
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilDebug::CMIUtilDebug(void)
+CMIUtilDebug::CMIUtilDebug()
 {
 }
 
@@ -47,7 +35,7 @@ CMIUtilDebug::CMIUtilDebug(void)
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilDebug::~CMIUtilDebug(void)
+CMIUtilDebug::~CMIUtilDebug()
 {
 }
 
@@ -60,7 +48,7 @@ CMIUtilDebug::~CMIUtilDebug(void)
 // Throws:  None.
 //--
 void
-CMIUtilDebug::ShowDlgWaitForDbgAttach(void)
+CMIUtilDebug::ShowDlgWaitForDbgAttach()
 {
     const CMIUtilString strCaption(CMIDriver::Instance().GetAppNameShort());
 #ifdef _WIN32
@@ -83,7 +71,7 @@ CMIUtilDebug::ShowDlgWaitForDbgAttach(void)
 // Throws:  None.
 //--
 void
-CMIUtilDebug::WaitForDbgAttachInfinteLoop(void)
+CMIUtilDebug::WaitForDbgAttachInfinteLoop()
 {
     MIuint i = 0;
     while (i == 0)
@@ -122,7 +110,7 @@ CMIUtilDebugFnTrace::CMIUtilDebugFnTrace(const CMIUtilString &vFnName)
 // Return:  None.
 // Throws:  None.
 //--
-CMIUtilDebugFnTrace::~CMIUtilDebugFnTrace(void)
+CMIUtilDebugFnTrace::~CMIUtilDebugFnTrace()
 {
     const CMIUtilString txt(CMIUtilString::Format("%d<%s", ms_fnDepthCnt--, m_strFnName.c_str()));
     ms_rLog.Write(txt, CMICmnLog::eLogVerbosity_FnTrace);

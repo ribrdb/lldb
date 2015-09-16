@@ -39,10 +39,19 @@ using namespace lldb_private;
 
 #define PO_FUNCTION_TIMEOUT_USEC 15*1000*1000
 
+AppleObjCRuntime::AppleObjCRuntime(Process *process) :
+    ObjCLanguageRuntime (process),
+    m_read_objc_library (false),
+    m_objc_trampoline_handler_ap (),
+    m_Foundation_major()
+{
+    ReadObjCLibraryIfNeeded (process->GetTarget().GetImages());
+}
+
 bool
 AppleObjCRuntime::GetObjectDescription (Stream &str, ValueObject &valobj)
 {
-    ClangASTType clang_type(valobj.GetClangType());
+    CompilerType clang_type(valobj.GetCompilerType());
     bool is_signed;
     // ObjC objects can only be pointers (or numbers that actually represents pointers
     // but haven't been typecast, because reasons..)
@@ -80,10 +89,10 @@ AppleObjCRuntime::GetObjectDescription (Stream &strm, Value &value, ExecutionCon
         return false;
     
     Target *target = exe_ctx.GetTargetPtr();
-    ClangASTType clang_type = value.GetClangType();
+    CompilerType clang_type = value.GetCompilerType();
     if (clang_type)
     {
-        if (!clang_type.IsObjCObjectPointerType())
+        if (!ClangASTContext::IsObjCObjectPointerType(clang_type))
         {
             strm.Printf ("Value doesn't point to an ObjC object.\n");
             return false;
@@ -93,11 +102,11 @@ AppleObjCRuntime::GetObjectDescription (Stream &strm, Value &value, ExecutionCon
     {
         // If it is not a pointer, see if we can make it into a pointer.
         ClangASTContext *ast_context = target->GetScratchClangASTContext();
-        ClangASTType opaque_type = ast_context->GetBasicType(eBasicTypeObjCID);
+        CompilerType opaque_type = ast_context->GetBasicType(eBasicTypeObjCID);
         if (!opaque_type)
             opaque_type = ast_context->GetBasicType(eBasicTypeVoid).GetPointerType();
         //value.SetContext(Value::eContextTypeClangType, opaque_type_ptr);
-        value.SetClangType (opaque_type);
+        value.SetCompilerType (opaque_type);
     }
 
     ValueList arg_value_list;
@@ -106,10 +115,10 @@ AppleObjCRuntime::GetObjectDescription (Stream &strm, Value &value, ExecutionCon
     // This is the return value:
     ClangASTContext *ast_context = target->GetScratchClangASTContext();
     
-    ClangASTType return_clang_type = ast_context->GetCStringType(true);
+    CompilerType return_clang_type = ast_context->GetCStringType(true);
     Value ret;
 //    ret.SetContext(Value::eContextTypeClangType, return_clang_type);
-    ret.SetClangType (return_clang_type);
+    ret.SetCompilerType (return_clang_type);
     
     if (exe_ctx.GetFramePtr() == NULL)
     {
@@ -220,7 +229,7 @@ AppleObjCRuntime::GetPrintForDebuggerAddr()
 bool
 AppleObjCRuntime::CouldHaveDynamicValue (ValueObject &in_value)
 {
-    return in_value.GetClangType().IsPossibleDynamicType (NULL,
+    return in_value.GetCompilerType().IsPossibleDynamicType (NULL,
                                                           false, // do not check C++
                                                           true); // check ObjC
 }
@@ -441,5 +450,31 @@ AppleObjCRuntime::CreateExceptionSearchFilter ()
     {
         return LanguageRuntime::CreateExceptionSearchFilter();
     }
+}
+
+void
+AppleObjCRuntime::ReadObjCLibraryIfNeeded (const ModuleList &module_list)
+{
+    if (!HasReadObjCLibrary ())
+    {
+        Mutex::Locker locker (module_list.GetMutex ());
+
+        size_t num_modules = module_list.GetSize();
+        for (size_t i = 0; i < num_modules; i++)
+        {
+            auto mod = module_list.GetModuleAtIndex (i);
+            if (IsModuleObjCLibrary (mod))
+            {
+                ReadObjCLibrary (mod);
+                break;
+            }
+        }
+    }
+}
+
+void
+AppleObjCRuntime::ModulesDidLoad (const ModuleList &module_list)
+{
+    ReadObjCLibraryIfNeeded (module_list);
 }
 

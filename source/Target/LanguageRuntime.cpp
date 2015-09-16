@@ -8,9 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/LanguageRuntime.h"
+#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/SearchFilter.h"
+#include "lldb/Interpreter/CommandInterpreter.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -32,7 +34,7 @@ public:
     }
 
     virtual
-    ~ExceptionSearchFilter() {};
+    ~ExceptionSearchFilter() {}
 
     bool
     ModulePasses (const lldb::ModuleSP &module_sp) override
@@ -277,6 +279,23 @@ LanguageRuntime::~LanguageRuntime()
 {
 }
 
+Breakpoint::BreakpointPreconditionSP
+LanguageRuntime::CreateExceptionPrecondition (lldb::LanguageType language,
+                                              bool catch_bp,
+                                              bool throw_bp)
+{
+    switch (language)
+    {
+    case eLanguageTypeObjC:
+        if (throw_bp)
+            return Breakpoint::BreakpointPreconditionSP(new ObjCLanguageRuntime::ObjCExceptionPrecondition ());
+        break;
+    default:
+        break;
+    }
+    return Breakpoint::BreakpointPreconditionSP();
+}
+
 BreakpointSP
 LanguageRuntime::CreateExceptionBreakpoint (Target &target,
                                             lldb::LanguageType language,
@@ -289,82 +308,44 @@ LanguageRuntime::CreateExceptionBreakpoint (Target &target,
     bool hardware = false;
     bool resolve_indirect_functions = false;
     BreakpointSP exc_breakpt_sp (target.CreateBreakpoint (filter_sp, resolver_sp, is_internal, hardware, resolve_indirect_functions));
-    if (is_internal)
-        exc_breakpt_sp->SetBreakpointKind("exception");
+    if (exc_breakpt_sp)
+    {
+        Breakpoint::BreakpointPreconditionSP precondition_sp = CreateExceptionPrecondition(language, catch_bp, throw_bp);
+        if (precondition_sp)
+            exc_breakpt_sp->SetPrecondition(precondition_sp);
+
+        if (is_internal)
+            exc_breakpt_sp->SetBreakpointKind("exception");
+    }
     
     return exc_breakpt_sp;
 }
 
-struct language_name_pair {
-    const char *name;
-    LanguageType type;
-};
-
-struct language_name_pair language_names[] =
+void
+LanguageRuntime::InitializeCommands (CommandObject* parent)
 {
-    // To allow GetNameForLanguageType to be a simple array lookup, the first
-    // part of this array must follow enum LanguageType exactly.
-    {   "unknown",          eLanguageTypeUnknown        },
-    {   "c89",              eLanguageTypeC89            },
-    {   "c",                eLanguageTypeC              },
-    {   "ada83",            eLanguageTypeAda83          },
-    {   "c++",              eLanguageTypeC_plus_plus    },
-    {   "cobol74",          eLanguageTypeCobol74        },
-    {   "cobol85",          eLanguageTypeCobol85        },
-    {   "fortran77",        eLanguageTypeFortran77      },
-    {   "fortran90",        eLanguageTypeFortran90      },
-    {   "pascal83",         eLanguageTypePascal83       },
-    {   "modula2",          eLanguageTypeModula2        },
-    {   "java",             eLanguageTypeJava           },
-    {   "c99",              eLanguageTypeC99            },
-    {   "ada95",            eLanguageTypeAda95          },
-    {   "fortran95",        eLanguageTypeFortran95      },
-    {   "pli",              eLanguageTypePLI            },
-    {   "objective-c",      eLanguageTypeObjC           },
-    {   "objective-c++",    eLanguageTypeObjC_plus_plus },
-    {   "upc",              eLanguageTypeUPC            },
-    {   "d",                eLanguageTypeD              },
-    {   "python",           eLanguageTypePython         },
-    {   "opencl",           eLanguageTypeOpenCL         },
-    {   "go",               eLanguageTypeGo             },
-    {   "modula3",          eLanguageTypeModula3        },
-    {   "haskell",          eLanguageTypeHaskell        },
-    {   "c++03",            eLanguageTypeC_plus_plus_03 },
-    {   "c++11",            eLanguageTypeC_plus_plus_11 },
-    {   "ocaml",            eLanguageTypeOCaml          },
-    {   "rust",             eLanguageTypeRust           },
-    {   "c11",              eLanguageTypeC11            },
-    {   "swift",            eLanguageTypeSwift          },
-    {   "julia",            eLanguageTypeJulia          },
-    {   "dylan",            eLanguageTypeDylan          },
-    {   "c++14",            eLanguageTypeC_plus_plus_14 },
-    {   "fortran03",        eLanguageTypeFortran03      },
-    {   "fortran08",        eLanguageTypeFortran08      },
-    // Now synonyms, in arbitrary order
-    {   "objc",             eLanguageTypeObjC           },
-    {   "objc++",           eLanguageTypeObjC_plus_plus }
-};
+    if (!parent)
+        return;
 
-static uint32_t num_languages = sizeof(language_names) / sizeof (struct language_name_pair);
+    if (!parent->IsMultiwordObject())
+        return;
 
-LanguageType
-LanguageRuntime::GetLanguageTypeFromString (const char *string)
-{
-    for (uint32_t i = 0; i < num_languages; i++)
+    LanguageRuntimeCreateInstance create_callback;
+
+    for (uint32_t idx = 0;
+         (create_callback = PluginManager::GetLanguageRuntimeCreateCallbackAtIndex(idx)) != nullptr;
+         ++idx)
     {
-        if (strcasecmp (language_names[i].name, string) == 0)
-            return (LanguageType) language_names[i].type;
+        if (LanguageRuntimeGetCommandObject command_callback = 
+                PluginManager::GetLanguageRuntimeGetCommandObjectAtIndex(idx))
+        {
+            CommandObjectSP command = command_callback(parent->GetCommandInterpreter());
+            if (command)
+            {
+                parent->LoadSubCommand(command->GetCommandName(), command);
+            }
+        }
     }
-    return eLanguageTypeUnknown;
-}
-
-const char *
-LanguageRuntime::GetNameForLanguageType (LanguageType language)
-{
-    if (language < num_languages)
-        return language_names[language].name;
-    else
-        return language_names[eLanguageTypeUnknown].name;
 }
 
 lldb::SearchFilterSP
@@ -372,6 +353,3 @@ LanguageRuntime::CreateExceptionSearchFilter ()
 {
     return m_process->GetTarget().GetSearchFilterForModule(NULL);
 }
-
-
-

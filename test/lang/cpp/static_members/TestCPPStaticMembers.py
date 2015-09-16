@@ -9,7 +9,7 @@ class CPPStaticMembersTestCase(TestBase):
     
     mydir = TestBase.compute_mydir(__file__)
     
-    @unittest2.skipUnless(sys.platform.startswith("darwin"), "requires Darwin")
+    @skipUnlessDarwin
     @unittest2.expectedFailure # llvm.org/pr15401
     @dsym_test
     def test_with_dsym_and_run_command(self):
@@ -18,6 +18,7 @@ class CPPStaticMembersTestCase(TestBase):
         self.static_member_commands()
 
     @unittest2.expectedFailure # llvm.org/pr15401
+    @expectedFailureWindows("llvm.org/pr21765")
     @dwarf_test
     def test_with_dwarf_and_run_command(self):
         """Test that member variables have the correct layout, scope and qualifiers when stopped inside and outside C++ methods"""

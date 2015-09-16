@@ -21,10 +21,12 @@
 #include "lldb/lldb-private.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Core/ThreadSafeDenseMap.h"
-#include "lldb/Symbol/ClangASTType.h"
+#include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/DeclVendor.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/LanguageRuntime.h"
+
+class CommandObjectObjC_ClassTable_Dump;
 
 namespace lldb_private {
     
@@ -34,109 +36,6 @@ class ObjCLanguageRuntime :
     public LanguageRuntime
 {
 public:
-    class MethodName
-    {
-    public:
-        enum Type
-        {
-            eTypeUnspecified,
-            eTypeClassMethod,
-            eTypeInstanceMethod
-        };
-        
-        MethodName () :
-            m_full(),
-            m_class(),
-            m_category(),
-            m_selector(),
-            m_type (eTypeUnspecified),
-            m_category_is_valid (false)
-        {
-        }
-
-        MethodName (const char *name, bool strict) :
-            m_full(),
-            m_class(),
-            m_category(),
-            m_selector(),
-            m_type (eTypeUnspecified),
-            m_category_is_valid (false)
-        {
-            SetName (name, strict);
-        }
-
-        void
-        Clear();
-
-        bool
-        IsValid (bool strict) const
-        {
-            // If "strict" is true, the name must have everything specified including
-            // the leading "+" or "-" on the method name
-            if (strict && m_type == eTypeUnspecified)
-                return false;
-            // Other than that, m_full will only be filled in if the objective C
-            // name is valid.
-            return (bool)m_full;
-        }
-        
-        bool
-        HasCategory()
-        {
-            return (bool)GetCategory();
-        }
-
-        Type
-        GetType () const
-        {
-            return m_type;
-        }
-        
-        const ConstString &
-        GetFullName () const
-        {
-            return m_full;
-        }
-        
-        ConstString
-        GetFullNameWithoutCategory (bool empty_if_no_category);
-
-        bool
-        SetName (const char *name, bool strict);
-
-        const ConstString &
-        GetClassName ();
-
-        const ConstString &
-        GetClassNameWithCategory ();
-
-        const ConstString &
-        GetCategory ();
-        
-        const ConstString &
-        GetSelector ();
-
-        // Get all possible names for a method. Examples:
-        // If name is "+[NSString(my_additions) myStringWithCString:]"
-        //  names[0] => "+[NSString(my_additions) myStringWithCString:]"
-        //  names[1] => "+[NSString myStringWithCString:]"
-        // If name is specified without the leading '+' or '-' like "[NSString(my_additions) myStringWithCString:]"
-        //  names[0] => "+[NSString(my_additions) myStringWithCString:]"
-        //  names[1] => "-[NSString(my_additions) myStringWithCString:]"
-        //  names[2] => "+[NSString myStringWithCString:]"
-        //  names[3] => "-[NSString myStringWithCString:]"
-        size_t
-        GetFullNames (std::vector<ConstString> &names, bool append);
-    protected:
-        ConstString m_full;     // Full name:   "+[NSString(my_additions) myStringWithCString:]"
-        ConstString m_class;    // Class name:  "NSString"
-        ConstString m_class_category; // Class with category: "NSString(my_additions)"
-        ConstString m_category; // Category:    "my_additions"
-        ConstString m_selector; // Selector:    "myStringWithCString:"
-        Type m_type;
-        bool m_category_is_valid;
-
-    };
     typedef lldb::addr_t ObjCISA;
     
     class ClassDescriptor;
@@ -245,7 +144,7 @@ public:
         
         struct iVarDescriptor {
             ConstString m_name;
-            ClangASTType m_type;
+            CompilerType m_type;
             uint64_t m_size;
             int32_t m_offset;
         };
@@ -279,16 +178,58 @@ public:
     class EncodingToType
     {
     public:
-        virtual ClangASTType RealizeType (ClangASTContext& ast_ctx, const char* name, bool for_expression);
-        virtual ClangASTType RealizeType (const char* name, bool for_expression);
+        virtual CompilerType RealizeType (ClangASTContext& ast_ctx, const char* name, bool for_expression);
+        virtual CompilerType RealizeType (const char* name, bool for_expression);
         
-        virtual ClangASTType RealizeType (clang::ASTContext& ast_ctx, const char* name, bool for_expression) = 0;
+        virtual CompilerType RealizeType (clang::ASTContext& ast_ctx, const char* name, bool for_expression) = 0;
         
         virtual ~EncodingToType();
         
     protected:
         std::unique_ptr<ClangASTContext> m_scratch_ast_ctx_ap;
     };
+
+    class ObjCExceptionPrecondition : public Breakpoint::BreakpointPrecondition
+    {
+    public:
+        ObjCExceptionPrecondition();
+
+        ~ObjCExceptionPrecondition() override {}
+
+        bool EvaluatePrecondition(StoppointCallbackContext &context) override;
+        void DescribePrecondition(Stream &stream, lldb::DescriptionLevel level) override;
+        Error ConfigurePrecondition(Args &args) override;
+
+    protected:
+        void AddClassName(const char *class_name);
+
+    private:
+        std::unordered_set<std::string> m_class_names;
+    };
+    
+    class TaggedPointerVendor
+    {
+    public:
+        virtual bool
+        IsPossibleTaggedPointer (lldb::addr_t ptr) = 0;
+        
+        virtual ObjCLanguageRuntime::ClassDescriptorSP
+        GetClassDescriptor (lldb::addr_t ptr) = 0;
+        
+        virtual
+        ~TaggedPointerVendor () { }
+    protected:
+        TaggedPointerVendor () = default;
+
+    private:
+        DISALLOW_COPY_AND_ASSIGN(TaggedPointerVendor);
+    };
+    
+    virtual TaggedPointerVendor*
+    GetTaggedPointerVendor ()
+    {
+        return nullptr;
+    }
     
     typedef std::shared_ptr<EncodingToType> EncodingToTypeSP;
     
@@ -310,11 +251,10 @@ public:
     ClassDescriptorSP
     GetNonKVOClassDescriptor (ObjCISA isa);
     
-    virtual
-    ~ObjCLanguageRuntime();
+    ~ObjCLanguageRuntime() override;
     
-    virtual lldb::LanguageType
-    GetLanguageType () const
+    lldb::LanguageType
+    GetLanguageType () const override
     {
         return lldb::eLanguageTypeObjC;
     }
@@ -396,7 +336,7 @@ public:
     // offset, returns LLDB_INVALID_IVAR_OFFSET.
     
     virtual size_t
-    GetByteOffsetForIvar (ClangASTType &parent_qual_type, const char *ivar_name);
+    GetByteOffsetForIvar (CompilerType &parent_qual_type, const char *ivar_name);
     
     // Given the name of an Objective-C runtime symbol (e.g., ivar offset symbol),
     // try to determine from the runtime what the value of that symbol would be.
@@ -405,94 +345,6 @@ public:
     LookupRuntimeSymbol (const ConstString &name)
     {
         return LLDB_INVALID_ADDRESS;
-    }
-    
-    //------------------------------------------------------------------
-    /// Chop up an objective C function prototype.
-    ///
-    /// Chop up an objective C function fullname and optionally fill in
-    /// any non-NULL ConstString objects. If a ConstString * is NULL,
-    /// then this name doesn't get filled in
-    ///
-    /// @param[in] name
-    ///     A fully specified objective C function name. The string might
-    ///     contain a category and it includes the leading "+" or "-" and
-    ///     the square brackets, no types for the arguments, just the plain
-    ///     selector. A few examples:
-    ///         "-[NSStringDrawingContext init]"
-    ///         "-[NSStringDrawingContext addString:inRect:]"
-    ///         "-[NSString(NSStringDrawing) sizeWithAttributes:]"
-    ///         "+[NSString(NSStringDrawing) usesFontLeading]"
-    ///         
-    /// @param[out] class_name
-    ///     If non-NULL, this string will be filled in with the class
-    ///     name including the category. The examples above would return:
-    ///         "NSStringDrawingContext"
-    ///         "NSStringDrawingContext"
-    ///         "NSString(NSStringDrawing)"
-    ///         "NSString(NSStringDrawing)"
-    ///
-    /// @param[out] selector_name
-    ///     If non-NULL, this string will be filled in with the selector
-    ///     name. The examples above would return:
-    ///         "init"
-    ///         "addString:inRect:"
-    ///         "sizeWithAttributes:"
-    ///         "usesFontLeading"
-    ///
-    /// @param[out] name_sans_category
-    ///     If non-NULL, this string will be filled in with the class
-    ///     name _without_ the category. If there is no category, and empty
-    ///     string will be returned (as the result would be normally returned
-    ///     in the "class_name" argument). The examples above would return:
-    ///         <empty>
-    ///         <empty>
-    ///         "-[NSString sizeWithAttributes:]"
-    ///         "+[NSString usesFontLeading]"
-    ///
-    /// @param[out] class_name_sans_category
-    ///     If non-NULL, this string will be filled in with the prototype
-    ///     name _without_ the category. If there is no category, and empty
-    ///     string will be returned (as this is already the value that was
-    ///     passed in). The examples above would return:
-    ///         <empty>
-    ///         <empty>
-    ///         "NSString"
-    ///         "NSString"
-    ///
-    /// @return
-    ///     Returns the number of strings that were successfully filled
-    ///     in.
-    //------------------------------------------------------------------
-//    static uint32_t
-//    ParseMethodName (const char *name, 
-//                     ConstString *class_name,               // Class name (with category if there is one)
-//                     ConstString *selector_name,            // selector only
-//                     ConstString *name_sans_category,       // full function name with no category (empty if no category)
-//                     ConstString *class_name_sans_category);// Class name without category (empty if no category)
-    
-    static bool
-    IsPossibleObjCMethodName (const char *name)
-    {
-        if (!name)
-            return false;
-        bool starts_right = (name[0] == '+' || name[0] == '-') && name[1] == '[';
-        bool ends_right = (name[strlen(name) - 1] == ']');
-        return (starts_right && ends_right);
-    }
-    
-    static bool
-    IsPossibleObjCSelector (const char *name)
-    {
-        if (!name)
-            return false;
-            
-        if (strchr(name, ':') == NULL)
-            return true;
-        else if (name[strlen(name) - 1] == ':')
-            return true;
-        else
-            return false;
     }
     
     bool
@@ -515,10 +367,10 @@ public:
         m_negative_complete_class_cache.clear();
     }
     
-    virtual bool
-    GetTypeBitSize (const ClangASTType& clang_type,
-                    uint64_t &size);
-    
+    bool
+    GetTypeBitSize (const CompilerType& clang_type,
+                    uint64_t &size) override;
+
 protected:
     //------------------------------------------------------------------
     // Classes that inherit from ObjCLanguageRuntime can see and modify these
@@ -529,7 +381,6 @@ protected:
     {
         return false;
     }
-    
     
     bool
     ISAIsCached (ObjCISA isa) const
@@ -577,11 +428,13 @@ private:
             sel_addr = LLDB_INVALID_ADDRESS;
             class_addr = LLDB_INVALID_ADDRESS;
         }
+
         ClassAndSel (lldb::addr_t in_sel_addr, lldb::addr_t in_class_addr) :
             class_addr (in_class_addr),
             sel_addr(in_sel_addr)
         {
         }
+
         bool operator== (const ClassAndSel &rhs)
         {
             if (class_addr == rhs.class_addr
@@ -645,9 +498,17 @@ protected:
     ISAToDescriptorIterator
     GetDescriptorIterator (const ConstString &name);
 
+    friend class ::CommandObjectObjC_ClassTable_Dump;
+    
+    std::pair<ISAToDescriptorIterator,ISAToDescriptorIterator>
+    GetDescriptorIteratorPair (bool update_if_needed = true);
+
+    void
+    ReadObjCLibraryIfNeeded (const ModuleList &module_list);
+
     DISALLOW_COPY_AND_ASSIGN (ObjCLanguageRuntime);
 };
 
 } // namespace lldb_private
 
-#endif  // liblldb_ObjCLanguageRuntime_h_
+#endif // liblldb_ObjCLanguageRuntime_h_
