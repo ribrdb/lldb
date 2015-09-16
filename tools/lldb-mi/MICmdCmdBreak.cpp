@@ -89,21 +89,21 @@ CMICmdCmdBreakInsert::~CMICmdCmdBreakInsert()
 bool
 CMICmdCmdBreakInsert::ParseArgs()
 {
-    m_setCmdArgs.Add(*(new CMICmdArgValOptionShort(m_constStrArgNamedTempBrkPt, false, true)));
-    // Not implemented m_setCmdArgs.Add( *(new CMICmdArgValOptionShort( m_constStrArgNamedHWBrkPt, false, false ) ) );
-    m_setCmdArgs.Add(*(new CMICmdArgValOptionShort(m_constStrArgNamedPendinfBrkPt, false, true,
-                                                   CMICmdArgValListBase::eArgValType_StringQuotedNumberPath, 1)));
-    m_setCmdArgs.Add(*(new CMICmdArgValOptionShort(m_constStrArgNamedDisableBrkPt, false, false)));
-    // Not implemented m_setCmdArgs.Add( *(new CMICmdArgValOptionShort( m_constStrArgNamedTracePt, false, false ) ) );
-    m_setCmdArgs.Add(*(new CMICmdArgValOptionShort(m_constStrArgNamedConditionalBrkPt, false, true,
-                                                   CMICmdArgValListBase::eArgValType_StringQuoted, 1)));
+    m_setCmdArgs.Add(new CMICmdArgValOptionShort(m_constStrArgNamedTempBrkPt, false, true));
+    // Not implemented m_setCmdArgs.Add(new CMICmdArgValOptionShort( m_constStrArgNamedHWBrkPt, false, false));
+    m_setCmdArgs.Add(new CMICmdArgValOptionShort(m_constStrArgNamedPendinfBrkPt, false, true,
+                                                   CMICmdArgValListBase::eArgValType_StringQuotedNumberPath, 1));
+    m_setCmdArgs.Add(new CMICmdArgValOptionShort(m_constStrArgNamedDisableBrkPt, false, false));
+    // Not implemented m_setCmdArgs.Add(new CMICmdArgValOptionShort( m_constStrArgNamedTracePt, false, false));
+    m_setCmdArgs.Add(new CMICmdArgValOptionShort(m_constStrArgNamedConditionalBrkPt, false, true,
+                                                   CMICmdArgValListBase::eArgValType_StringQuoted, 1));
     m_setCmdArgs.Add(
-        *(new CMICmdArgValOptionShort(m_constStrArgNamedInoreCnt, false, true, CMICmdArgValListBase::eArgValType_Number, 1)));
-    m_setCmdArgs.Add(*(new CMICmdArgValOptionShort(m_constStrArgNamedRestrictBrkPtToThreadId, false, true,
-                                                   CMICmdArgValListBase::eArgValType_Number, 1)));
-    m_setCmdArgs.Add(*(new CMICmdArgValString(m_constStrArgNamedLocation, false, true)));
+        new CMICmdArgValOptionShort(m_constStrArgNamedInoreCnt, false, true, CMICmdArgValListBase::eArgValType_Number, 1));
+    m_setCmdArgs.Add(new CMICmdArgValOptionShort(m_constStrArgNamedRestrictBrkPtToThreadId, false, true,
+                                                   CMICmdArgValListBase::eArgValType_Number, 1));
+    m_setCmdArgs.Add(new CMICmdArgValString(m_constStrArgNamedLocation, false, true));
     m_setCmdArgs.Add(
-        *(new CMICmdArgValOptionLong(m_constStrArgNamedThreadGroup, false, true, CMICmdArgValListBase::eArgValType_ThreadGrp, 1)));
+        new CMICmdArgValOptionLong(m_constStrArgNamedThreadGroup, false, true, CMICmdArgValListBase::eArgValType_ThreadGrp, 1));
     return ParseValidateCmdOptions();
 }
 
@@ -118,10 +118,10 @@ static size_t findFileSeparatorPos(const std::string& x)
 {
     // Full paths in windows can have ':' after a drive letter, so we
     // search backwards, taking care to skip C++ namespace tokens '::'.
-    size_t n = x.find_last_of(':');
+    size_t n = x.rfind(':');
     while (n != std::string::npos && n > 1 && x[n-1] == ':')
     {
-        n = x.find_last_of(':', n - 2);
+        n = x.rfind(':', n - 2);
     }
     return n;
 }
@@ -405,8 +405,8 @@ bool
 CMICmdCmdBreakDelete::ParseArgs()
 {
     m_setCmdArgs.Add(
-        *(new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1)));
-    m_setCmdArgs.Add(*(new CMICmdArgValListOfN(m_constStrArgNamedBrkPt, true, true, CMICmdArgValListBase::eArgValType_Number)));
+        new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1));
+    m_setCmdArgs.Add(new CMICmdArgValListOfN(m_constStrArgNamedBrkPt, true, true, CMICmdArgValListBase::eArgValType_Number));
     return ParseValidateCmdOptions();
 }
 
@@ -524,8 +524,8 @@ bool
 CMICmdCmdBreakDisable::ParseArgs()
 {
     m_setCmdArgs.Add(
-        *(new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1)));
-    m_setCmdArgs.Add(*(new CMICmdArgValListOfN(m_constStrArgNamedBrkPt, true, true, CMICmdArgValListBase::eArgValType_Number)));
+        new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1));
+    m_setCmdArgs.Add(new CMICmdArgValListOfN(m_constStrArgNamedBrkPt, true, true, CMICmdArgValListBase::eArgValType_Number));
     return ParseValidateCmdOptions();
 }
 
@@ -663,8 +663,8 @@ bool
 CMICmdCmdBreakEnable::ParseArgs()
 {
     m_setCmdArgs.Add(
-        *(new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1)));
-    m_setCmdArgs.Add(*(new CMICmdArgValListOfN(m_constStrArgNamedBrkPt, true, true, CMICmdArgValListBase::eArgValType_Number)));
+        new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1));
+    m_setCmdArgs.Add(new CMICmdArgValListOfN(m_constStrArgNamedBrkPt, true, true, CMICmdArgValListBase::eArgValType_Number));
     return ParseValidateCmdOptions();
 }
 
@@ -803,9 +803,9 @@ bool
 CMICmdCmdBreakAfter::ParseArgs()
 {
     m_setCmdArgs.Add(
-        *(new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1)));
-    m_setCmdArgs.Add(*(new CMICmdArgValNumber(m_constStrArgNamedNumber, true, true)));
-    m_setCmdArgs.Add(*(new CMICmdArgValNumber(m_constStrArgNamedCount, true, true)));
+        new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1));
+    m_setCmdArgs.Add(new CMICmdArgValNumber(m_constStrArgNamedNumber, true, true));
+    m_setCmdArgs.Add(new CMICmdArgValNumber(m_constStrArgNamedCount, true, true));
     return ParseValidateCmdOptions();
 }
 
@@ -934,11 +934,11 @@ bool
 CMICmdCmdBreakCondition::ParseArgs()
 {
     m_setCmdArgs.Add(
-        *(new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1)));
-    m_setCmdArgs.Add(*(new CMICmdArgValNumber(m_constStrArgNamedNumber, true, true)));
-    m_setCmdArgs.Add(*(new CMICmdArgValString(m_constStrArgNamedExpr, true, true, true, true)));
-    m_setCmdArgs.Add(*(new CMICmdArgValListOfN(m_constStrArgNamedExprNoQuotes, true, false,
-                                               CMICmdArgValListBase::eArgValType_StringQuotedNumber)));
+        new CMICmdArgValOptionLong(m_constStrArgNamedThreadGrp, false, false, CMICmdArgValListBase::eArgValType_ThreadGrp, 1));
+    m_setCmdArgs.Add(new CMICmdArgValNumber(m_constStrArgNamedNumber, true, true));
+    m_setCmdArgs.Add(new CMICmdArgValString(m_constStrArgNamedExpr, true, true, true, true));
+    m_setCmdArgs.Add(new CMICmdArgValListOfN(m_constStrArgNamedExprNoQuotes, false, false,
+                                               CMICmdArgValListBase::eArgValType_StringQuotedNumber));
     return ParseValidateCmdOptions();
 }
 
@@ -1042,7 +1042,6 @@ CMICmdCmdBreakCondition::GetRestOfExpressionNotSurroundedInQuotes()
     CMICmdArgValListOfN *pArgExprNoQuotes = CMICmdBase::GetOption<CMICmdArgValListOfN>(m_constStrArgNamedExprNoQuotes);
     if (pArgExprNoQuotes != nullptr)
     {
-        CMIUtilString strExpression;
         const CMICmdArgValListBase::VecArgObjPtr_t &rVecExprParts(pArgExprNoQuotes->GetExpectedOptions());
         if (!rVecExprParts.empty())
         {

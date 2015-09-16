@@ -17,10 +17,10 @@
 #include "lldb/Symbol/CompilerDeclContext.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/Type.h"
+#include "llvm/Support/Casting.h"
 
-class SymbolFileDWARF;
-class DWARFCompileUnit;
-class DWARFDebugInfoEntry;
+class DWARFDIE;
+class DWARFASTParser;
 
 namespace lldb_private {
     
@@ -31,59 +31,56 @@ class TypeSystem
 {
 public:
     //----------------------------------------------------------------------
+    // Intrusive type system that allows us to use llvm casting.
+    //
+    // To add a new type system:
+    //
+    // 1 - Add a new enumeration for llvm casting below for your TypeSystem
+    //     subclass, here we will use eKindFoo
+    //
+    // 2 - Your TypeSystem subclass will inherit from TypeSystem and needs
+    //     to implement a static classof() function that returns your
+    //     enumeration:
+    //
+    //    class Foo : public lldb_private::TypeSystem
+    //    {
+    //        static bool classof(const TypeSystem *ts)
+    //        {
+    //            return ts->getKind() == TypeSystem::eKindFoo;
+    //        }
+    //    };
+    //
+    // 3 - Contruct your TypeSystem subclass with the enumeration from below
+    //
+    //    Foo() :
+    //        TypeSystem(TypeSystem::eKindFoo),
+    //        ...
+    //    {
+    //    }
+    //
+    // Then you can use the llvm casting on any "TypeSystem *" to get an
+    // instance of your subclass.
+    //----------------------------------------------------------------------
+    enum LLVMCastKind {
+        eKindClang,
+        eKindSwift,
+        eKindGo,
+        kNumKinds
+    };
+
+    LLVMCastKind getKind() const { return m_kind; }
+
+    //----------------------------------------------------------------------
     // Constructors and Destructors
     //----------------------------------------------------------------------
-    TypeSystem ();
+    TypeSystem (LLVMCastKind kind);
     
     virtual ~TypeSystem ();
-    
-    virtual ClangASTContext *
-    AsClangASTContext() = 0;
 
-    virtual GoASTContext *
-    AsGoASTContext() = 0;
-    
-    //----------------------------------------------------------------------
-    // DWARF type parsing
-    //----------------------------------------------------------------------
-    virtual lldb::TypeSP
-    ParseTypeFromDWARF (const SymbolContext& sc,
-                        SymbolFileDWARF *dwarf,
-                        DWARFCompileUnit* dwarf_cu,
-                        const DWARFDebugInfoEntry *die,
-                        Log *log,
-                        bool *type_is_new_ptr) = 0;
-
-    virtual Function *
-    ParseFunctionFromDWARF (const SymbolContext& sc,
-                            SymbolFileDWARF *dwarf,
-                            DWARFCompileUnit* dwarf_cu,
-                            const DWARFDebugInfoEntry *die) = 0;
-
-    virtual bool
-    CompleteTypeFromDWARF (SymbolFileDWARF *dwarf,
-                           DWARFCompileUnit *dwarf_cu,
-                           const DWARFDebugInfoEntry* die,
-                           lldb_private::Type *type,
-                           CompilerType &clang_type)
+    virtual DWARFASTParser *
+    GetDWARFParser ()
     {
-        return false;
-    }
-
-    virtual CompilerDeclContext
-    GetDeclContextForUIDFromDWARF (SymbolFileDWARF *dwarf,
-                                   DWARFCompileUnit *dwarf_cu,
-                                   const DWARFDebugInfoEntry* die)
-    {
-        return CompilerDeclContext();
-    }
-
-    virtual CompilerDeclContext
-    GetDeclContextContainingUIDFromDWARF (SymbolFileDWARF *dwarf,
-                                          DWARFCompileUnit *dwarf_cu,
-                                          const DWARFDebugInfoEntry* die)
-    {
-        return CompilerDeclContext();
+        return nullptr;
     }
 
     virtual SymbolFile *
@@ -403,6 +400,12 @@ public:
     virtual CompilerType
     GetBasicTypeFromAST (lldb::BasicType basic_type) = 0;
     
+    virtual CompilerType
+    GetIntTypeFromBitSize (size_t bit_size, bool is_signed) = 0;
+    
+    virtual CompilerType
+    GetFloatTypeFromBitSize (size_t bit_size) = 0;
+
     virtual bool
     IsBeingDefined (void *type) = 0;
     
@@ -436,6 +439,7 @@ public:
     virtual bool
     IsReferenceType (void *type, CompilerType *pointee_type, bool* is_rvalue) = 0;
 protected:
+    const LLVMCastKind m_kind; // Support for llvm casting
     SymbolFile *m_sym_file;
 
 };

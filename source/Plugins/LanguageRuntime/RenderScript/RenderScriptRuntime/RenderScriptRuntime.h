@@ -22,6 +22,9 @@
 namespace lldb_private
 {
 
+namespace lldb_renderscript
+{
+
 typedef uint32_t RSSlot;
 class RSModuleDescriptor;
 struct RSGlobalDescriptor;
@@ -31,7 +34,53 @@ typedef std::shared_ptr<RSModuleDescriptor> RSModuleDescriptorSP;
 typedef std::shared_ptr<RSGlobalDescriptor> RSGlobalDescriptorSP;
 typedef std::shared_ptr<RSKernelDescriptor> RSKernelDescriptorSP;
 
+// Breakpoint Resolvers decide where a breakpoint is placed,
+// so having our own allows us to limit the search scope to RS kernel modules.
+// As well as check for .expand kernels as a fallback.
+class RSBreakpointResolver : public BreakpointResolver
+{
+  public:
 
+    RSBreakpointResolver(Breakpoint *bkpt, ConstString name):
+                         BreakpointResolver (bkpt, BreakpointResolver::NameResolver),
+                         m_kernel_name(name)
+    {
+    }
+
+    void
+    GetDescription(Stream *strm) override
+    {
+        if (strm)
+            strm->Printf("RenderScript kernel breakpoint for '%s'", m_kernel_name.AsCString());
+    }
+
+    void
+    Dump(Stream *s) const override
+    {
+    }
+
+    Searcher::CallbackReturn
+    SearchCallback(SearchFilter &filter,
+                   SymbolContext &context,
+                   Address *addr,
+                   bool containing) override;
+
+    Searcher::Depth
+    GetDepth() override
+    {
+        return Searcher::eDepthModule;
+    }
+
+    lldb::BreakpointResolverSP
+    CopyForBreakpoint(Breakpoint &breakpoint) override
+    {
+        lldb::BreakpointResolverSP ret_sp(new RSBreakpointResolver(&breakpoint, m_kernel_name));
+        return ret_sp;
+    }
+
+  protected:
+    ConstString m_kernel_name;
+};
 
 struct RSKernelDescriptor
 {
@@ -85,6 +134,8 @@ class RSModuleDescriptor
     std::map<std::string, std::string> m_pragmas;
     std::string m_resname;
 };
+
+} // end lldb_renderscript namespace
 
 class RenderScriptRuntime : public lldb_private::CPPLanguageRuntime
 {
@@ -147,7 +198,9 @@ class RenderScriptRuntime : public lldb_private::CPPLanguageRuntime
 
     void DumpKernels(Stream &strm) const;
 
-    void AttemptBreakpointAtKernelName(Stream &strm, const char *name, Error &error);
+    void AttemptBreakpointAtKernelName(Stream &strm, const char *name, Error &error, lldb::TargetSP target);
+
+    void SetBreakAllKernels(bool do_break, lldb::TargetSP target);
 
     void Status(Stream &strm) const;
 
@@ -162,10 +215,20 @@ class RenderScriptRuntime : public lldb_private::CPPLanguageRuntime
     void Initiate();
     
   protected:
+
+    void InitSearchFilter(lldb::TargetSP target)
+    {
+        if (!m_filtersp)
+            m_filtersp.reset(new SearchFilterForUnconstrainedSearches(target));
+    }
     
-    void FixupScriptDetails(RSModuleDescriptorSP rsmodule_sp);
+    void FixupScriptDetails(lldb_renderscript::RSModuleDescriptorSP rsmodule_sp);
 
     void LoadRuntimeHooks(lldb::ModuleSP module, ModuleKind kind);
+
+    lldb::BreakpointSP CreateKernelBreakpoint(const ConstString& name);
+
+    void BreakOnModuleKernels(const lldb_renderscript::RSModuleDescriptorSP rsmodule_sp);
     
     struct RuntimeHook;
     typedef void (RenderScriptRuntime::*CaptureStateFn)(RuntimeHook* hook_info, ExecutionContext &context);  // Please do this!
@@ -200,14 +263,17 @@ class RenderScriptRuntime : public lldb_private::CPPLanguageRuntime
     lldb::ModuleSP m_libRS;
     lldb::ModuleSP m_libRSDriver;
     lldb::ModuleSP m_libRSCpuRef;
-    std::vector<RSModuleDescriptorSP> m_rsmodules;
+    std::vector<lldb_renderscript::RSModuleDescriptorSP> m_rsmodules;
     std::vector<ScriptDetails> m_scripts;
 
-    std::map<lldb::addr_t, RSModuleDescriptorSP> m_scriptMappings;
+    std::map<lldb::addr_t, lldb_renderscript::RSModuleDescriptorSP> m_scriptMappings;
     std::map<lldb::addr_t, RuntimeHookSP> m_runtimeHooks;
+
+    lldb::SearchFilterSP m_filtersp; // Needed to create breakpoints through Target API
 
     bool m_initiated;
     bool m_debuggerPresentFlagged;
+    bool m_breakAllKernels;
     static const HookDefn s_runtimeHookDefns[];
     static const size_t s_runtimeHookCount;
 

@@ -35,7 +35,7 @@
 #include "lldb/DataFormatters/StringPrinter.h"
 #include "lldb/DataFormatters/ValueObjectPrinter.h"
 
-#include "lldb/Expression/ClangExpressionVariable.h"
+#include "Plugins/ExpressionParser/Clang/ClangExpressionVariable.h"
 #include "lldb/Expression/ClangPersistentVariables.h"
 
 #include "lldb/Host/Endian.h"
@@ -1595,13 +1595,13 @@ ValueObject::DumpPrintableRepresentation(Stream& s,
                                   0,
                                   (custom_format == eFormatVectorOfChar) ||
                                   (custom_format == eFormatCharArray));
-                lldb_private::formatters::ReadBufferAndDumpToStreamOptions options(*this);
+                lldb_private::formatters::StringPrinter::ReadBufferAndDumpToStreamOptions options(*this);
                 options.SetData(DataExtractor(buffer_sp, lldb::eByteOrderInvalid, 8)); // none of this matters for a string - pass some defaults
                 options.SetStream(&s);
                 options.SetPrefixToken(0);
                 options.SetQuote('"');
                 options.SetSourceSize(buffer_sp->GetByteSize());
-                lldb_private::formatters::ReadBufferAndDumpToStream<lldb_private::formatters::StringElementType::ASCII>(options);
+                formatters::StringPrinter::ReadBufferAndDumpToStream<lldb_private::formatters::StringPrinter::StringElementType::ASCII>(options);
                 return !error.Fail();
             }
             
@@ -4280,7 +4280,7 @@ ValueObject::Persist ()
     
     ConstString name(target_sp->GetPersistentVariables().GetNextPersistentVariableName());
     
-    ClangExpressionVariableSP clang_var_sp(new ClangExpressionVariable(target_sp.get(), GetValue(), name));
+    ExpressionVariableSP clang_var_sp(new ClangExpressionVariable(target_sp.get(), GetValue(), name));
     if (clang_var_sp)
     {
         clang_var_sp->m_live_sp = clang_var_sp->m_frozen_sp;

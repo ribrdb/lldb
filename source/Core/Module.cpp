@@ -24,18 +24,18 @@
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/SymbolVendor.h"
-#include "lldb/Target/CPPLanguageRuntime.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
+#include "lldb/Target/Language.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Symbol/SymbolFile.h"
+#include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
+#include "Plugins/Language/ObjC/ObjCLanguage.h"
 
 #include "Plugins/ObjectFile/JIT/ObjectFileJIT.h"
 
@@ -149,14 +149,13 @@ Module::Module (const ModuleSpec &module_spec) :
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
-    m_go_ast(new GoASTContext),
+    m_go_ast(),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
-    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -255,14 +254,13 @@ Module::Module(const FileSpec& file_spec,
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
-    m_go_ast(new GoASTContext),
+    m_go_ast(),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
-    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -303,14 +301,13 @@ Module::Module () :
     m_objfile_sp (),
     m_symfile_ap (),
     m_ast (new ClangASTContext),
-    m_go_ast(new GoASTContext),
+    m_go_ast(),
     m_source_mappings (),
     m_sections_ap(),
     m_did_load_objfile (false),
     m_did_load_symbol_vendor (false),
     m_did_parse_uuid (false),
     m_did_init_ast (false),
-    m_did_init_go (false),
     m_file_has_changed (false),
     m_first_file_changed_log (false)
 {
@@ -429,7 +426,18 @@ Module::GetTypeSystemForLanguage (LanguageType language)
 {
     if (language == eLanguageTypeGo)
     {
-        return &GetGoASTContext();
+        Mutex::Locker locker (m_mutex);
+        if (!m_go_ast)
+        {
+            ObjectFile * objfile = GetObjectFile();
+            ArchSpec object_arch;
+            if (objfile && objfile->GetArchitecture(object_arch))
+            {
+                m_go_ast.reset(new GoASTContext);
+                m_go_ast->SetAddressByteSize(object_arch.GetAddressByteSize());
+            }
+        }
+        return m_go_ast.get();
     }
     else if (language != eLanguageTypeSwift)
     {
@@ -474,24 +482,6 @@ Module::GetClangASTContext ()
         }
     }
     return *m_ast;
-}
-
-
-GoASTContext &
-Module::GetGoASTContext ()
-{
-    Mutex::Locker locker (m_mutex);
-    if (m_did_init_go == false)
-    {
-        ObjectFile * objfile = GetObjectFile();
-        ArchSpec object_arch;
-        if (objfile && objfile->GetArchitecture(object_arch))
-        {
-            m_did_init_go = true;
-            m_go_ast->SetAddressByteSize(object_arch.GetAddressByteSize());
-        }
-    }
-    return *m_go_ast;
 }
 
 void
@@ -1737,7 +1727,8 @@ Module::MatchesModuleSpec (const ModuleSpec &module_ref)
     const FileSpec &file_spec = module_ref.GetFileSpec();
     if (file_spec)
     {
-        if (!FileSpec::Equal (file_spec, m_file, (bool)file_spec.GetDirectory()))
+        if (!FileSpec::Equal (file_spec, m_file, (bool)file_spec.GetDirectory()) &&
+            !FileSpec::Equal (file_spec, m_platform_file, (bool)file_spec.GetDirectory()))
             return false;
     }
 
@@ -1810,28 +1801,28 @@ Module::PrepareForFunctionNameLookup (const ConstString &name,
     
     if (name_type_mask & eFunctionNameTypeAuto)
     {
-        if (CPPLanguageRuntime::IsCPPMangledName (name_cstr))
+        if (CPlusPlusLanguage::IsCPPMangledName (name_cstr))
             lookup_name_type_mask = eFunctionNameTypeFull;
         else if ((language == eLanguageTypeUnknown ||
-                  LanguageRuntime::LanguageIsObjC(language)) &&
-                 ObjCLanguageRuntime::IsPossibleObjCMethodName (name_cstr))
+                  Language::LanguageIsObjC(language)) &&
+                 ObjCLanguage::IsPossibleObjCMethodName (name_cstr))
             lookup_name_type_mask = eFunctionNameTypeFull;
-        else if (LanguageRuntime::LanguageIsC(language))
+        else if (Language::LanguageIsC(language))
         {
             lookup_name_type_mask = eFunctionNameTypeFull;
         }
         else
         {
             if ((language == eLanguageTypeUnknown ||
-                 LanguageRuntime::LanguageIsObjC(language)) &&
-                ObjCLanguageRuntime::IsPossibleObjCSelector(name_cstr))
+                 Language::LanguageIsObjC(language)) &&
+                ObjCLanguage::IsPossibleObjCSelector(name_cstr))
                 lookup_name_type_mask |= eFunctionNameTypeSelector;
             
-            CPPLanguageRuntime::MethodName cpp_method (name);
+            CPlusPlusLanguage::MethodName cpp_method (name);
             basename = cpp_method.GetBasename();
             if (basename.empty())
             {
-                if (CPPLanguageRuntime::ExtractContextAndIdentifier (name_cstr, context, basename))
+                if (CPlusPlusLanguage::ExtractContextAndIdentifier (name_cstr, context, basename))
                     lookup_name_type_mask |= (eFunctionNameTypeMethod | eFunctionNameTypeBase);
                 else
                     lookup_name_type_mask |= eFunctionNameTypeFull;
@@ -1849,7 +1840,7 @@ Module::PrepareForFunctionNameLookup (const ConstString &name,
         {
             // If they've asked for a CPP method or function name and it can't be that, we don't
             // even need to search for CPP methods or names.
-            CPPLanguageRuntime::MethodName cpp_method (name);
+            CPlusPlusLanguage::MethodName cpp_method (name);
             if (cpp_method.IsValid())
             {
                 basename = cpp_method.GetBasename();
@@ -1867,13 +1858,13 @@ Module::PrepareForFunctionNameLookup (const ConstString &name,
             {
                 // If the CPP method parser didn't manage to chop this up, try to fill in the base name if we can.
                 // If a::b::c is passed in, we need to just look up "c", and then we'll filter the result later.
-                CPPLanguageRuntime::ExtractContextAndIdentifier (name_cstr, context, basename);
+                CPlusPlusLanguage::ExtractContextAndIdentifier (name_cstr, context, basename);
             }
         }
         
         if (lookup_name_type_mask & eFunctionNameTypeSelector)
         {
-            if (!ObjCLanguageRuntime::IsPossibleObjCSelector(name_cstr))
+            if (!ObjCLanguage::IsPossibleObjCSelector(name_cstr))
             {
                 lookup_name_type_mask &= ~(eFunctionNameTypeSelector);
                 if (lookup_name_type_mask == eFunctionNameTypeNone)

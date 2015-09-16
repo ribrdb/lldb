@@ -177,7 +177,7 @@ SystemInitializerCommon::Terminate()
     PlatformDarwinKernel::Terminate();
 #endif
 
-#if defined(__WIN32__)
+#if defined(_MSC_VER)
     ProcessWindowsLog::Terminate();
 #endif
 

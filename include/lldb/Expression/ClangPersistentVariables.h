@@ -10,7 +10,7 @@
 #ifndef liblldb_ClangPersistentVariables_h_
 #define liblldb_ClangPersistentVariables_h_
 
-#include "lldb/Expression/ClangExpressionVariable.h"
+#include "Plugins/ExpressionParser/Clang/ClangExpressionVariable.h"
 #include "lldb/Expression/ClangModulesDeclVendor.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -26,7 +26,7 @@ namespace lldb_private
 /// ClangPersistentVariable for more discussion.  Also provides an increasing,
 /// 0-based counter for naming result variables.
 //----------------------------------------------------------------------
-class ClangPersistentVariables : public ClangExpressionVariableList
+class ClangPersistentVariables : public ExpressionVariableList
 {
 public:
     
@@ -35,10 +35,10 @@ public:
     //----------------------------------------------------------------------
     ClangPersistentVariables ();
 
-    lldb::ClangExpressionVariableSP
+    lldb::ExpressionVariableSP
     CreatePersistentVariable (const lldb::ValueObjectSP &valobj_sp);
 
-    lldb::ClangExpressionVariableSP
+    ClangExpressionVariable *
     CreatePersistentVariable (ExecutionContextScope *exe_scope,
                               const ConstString &name, 
                               const TypeFromUser& user_type, 
@@ -56,7 +56,7 @@ public:
     GetNextPersistentVariableName ();
     
     void
-    RemovePersistentVariable (lldb::ClangExpressionVariableSP variable);
+    RemovePersistentVariable (lldb::ExpressionVariableSP variable);
 
     void
     RegisterPersistentType (const ConstString &name,

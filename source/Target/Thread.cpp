@@ -16,6 +16,7 @@
 #include "lldb/Core/Stream.h"
 #include "lldb/Core/StreamString.h"
 #include "lldb/Core/RegularExpression.h"
+#include "lldb/Core/ValueObject.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Interpreter/OptionValueFileSpecList.h"
 #include "lldb/Interpreter/OptionValueProperties.h"
@@ -24,7 +25,6 @@
 #include "lldb/Target/ABI.h"
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/ExecutionContext.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StopInfo.h"
@@ -1244,20 +1244,20 @@ Thread::GetReturnValueObject ()
     return ValueObjectSP();
 }
 
-ClangExpressionVariableSP
+ExpressionVariableSP
 Thread::GetExpressionVariable ()
 {
     if (!m_completed_plan_stack.empty())
     {
         for (int i = m_completed_plan_stack.size() - 1; i >= 0; i--)
         {
-            ClangExpressionVariableSP expression_variable_sp;
+            ExpressionVariableSP expression_variable_sp;
             expression_variable_sp = m_completed_plan_stack[i]->GetExpressionVariable();
             if (expression_variable_sp)
                 return expression_variable_sp;
         }
     }
-    return ClangExpressionVariableSP();
+    return ExpressionVariableSP();
 }
 
 bool

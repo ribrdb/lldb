@@ -771,16 +771,18 @@ PluginManager::GetEmulateInstructionCreateCallbackForPluginName (const ConstStri
 
 struct OperatingSystemInstance
 {
-    OperatingSystemInstance() :
-        name(),
-        description(),
-        create_callback(NULL)
+    OperatingSystemInstance()
+        : name()
+        , description()
+        , create_callback(NULL)
+        , debugger_init_callback(NULL)
     {
     }
     
     ConstString name;
     std::string description;
     OperatingSystemCreateInstance create_callback;
+    DebuggerInitializeCallback debugger_init_callback;
 };
 
 typedef std::vector<OperatingSystemInstance> OperatingSystemInstances;
@@ -800,9 +802,9 @@ GetOperatingSystemInstances ()
 }
 
 bool
-PluginManager::RegisterPlugin (const ConstString &name,
-                               const char *description,
-                               OperatingSystemCreateInstance create_callback)
+PluginManager::RegisterPlugin(const ConstString &name, const char *description,
+                              OperatingSystemCreateInstance create_callback,
+                              DebuggerInitializeCallback debugger_init_callback)
 {
     if (create_callback)
     {
@@ -812,6 +814,7 @@ PluginManager::RegisterPlugin (const ConstString &name,
         if (description && description[0])
             instance.description = description;
         instance.create_callback = create_callback;
+        instance.debugger_init_callback = debugger_init_callback;
         Mutex::Locker locker (GetOperatingSystemMutex ());
         GetOperatingSystemInstances ().push_back (instance);
     }
@@ -858,6 +861,111 @@ PluginManager::GetOperatingSystemCreateCallbackForPluginName (const ConstString 
         OperatingSystemInstances &instances = GetOperatingSystemInstances ();
         
         OperatingSystemInstances::iterator pos, end = instances.end();
+        for (pos = instances.begin(); pos != end; ++ pos)
+        {
+            if (name == pos->name)
+                return pos->create_callback;
+        }
+    }
+    return NULL;
+}
+
+
+#pragma mark Language
+
+
+struct LanguageInstance
+{
+    LanguageInstance() :
+        name(),
+        description(),
+        create_callback(NULL)
+    {
+    }
+    
+    ConstString name;
+    std::string description;
+    LanguageCreateInstance create_callback;
+};
+
+typedef std::vector<LanguageInstance> LanguageInstances;
+
+static Mutex &
+GetLanguageMutex ()
+{
+    static Mutex g_instances_mutex (Mutex::eMutexTypeRecursive);
+    return g_instances_mutex;
+}
+
+static LanguageInstances &
+GetLanguageInstances ()
+{
+    static LanguageInstances g_instances;
+    return g_instances;
+}
+
+bool
+PluginManager::RegisterPlugin
+(
+ const ConstString &name,
+ const char *description,
+ LanguageCreateInstance create_callback
+ )
+{
+    if (create_callback)
+    {
+        LanguageInstance instance;
+        assert ((bool)name);
+        instance.name = name;
+        if (description && description[0])
+            instance.description = description;
+        instance.create_callback = create_callback;
+        Mutex::Locker locker (GetLanguageMutex ());
+        GetLanguageInstances ().push_back (instance);
+    }
+    return false;
+}
+
+bool
+PluginManager::UnregisterPlugin (LanguageCreateInstance create_callback)
+{
+    if (create_callback)
+    {
+        Mutex::Locker locker (GetLanguageMutex ());
+        LanguageInstances &instances = GetLanguageInstances ();
+        
+        LanguageInstances::iterator pos, end = instances.end();
+        for (pos = instances.begin(); pos != end; ++ pos)
+        {
+            if (pos->create_callback == create_callback)
+            {
+                instances.erase(pos);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+LanguageCreateInstance
+PluginManager::GetLanguageCreateCallbackAtIndex (uint32_t idx)
+{
+    Mutex::Locker locker (GetLanguageMutex ());
+    LanguageInstances &instances = GetLanguageInstances ();
+    if (idx < instances.size())
+        return instances[idx].create_callback;
+    return NULL;
+}
+
+LanguageCreateInstance
+PluginManager::GetLanguageCreateCallbackForPluginName (const ConstString &name)
+{
+    if (name)
+    {
+        Mutex::Locker locker (GetLanguageMutex ());
+        LanguageInstances &instances = GetLanguageInstances ();
+        
+        LanguageInstances::iterator pos, end = instances.end();
         for (pos = instances.begin(); pos != end; ++ pos)
         {
             if (name == pos->name)
@@ -2474,6 +2582,16 @@ PluginManager::DebuggerInitialize (Debugger &debugger)
                 sym_file.debugger_init_callback (debugger);
         }
     }
+
+    // Initialize the OperatingSystem plugins
+    {
+        Mutex::Locker locker(GetOperatingSystemMutex());
+        for (auto &os : GetOperatingSystemInstances())
+        {
+            if (os.debugger_init_callback)
+                os.debugger_init_callback(debugger);
+        }
+    }
 }
 
 // This is the preferred new way to register plugin specific settings.  e.g.
@@ -2705,6 +2823,41 @@ PluginManager::CreateSettingForSymbolFilePlugin (Debugger &debugger,
                                                        description,
                                                        is_global_property,
                                                        properties_sp);
+            return true;
+        }
+    }
+    return false;
+}
+
+static const char *kOperatingSystemPluginName("os");
+
+lldb::OptionValuePropertiesSP
+PluginManager::GetSettingForOperatingSystemPlugin(Debugger &debugger, const ConstString &setting_name)
+{
+    lldb::OptionValuePropertiesSP properties_sp;
+    lldb::OptionValuePropertiesSP plugin_type_properties_sp(
+        GetDebuggerPropertyForPlugins(debugger, ConstString(kOperatingSystemPluginName),
+                                      ConstString(), // not creating to so we don't need the description
+                                      false));
+    if (plugin_type_properties_sp)
+        properties_sp = plugin_type_properties_sp->GetSubProperty(nullptr, setting_name);
+    return properties_sp;
+}
+
+bool
+PluginManager::CreateSettingForOperatingSystemPlugin(Debugger &debugger,
+                                                     const lldb::OptionValuePropertiesSP &properties_sp,
+                                                     const ConstString &description, bool is_global_property)
+{
+    if (properties_sp)
+    {
+        lldb::OptionValuePropertiesSP plugin_type_properties_sp(
+            GetDebuggerPropertyForPlugins(debugger, ConstString(kOperatingSystemPluginName),
+                                          ConstString("Settings for operating system plug-ins"), true));
+        if (plugin_type_properties_sp)
+        {
+            plugin_type_properties_sp->AppendProperty(properties_sp->GetName(), description, is_global_property,
+                                                      properties_sp);
             return true;
         }
     }

@@ -21,6 +21,11 @@
 #include "lldb/Core/StreamString.h"
 #include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
+#include "lldb/Interpreter/Options.h"
+#include "lldb/Interpreter/OptionGroupBoolean.h"
+#include "lldb/Interpreter/OptionGroupUInt64.h"
+#include "lldb/Interpreter/Property.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/VariableList.h"
@@ -38,19 +43,74 @@ using namespace lldb_private;
 
 namespace
 {
+
+static PropertyDefinition g_properties[] = {{"enable", OptionValue::eTypeBoolean, true, true, nullptr, nullptr,
+                                             "Specify whether goroutines should be treated as threads."},
+                                            {NULL, OptionValue::eTypeInvalid, false, 0, NULL, NULL, NULL}};
+
+enum
+{
+    ePropertyEnableGoroutines,
+};
+
+class PluginProperties : public Properties
+{
+  public:
+    static ConstString
+    GetSettingName()
+    {
+        return OperatingSystemGo::GetPluginNameStatic();
+    }
+
+    PluginProperties()
+        : Properties()
+    {
+        m_collection_sp.reset(new OptionValueProperties(GetSettingName()));
+        m_collection_sp->Initialize(g_properties);
+    }
+
+    virtual ~PluginProperties() {}
+
+    bool
+    GetEnableGoroutines()
+    {
+        const uint32_t idx = ePropertyEnableGoroutines;
+        return m_collection_sp->GetPropertyAtIndexAsBoolean(NULL, idx, g_properties[idx].default_uint_value);
+    }
+
+    bool
+    SetEnableGoroutines(bool enable)
+    {
+        const uint32_t idx = ePropertyEnableGoroutines;
+        return m_collection_sp->SetPropertyAtIndexAsUInt64(NULL, idx, enable);
+    }
+};
+
+typedef std::shared_ptr<PluginProperties> OperatingSystemGoPropertiesSP;
+
+static const OperatingSystemGoPropertiesSP &
+GetGlobalPluginProperties()
+{
+    static OperatingSystemGoPropertiesSP g_settings_sp;
+    if (!g_settings_sp)
+        g_settings_sp.reset(new PluginProperties());
+    return g_settings_sp;
+}
+
 class RegisterContextGo : public RegisterContextMemory
 {
   public:
     //------------------------------------------------------------------
     // Constructors and Destructors
     //------------------------------------------------------------------
-    RegisterContextGo(lldb_private::Thread &thread, uint32_t concrete_frame_idx, DynamicRegisterInfo &reg_info, lldb::addr_t reg_data_addr)
+    RegisterContextGo(lldb_private::Thread &thread, uint32_t concrete_frame_idx, DynamicRegisterInfo &reg_info,
+                      lldb::addr_t reg_data_addr)
         : RegisterContextMemory(thread, concrete_frame_idx, reg_info, reg_data_addr)
     {
-        const RegisterInfo *sp =
-            reg_info.GetRegisterInfoAtIndex(reg_info.ConvertRegisterKindToRegisterNumber(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_SP));
-        const RegisterInfo *pc =
-            reg_info.GetRegisterInfoAtIndex(reg_info.ConvertRegisterKindToRegisterNumber(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_PC));
+        const RegisterInfo *sp = reg_info.GetRegisterInfoAtIndex(
+            reg_info.ConvertRegisterKindToRegisterNumber(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_SP));
+        const RegisterInfo *pc = reg_info.GetRegisterInfoAtIndex(
+            reg_info.ConvertRegisterKindToRegisterNumber(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_PC));
         size_t byte_size = std::max(sp->byte_offset + sp->byte_size, pc->byte_offset + pc->byte_size);
 
         DataBufferSP reg_data_sp(new DataBufferHeap(byte_size, 0));
@@ -89,6 +149,17 @@ class RegisterContextGo : public RegisterContextMemory
   private:
     DISALLOW_COPY_AND_ASSIGN(RegisterContextGo);
 };
+
+bool
+ModuleContainsGoRuntime(Module *module)
+{
+    const Symbol *symbol = module->FindFirstSymbolWithNameAndType(ConstString("runtime.allg"), lldb::eSymbolTypeAny);
+    if (symbol == nullptr)
+        return nullptr;
+    symbol = module->FindFirstSymbolWithNameAndType(ConstString("runtime.allglen"), lldb::eSymbolTypeAny);
+
+    return symbol != nullptr;
+}
 }
 
 struct OperatingSystemGo::Goroutine
@@ -103,7 +174,20 @@ struct OperatingSystemGo::Goroutine
 void
 OperatingSystemGo::Initialize()
 {
-    PluginManager::RegisterPlugin(GetPluginNameStatic(), GetPluginDescriptionStatic(), CreateInstance);
+    PluginManager::RegisterPlugin(GetPluginNameStatic(), GetPluginDescriptionStatic(), CreateInstance,
+                                  DebuggerInitialize);
+}
+
+void
+OperatingSystemGo::DebuggerInitialize(Debugger &debugger)
+{
+    if (!PluginManager::GetSettingForOperatingSystemPlugin(debugger, PluginProperties::GetSettingName()))
+    {
+        const bool is_global_setting = true;
+        PluginManager::CreateSettingForOperatingSystemPlugin(
+            debugger, GetGlobalPluginProperties()->GetValueProperties(),
+            ConstString("Properties for the goroutine thread plug-in."), is_global_setting);
+    }
 }
 
 void
@@ -115,13 +199,34 @@ OperatingSystemGo::Terminate()
 OperatingSystem *
 OperatingSystemGo::CreateInstance(Process *process, bool force)
 {
+    if (!force)
+    {
+        TargetSP target_sp = process->CalculateTarget();
+        if (!target_sp)
+            return nullptr;
+        ModuleList &module_list = target_sp->GetImages();
+        Mutex::Locker modules_locker(module_list.GetMutex());
+        const size_t num_modules = module_list.GetSize();
+        bool found_go_runtime = false;
+        for (size_t i = 0; i < num_modules; ++i)
+        {
+            Module *module_pointer = module_list.GetModulePointerAtIndexUnlocked(i);
+            if (ModuleContainsGoRuntime(module_pointer))
+            {
+                found_go_runtime = true;
+                break;
+            }
+        }
+        if (!found_go_runtime)
+            return nullptr;
+    }
     return new OperatingSystemGo(process);
 }
 
 ConstString
 OperatingSystemGo::GetPluginNameStatic()
 {
-    static ConstString g_name("GoOS");
+    static ConstString g_name("goroutines");
     return g_name;
 }
 
@@ -154,11 +259,11 @@ OperatingSystemGo::Init(ThreadList &threads)
 
     if (m_allg_sp && !m_allglen_sp)
     {
-        StreamSP error_sp = target_sp->GetDebugger().GetAsyncErrorStream ();
-        error_sp->Printf ("Unsupported Go runtime version detected.");
+        StreamSP error_sp = target_sp->GetDebugger().GetAsyncErrorStream();
+        error_sp->Printf("Unsupported Go runtime version detected.");
         return false;
     }
-    
+
     if (!m_allg_sp)
         return false;
 
@@ -204,7 +309,8 @@ OperatingSystemGo::Init(ThreadList &threads)
         {
             std::string field_name;
             uint64_t bit_offset = 0;
-            CompilerType field_type = gobuf_type.GetFieldAtIndex(field_index, field_name, &bit_offset, nullptr, nullptr);
+            CompilerType field_type =
+                gobuf_type.GetFieldAtIndex(field_index, field_name, &bit_offset, nullptr, nullptr);
             reg.byte_size = field_type.GetByteSize(nullptr);
             reg.byte_offset = bit_offset / 8;
         }
@@ -231,20 +337,22 @@ OperatingSystemGo::GetPluginVersion()
 }
 
 bool
-OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &real_thread_list, ThreadList &new_thread_list)
+OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &real_thread_list,
+                                    ThreadList &new_thread_list)
 {
     new_thread_list.Update(real_thread_list);
     Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
 
-    if (!(m_allg_sp || Init(real_thread_list)) ||
-        (m_allg_sp && !m_allglen_sp))
+    if (!(m_allg_sp || Init(real_thread_list)) || (m_allg_sp && !m_allglen_sp) ||
+        !GetGlobalPluginProperties()->GetEnableGoroutines())
     {
         return new_thread_list.GetSize(false) > 0;
     }
 
     if (log)
         log->Printf("OperatingSystemGo::UpdateThreadList(%d, %d, %d) fetching thread data from Go for pid %" PRIu64,
-                    old_thread_list.GetSize(false), real_thread_list.GetSize(false), new_thread_list.GetSize(0), m_process->GetID());
+                    old_thread_list.GetSize(false), real_thread_list.GetSize(false), new_thread_list.GetSize(0),
+                    m_process->GetID());
     uint64_t allglen = m_allglen_sp->GetValueAsUnsigned(0);
     if (allglen == 0)
     {
@@ -292,10 +400,12 @@ OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &rea
             {
                 if (goroutine.m_histack >= backing_it->first)
                 {
+                    if (log)
+                        log->Printf("OperatingSystemGo::UpdateThreadList found backing thread %" PRIx64 " (%" PRIx64
+                                    ") for thread %" PRIx64 "",
+                                    backing_it->second->GetID(), backing_it->second->GetProtocolID(),
+                                    memory_thread->GetID());
                     memory_thread->SetBackingThread(backing_it->second);
-                    // Make sure the stop info propagates to the memory thread.
-                    // Not sure why this is necessary.
-                    memory_thread->GetStopInfo();
                     new_thread_list.RemoveThreadByID(backing_it->second->GetID(), false);
                 }
             }
@@ -338,7 +448,8 @@ OperatingSystemGo::CreateThread(lldb::tid_t tid, addr_t context)
     Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
 
     if (log)
-        log->Printf("OperatingSystemGo::CreateThread (tid = 0x%" PRIx64 ", context = 0x%" PRIx64 ") not implemented", tid, context);
+        log->Printf("OperatingSystemGo::CreateThread (tid = 0x%" PRIx64 ", context = 0x%" PRIx64 ") not implemented",
+                    tid, context);
 
     return ThreadSP();
 }

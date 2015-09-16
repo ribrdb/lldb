@@ -41,10 +41,14 @@
 #include "Plugins/Instruction/ARM64/EmulateInstructionARM64.h"
 #include "Plugins/InstrumentationRuntime/AddressSanitizer/AddressSanitizerRuntime.h"
 #include "Plugins/JITLoader/GDB/JITLoaderGDB.h"
+#include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
+#include "Plugins/Language/ObjC/ObjCLanguage.h"
+#include "Plugins/Language/ObjCPlusPlus/ObjCPlusPlusLanguage.h"
 #include "Plugins/LanguageRuntime/CPlusPlus/ItaniumABI/ItaniumABILanguageRuntime.h"
 #include "Plugins/LanguageRuntime/Go/GoLanguageRuntime.h"
 #include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntimeV1.h"
 #include "Plugins/LanguageRuntime/ObjC/AppleObjCRuntime/AppleObjCRuntimeV2.h"
+#include "Plugins/LanguageRuntime/Go/GoLanguageRuntime.h"
 #include "Plugins/LanguageRuntime/RenderScript/RenderScriptRuntime/RenderScriptRuntime.h"
 #include "Plugins/MemoryHistory/asan/MemoryHistoryASan.h"
 #include "Plugins/Platform/gdb-server/PlatformRemoteGDBServer.h"
@@ -283,6 +287,11 @@ SystemInitializerFull::Initialize()
     SystemRuntimeMacOSX::Initialize();
     GoLanguageRuntime::Initialize();
     RenderScriptRuntime::Initialize();
+    GoLanguageRuntime::Initialize();
+    
+    CPlusPlusLanguage::Initialize();
+    ObjCLanguage::Initialize();
+    ObjCPlusPlusLanguage::Initialize();
 
 #if defined(_MSC_VER)
     ProcessWindows::Initialize();
@@ -388,6 +397,10 @@ SystemInitializerFull::Terminate()
     GoLanguageRuntime::Terminate();
     RenderScriptRuntime::Terminate();
 
+    CPlusPlusLanguage::Terminate();
+    ObjCLanguage::Terminate();
+    ObjCPlusPlusLanguage::Terminate();
+    
 #if defined(__APPLE__)
     ProcessMachCore::Terminate();
     ProcessKDP::Terminate();

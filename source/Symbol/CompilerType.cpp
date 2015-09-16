@@ -22,7 +22,6 @@
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/VerifyDecl.h"
 #include "lldb/Target/ExecutionContext.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 
 #include <iterator>
@@ -43,6 +42,10 @@ CompilerType::CompilerType (clang::ASTContext *ast,
     m_type (qual_type.getAsOpaquePtr()),
     m_type_system (ClangASTContext::GetASTContext(ast))
 {
+#ifdef LLDB_CONFIGURATION_DEBUG
+    if (m_type)
+        assert(m_type_system != nullptr);
+#endif
 }
 
 CompilerType::~CompilerType()

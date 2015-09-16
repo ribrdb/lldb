@@ -9,7 +9,7 @@
 
 #include <vector>
 
-#include "lldb/DataFormatters/CXXFormatterFunctions.h"
+#include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/GoFormatterFunctions.h"
 #include "lldb/DataFormatters/StringPrinter.h"
 
@@ -145,14 +145,14 @@ lldb_private::formatters::GoStringSummaryProvider (ValueObject& valobj, Stream& 
         return true;
     }
     
-    ReadStringAndDumpToStreamOptions options(valobj);
+    StringPrinter::ReadStringAndDumpToStreamOptions options(valobj);
     options.SetLocation(valobj_addr);
     options.SetProcessSP(process_sp);
     options.SetStream(&stream);
     options.SetSourceSize(length);
     options.SetNeedsZeroTermination(false);
     
-    if (!ReadStringAndDumpToStream<StringElementType::UTF8>(options))
+    if (!StringPrinter::ReadStringAndDumpToStream<StringPrinter::StringElementType::UTF8>(options))
     {
         stream.Printf("Summary Unavailable");
         return true;

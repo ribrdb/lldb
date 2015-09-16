@@ -641,11 +641,12 @@ def expectedFailureCompiler(compiler, compiler_version=None, bugnumber=None):
 # @expectedFailureAll, xfail for all platform/compiler/arch,
 # @expectedFailureAll(compiler='gcc'), xfail for gcc on all platform/architecture
 # @expectedFailureAll(bugnumber, ["linux"], "gcc", ['>=', '4.9'], ['i386']), xfail for gcc>=4.9 on linux with i386
-def expectedFailureAll(bugnumber=None, oslist=None, compiler=None, compiler_version=None, archs=None):
+def expectedFailureAll(bugnumber=None, oslist=None, compiler=None, compiler_version=None, archs=None, triple=None):
     def fn(self):
         return ((oslist is None or self.getPlatform() in oslist) and
                 (compiler is None or (compiler in self.getCompiler() and self.expectedCompilerVersion(compiler_version))) and
-                self.expectedArch(archs))
+                self.expectedArch(archs) and
+                (triple is None or re.match(triple, lldb.DBG.GetSelectedPlatform().GetTriple())))
     return expectedFailure(fn, bugnumber)
 
 # to XFAIL a specific clang versions, try this
@@ -789,6 +790,9 @@ def expectedFlakeyClang(bugnumber=None, compiler_version=None):
 def expectedFlakeyGcc(bugnumber=None, compiler_version=None):
     return expectedFlakeyCompiler('gcc', compiler_version, bugnumber)
 
+def expectedFlakeyAndroid(bugnumber=None, api_levels=None, archs=None):
+    return expectedFlakey(matchAndroid(api_levels, archs), bugnumber)
+
 def skipIfRemote(func):
     """Decorate the item to skip tests if testing remotely."""
     if isinstance(func, type) and issubclass(func, unittest2.TestCase):
@@ -888,6 +892,21 @@ def skipIfHostWindows(func):
 def skipUnlessDarwin(func):
     """Decorate the item to skip tests that should be skipped on any non Darwin platform."""
     return skipUnlessPlatform(getDarwinOSTriples())(func)
+
+def skipUnlessGoInstalled(func):
+    """Decorate the item to skip tests when no Go compiler is available."""
+    if isinstance(func, type) and issubclass(func, unittest2.TestCase):
+        raise Exception("@skipIfGcc can only be used to decorate a test method")
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        from unittest2 import case
+        self = args[0]
+        compiler = self.getGoCompilerVersion()
+        if not compiler:
+            self.skipTest("skipping because go compiler not found")
+        else:
+            func(*args, **kwargs)
+    return wrapper
 
 def getPlatform():
     """Returns the target platform which the tests are running on."""
@@ -1195,8 +1214,7 @@ class Base(unittest2.TestCase):
         if doCleanup and not lldb.skip_build_and_cleanup:
             # First, let's do the platform-specific cleanup.
             module = builder_module()
-            if not module.cleanup():
-                raise Exception("Don't know how to do cleanup")
+            module.cleanup()
 
             # Subclass might have specific cleanup function defined.
             if getattr(cls, "classCleanup", None):
@@ -1385,6 +1403,7 @@ class Base(unittest2.TestCase):
         # initially.  If the test errored/failed, the session info
         # (self.session) is then dumped into a session specific file for
         # diagnosis.
+        self.__cleanup_errored__ = False
         self.__errored__    = False
         self.__failed__     = False
         self.__expected__   = False
@@ -1616,9 +1635,6 @@ class Base(unittest2.TestCase):
 
         self.disableLogChannelsForCurrentTest()
 
-        # Decide whether to dump the session info.
-        self.dumpSessionInfo()
-
     # =========================================================
     # Various callbacks to allow introspection of test progress
     # =========================================================
@@ -1630,6 +1646,14 @@ class Base(unittest2.TestCase):
             # False because there's no need to write "ERROR" to the stderr twice.
             # Once by the Python unittest framework, and a second time by us.
             print >> sbuf, "ERROR"
+
+    def markCleanupError(self):
+        """Callback invoked when an error occurs while a test is cleaning up."""
+        self.__cleanup_errored__ = True
+        with recording(self, False) as sbuf:
+            # False because there's no need to write "CLEANUP_ERROR" to the stderr twice.
+            # Once by the Python unittest framework, and a second time by us.
+            print >> sbuf, "CLEANUP_ERROR"
 
     def markFailure(self):
         """Callback invoked when a failure (test assertion failure) occurred."""
@@ -1729,6 +1753,9 @@ class Base(unittest2.TestCase):
         if self.__errored__:
             pairs = lldb.test_result.errors
             prefix = 'Error'
+        elif self.__cleanup_errored__:
+            pairs = lldb.test_result.cleanup_errors
+            prefix = 'CleanupError'
         elif self.__failed__:
             pairs = lldb.test_result.failures
             prefix = 'Failure'
@@ -1783,7 +1810,17 @@ class Base(unittest2.TestCase):
         else:
             # success!  (and we don't want log files) delete log files
             for log_file in log_files_for_this_test:
-                os.unlink(log_file)
+                try:
+                    os.unlink(log_file)
+                except:
+                    # We've seen consistent unlink failures on Windows, perhaps because the
+                    # just-created log file is being scanned by anti-virus.  Empirically, this
+                    # sleep-and-retry approach allows tests to succeed much more reliably.
+                    # Attempts to figure out exactly what process was still holding a file handle
+                    # have failed because running instrumentation like Process Monitor seems to
+                    # slow things down enough that the problem becomes much less consistent.
+                    time.sleep(0.5)
+                    os.unlink(log_file)
 
     # ====================================================
     # Config. methods supported through a plugin interface
@@ -1846,15 +1883,16 @@ class Base(unittest2.TestCase):
                 version = m.group(1)
         return version
 
-    def getGoVersion(self):
+    def getGoCompilerVersion(self):
         """ Returns a string that represents the go compiler version, or None if go is not found.
         """
         compiler = which("go")
         if compiler:
-            version_output = system([[compiler, "version"]])
-            m = re.search('go version (devel|go\\S+)')
-            if m:
-                return m.group(1)
+            version_output = system([[compiler, "version"]])[0]
+            for line in version_output.split(os.linesep):
+                m = re.search('go version (devel|go\\S+)', line)
+                if m:
+                    return m.group(1)
         return None
 
     def platformIsDarwin(self):
@@ -2045,7 +2083,7 @@ class Base(unittest2.TestCase):
     def buildGo(self):
         """Build the default go binary.
         """
-        system([[which('go'), 'build', '-o', 'a.out', 'main.go']])
+        system([[which('go'), 'build -gcflags "-N -l" -o a.out main.go']])
 
     def signBinary(self, binary_path):
         if sys.platform.startswith("darwin"):

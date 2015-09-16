@@ -117,11 +117,10 @@ public:
     //------------------------------------------------------------------
     // OperatingSystem
     //------------------------------------------------------------------
-    static bool
-    RegisterPlugin (const ConstString &name,
-                    const char *description,
-                    OperatingSystemCreateInstance create_callback);
-    
+    static bool RegisterPlugin(const ConstString &name, const char *description,
+                               OperatingSystemCreateInstance create_callback,
+                               DebuggerInitializeCallback debugger_init_callback);
+
     static bool
     UnregisterPlugin (OperatingSystemCreateInstance create_callback);
     
@@ -131,6 +130,23 @@ public:
     static OperatingSystemCreateInstance
     GetOperatingSystemCreateCallbackForPluginName (const ConstString &name);
 
+    //------------------------------------------------------------------
+    // Language
+    //------------------------------------------------------------------
+    static bool
+    RegisterPlugin (const ConstString &name,
+                    const char *description,
+                    LanguageCreateInstance create_callback);
+    
+    static bool
+    UnregisterPlugin (LanguageCreateInstance create_callback);
+    
+    static LanguageCreateInstance
+    GetLanguageCreateCallbackAtIndex (uint32_t idx);
+    
+    static LanguageCreateInstance
+    GetLanguageCreateCallbackForPluginName (const ConstString &name);
+    
     //------------------------------------------------------------------
     // LanguageRuntime
     //------------------------------------------------------------------
@@ -453,6 +469,13 @@ public:
                                       const lldb::OptionValuePropertiesSP &properties_sp,
                                       const ConstString &description,
                                       bool is_global_property);
+
+    static lldb::OptionValuePropertiesSP GetSettingForOperatingSystemPlugin(Debugger &debugger,
+                                                                            const ConstString &setting_name);
+
+    static bool CreateSettingForOperatingSystemPlugin(Debugger &debugger,
+                                                      const lldb::OptionValuePropertiesSP &properties_sp,
+                                                      const ConstString &description, bool is_global_property);
 };
 
 

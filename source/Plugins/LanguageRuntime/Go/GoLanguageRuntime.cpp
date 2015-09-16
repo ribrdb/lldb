@@ -18,8 +18,6 @@
 #include "lldb/Core/Scalar.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectMemory.h"
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangExternalASTSourceCommon.h"
 #include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/TypeList.h"

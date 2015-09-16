@@ -1,5 +1,3 @@
-set(LLVM_NO_RTTI 1)
-
 if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
   add_definitions( -DEXPORT_LIBLLDB )
 endif()
@@ -83,6 +81,10 @@ set_target_properties(liblldb
   PROPERTIES
   VERSION ${LLDB_VERSION}
   )
+
+if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
+  add_llvm_symbol_exports(liblldb ${CMAKE_CURRENT_SOURCE_DIR}/liblldb.exports)
+endif()
 
 if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
   # Only MSVC has the ABI compatibility problem and avoids using FindPythonLibs,

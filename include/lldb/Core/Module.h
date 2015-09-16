@@ -946,9 +946,6 @@ public:
 
     ClangASTContext &
     GetClangASTContext ();
-    
-    GoASTContext &
-    GetGoASTContext ();
 
     TypeSystem *
     GetTypeSystemForLanguage (lldb::LanguageType language);
@@ -1131,7 +1128,6 @@ protected:
     std::atomic<bool>           m_did_load_symbol_vendor;
     std::atomic<bool>           m_did_parse_uuid;
     std::atomic<bool>           m_did_init_ast;
-	std::atomic<bool>           m_did_init_go;
     mutable bool                m_file_has_changed:1,
                                 m_first_file_changed_log:1;   /// See if the module was modified after it was initially opened.
 

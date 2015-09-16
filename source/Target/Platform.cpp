@@ -272,8 +272,11 @@ Platform::GetSharedModule (const ModuleSpec &module_spec,
                                   module_sp,
                                   [&](const ModuleSpec &spec)
                                   {
-                                      return ModuleList::GetSharedModule (
+                                      Error error = ModuleList::GetSharedModule (
                                           spec, module_sp, module_search_paths_ptr, old_module_sp_ptr, did_create_ptr, false);
+                                      if (error.Success() && module_sp)
+                                          module_sp->SetPlatformFileSpec(spec.GetFileSpec());
+                                      return error;
                                   },
                                   did_create_ptr);
 }
@@ -945,6 +948,12 @@ Platform::GetHostname ()
     if (m_name.empty())        
         return NULL;
     return m_name.c_str();
+}
+
+ConstString
+Platform::GetFullNameForDylib (ConstString basename)
+{
+    return basename;
 }
 
 bool

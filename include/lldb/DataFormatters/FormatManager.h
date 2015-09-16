@@ -18,14 +18,18 @@
 #include "lldb/lldb-public.h"
 #include "lldb/lldb-enumerations.h"
 
+#include "lldb/Core/ThreadSafeDenseMap.h"
+
 #include "lldb/DataFormatters/FormatCache.h"
 #include "lldb/DataFormatters/FormatClasses.h"
 #include "lldb/DataFormatters/FormattersContainer.h"
+#include "lldb/DataFormatters/LanguageCategory.h"
 #include "lldb/DataFormatters/TypeCategory.h"
 #include "lldb/DataFormatters/TypeCategoryMap.h"
 
 #include <atomic>
 #include <functional>
+#include <memory>
 
 namespace lldb_private {
     
@@ -47,6 +51,8 @@ public:
     
     template <typename FormatterType>
     using HardcodedFormatterFinders = std::vector<HardcodedFormatterFinder<FormatterType>>;
+    
+    typedef std::map<lldb::LanguageType, LanguageCategory::UniquePointer> LanguageCategories;
     
     typedef TypeCategoryMap::CallbackType CategoryCallback;
     
@@ -87,16 +93,10 @@ public:
     }
     
     void
-    EnableAllCategories ()
-    {
-        m_categories_map.EnableAllCategories ();
-    }
+    EnableAllCategories ();
     
     void
-    DisableAllCategories ()
-    {
-        m_categories_map.DisableAllCategories ();
-    }
+    DisableAllCategories ();
     
     bool
     DeleteCategory (const ConstString& category_name)
@@ -123,11 +123,8 @@ public:
     }
     
     void
-    LoopThroughCategories (CategoryCallback callback, void* param)
-    {
-        m_categories_map.LoopThrough(callback, param);
-    }
-    
+    LoopThroughCategories (CategoryCallback callback, void* param);
+
     lldb::TypeCategoryImplSP
     GetCategory (const char* category_name = NULL,
                  bool can_create = true)
@@ -258,8 +255,20 @@ public:
                             true);
         return matches;
     }
+    
+    static ConstString
+    GetTypeForCache (ValueObject&, lldb::DynamicValueType);
+    
+    LanguageCategory*
+    GetCategoryForLanguage (lldb::LanguageType lang_type);
+
+    static std::vector<lldb::LanguageType>
+    GetCandidateLanguages (lldb::LanguageType lang_type);
 
 private:
+    
+    static std::vector<lldb::LanguageType>
+    GetCandidateLanguages (ValueObject& valobj);
     
     static void
     GetPossibleMatches (ValueObject& valobj,
@@ -276,18 +285,12 @@ private:
     NamedSummariesMap m_named_summaries_map;
     std::atomic<uint32_t> m_last_revision;
     TypeCategoryMap m_categories_map;
+    LanguageCategories m_language_categories_map;
+    Mutex m_language_categories_mutex;
     
     ConstString m_default_category_name;
     ConstString m_system_category_name;
-    ConstString m_gnu_cpp_category_name;
-    ConstString m_libcxx_category_name;
-    ConstString m_objc_category_name;
-    ConstString m_corefoundation_category_name;
-    ConstString m_coregraphics_category_name;
-    ConstString m_coreservices_category_name;
     ConstString m_vectortypes_category_name;
-    ConstString m_appkit_category_name;
-    ConstString m_coremedia_category_name;
     
     HardcodedFormatterFinders<TypeFormatImpl> m_hardcoded_formats;
     HardcodedFormatterFinders<TypeSummaryImpl> m_hardcoded_summaries;
@@ -312,25 +315,17 @@ private:
         return m_categories_map;
     }
     
-    // WARNING: these are temporary functions that setup formatters
-    // while a few of these actually should be globally available and setup by LLDB itself
-    // most would actually belong to the users' lldbinit file or to some other form of configurable
-    // storage
-    void
-    LoadLibStdcppFormatters ();
-    
-    void
-    LoadLibcxxFormatters ();
-    
+    // These functions are meant to initialize formatters that are very low-level/global in nature
+    // and do not naturally belong in any language. The intent is that most formatters go in
+    // language-specific categories. Eventually, the runtimes should also be allowed to vend their
+    // own formatters, and then one could put formatters that depend on specific library load events
+    // in the language runtimes, on an as-needed basis
     void
     LoadSystemFormatters ();
     
     void
-    LoadObjCFormatters ();
+    LoadVectorFormatters ();
 
-    void
-    LoadCoreMediaFormatters ();
-    
     void
     LoadHardcodedFormatters ();
 };

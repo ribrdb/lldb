@@ -1225,7 +1225,7 @@ SymbolFileDWARFDebugMap::Supports_DW_AT_APPLE_objc_complete_type (SymbolFileDWAR
 }
 
 TypeSP
-SymbolFileDWARFDebugMap::FindCompleteObjCDefinitionTypeForDIE (const DWARFDebugInfoEntry *die, 
+SymbolFileDWARFDebugMap::FindCompleteObjCDefinitionTypeForDIE (const DWARFDIE &die,
                                                                const ConstString &type_name,
                                                                bool must_be_implementation)
 {
@@ -1574,7 +1574,6 @@ SymbolFileDWARFDebugMap::AddOSOARanges (SymbolFileDWARF* dwarf2Data, DWARFDebugA
                 const FileRangeMap::Entry* entry = file_range_map.GetEntryAtIndex(idx);
                 if (entry)
                 {
-                    printf ("[0x%16.16" PRIx64 " - 0x%16.16" PRIx64 ")\n", entry->GetRangeBase(), entry->GetRangeEnd());
                     debug_aranges->AppendRange(dwarf2Data->GetID(), entry->GetRangeBase(), entry->GetRangeEnd());
                     num_line_entries_added++;
                 }

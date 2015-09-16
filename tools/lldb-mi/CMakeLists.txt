@@ -1,5 +1,3 @@
-set(LLVM_NO_RTTI 1)
-
 set(LLDB_MI_SOURCES
   MICmdArgContext.cpp
   MICmdArgSet.cpp
@@ -72,9 +70,6 @@ set(LLDB_MI_SOURCES
   MIUtilFileStd.cpp
   MIUtilMapIdToVariant.cpp
   MIUtilString.cpp
-  MIUtilSystemLinux.cpp
-  MIUtilSystemOsx.cpp
-  MIUtilSystemWindows.cpp
   MIUtilThreadBaseStd.cpp
   MIUtilVariant.cpp
   Platform.cpp
@@ -83,7 +78,7 @@ set(LLDB_MI_SOURCES
 if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
   add_definitions( -DIMPORT_LIBLLDB )
   list(APPEND LLDB_MI_SOURCES
-    ${LLDB_SOURCE_ROOT}/Host/windows/getopt/GetOptInc.cpp
+    ${LLDB_SOURCE_ROOT}/Host/common/GetOptInc.cpp
     )
 endif ()
 
