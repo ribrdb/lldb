@@ -21,62 +21,53 @@
 
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private.h"
+#include "lldb/Expression/UserExpression.h"
 #include "lldb/Target/ExecutionContext.h"
 
 namespace lldb_private
 {
-    class GoParser;
-    
-    //----------------------------------------------------------------------
-    /// @class GoUserExpression GoUserExpression.h "lldb/Expression/GoUserExpression.h"
-    /// @brief Encapsulates a single expression for use with Go
-    ///
-    /// LLDB uses expressions for various purposes, notably to call functions
-    /// and as a backend for the expr command.  GoUserExpression encapsulates
-    /// the objects needed to parse and interpret an expression.  It
-    /// uses the Clang parser to produce LLVM IR from the expression.
-    //----------------------------------------------------------------------
-    class GoUserExpression
-    {
-    public:
-        
-        
-        //------------------------------------------------------------------
-        /// Evaluate one expression and return its result.
-        ///
-        /// @param[in] exe_ctx
-        ///     The execution context to use when evaluating the expression.
-        ///
-        /// @param[in] options
-        ///     Expression evaluation options.
-        ///
-        /// @param[in] expr_cstr
-        ///     A C string containing the expression to be evaluated.
-        ///
-        /// @param[in] expr_prefix
-        ///     If non-NULL, a C string containing translation-unit level
-        ///     definitions to be included when the expression is parsed.
-        ///
-        /// @param[in/out] result_valobj_sp
-        ///      If execution is successful, the result valobj is placed here.
-        ///
-        /// @param[out]
-        ///     Filled in with an error in case the expression evaluation
-        ///     fails to parse, run, or evaluate.
-        ///
-        /// @result
-        ///      A Process::ExpressionResults value.  eExpressionCompleted for success.
-        //------------------------------------------------------------------
-        static lldb::ExpressionResults
-        Evaluate (ExecutionContext &exe_ctx,
-                  const EvaluateExpressionOptions& options,
-                  const char *expr_cstr,
-                  const char *expr_prefix,
-                  lldb::ValueObjectSP &result_valobj_sp,
-                  Error &error);
+class GoParser;
 
-    };
-    
+//----------------------------------------------------------------------
+/// @class GoUserExpression GoUserExpression.h "lldb/Expression/GoUserExpression.h"
+/// @brief Encapsulates a single expression for use with Go
+///
+/// LLDB uses expressions for various purposes, notably to call functions
+/// and as a backend for the expr command.  GoUserExpression encapsulates
+/// the objects needed to parse and interpret an expression.
+//----------------------------------------------------------------------
+class GoUserExpression : public UserExpression
+{
+  public:
+    GoUserExpression(ExecutionContextScope &exe_scope, const char *expr, const char *expr_prefix,
+                     lldb::LanguageType language, ResultType desired_type);
+
+    virtual bool Parse(Stream &error_stream, ExecutionContext &exe_ctx, lldb_private::ExecutionPolicy execution_policy,
+                       bool keep_result_in_memory, bool generate_debug_info) override;
+
+    virtual lldb::ExpressionResults Execute(Stream &error_stream, ExecutionContext &exe_ctx,
+                                            const EvaluateExpressionOptions &options,
+                                            lldb::UserExpressionSP &shared_ptr_to_me,
+                                            lldb::ExpressionVariableSP &result) override;
+
+    bool
+    CanInterpret() override
+    {
+        return true;
+    }
+    bool
+    FinalizeJITExecution(Stream &error_stream, ExecutionContext &exe_ctx, lldb::ExpressionVariableSP &result,
+                         lldb::addr_t function_stack_bottom = LLDB_INVALID_ADDRESS,
+                         lldb::addr_t function_stack_top = LLDB_INVALID_ADDRESS) override
+    {
+        return true;
+    }
+
+  private:
+    class GoInterpreter;
+    std::unique_ptr<GoInterpreter> m_interpreter;
+};
+
 } // namespace lldb_private
 
 #endif  // liblldb_GoUserExpression_h_

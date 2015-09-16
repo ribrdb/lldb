@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <string>
 #include <map>
+#include <vector>
 
 #include "lldb/lldb-private.h"
 #include "lldb/Core/ConstString.h"
@@ -27,7 +28,6 @@
 #include "lldb/Core/StreamString.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Core/ValueObjectRegister.h"
-#include "lldb/Expression/ClangExpression.h"
 #include "lldb/Expression/ClangPersistentVariables.h"
 #include "lldb/Expression/GoAST.h"
 #include "lldb/Expression/GoParser.h"
@@ -47,10 +47,13 @@
 using namespace lldb_private;
 using namespace lldb;
 
-namespace {
-class GoInterpreter {
+class GoUserExpression::GoInterpreter
+{
 public:
-    GoInterpreter(lldb::StackFrameSP frame, const char* expr, DynamicValueType use_dynamic, Error& error) : m_frame(frame), m_parser(expr), m_use_dynamic(use_dynamic), m_error(error) {
+  GoInterpreter(lldb::StackFrameSP frame, const char *expr)
+      : m_frame(frame)
+      , m_parser(expr)
+  {
         const SymbolContext& ctx = frame->GetSymbolContext(eSymbolContextFunction);
         ConstString fname = ctx.GetFunctionName();
         if (fname.GetLength() > 0)
@@ -60,7 +63,14 @@ public:
                 m_package = llvm::StringRef(fname.AsCString(), dot);
         }
     }
-    
+
+    void
+    set_use_dynamic(DynamicValueType use_dynamic)
+    {
+        m_use_dynamic = use_dynamic;
+    }
+
+    bool Parse();
     lldb::ValueObjectSP Evaluate();
     lldb::ValueObjectSP EvaluateStatement(const GoASTStmt* s);
     lldb::ValueObjectSP EvaluateExpr(const GoASTExpr* e);
@@ -94,6 +104,12 @@ public:
 
     CompilerType EvaluateType(const GoASTExpr* e);
 
+    Error &
+    error()
+    {
+        return m_error;
+    }
+
 private:
     std::nullptr_t NotImplemented(const GoASTExpr* e)
     {
@@ -104,8 +120,9 @@ private:
     lldb::StackFrameSP m_frame;
     GoParser m_parser;
     DynamicValueType m_use_dynamic;
-    Error& m_error;
+    Error m_error;
     llvm::StringRef m_package;
+    std::vector<std::unique_ptr<GoASTStmt>> m_statements;
 };
     
 VariableSP
@@ -145,15 +162,31 @@ CompilerType LookupType(TargetSP target, ConstString name)
     return CompilerType();
 
 }
-}  // namespace
+GoUserExpression::GoUserExpression(ExecutionContextScope &exe_scope, const char *expr, const char *expr_prefix,
+                                   lldb::LanguageType language, ResultType desired_type)
+    : UserExpression(exe_scope, expr, expr_prefix, language, desired_type)
+{
+}
+
+bool
+GoUserExpression::Parse(Stream &error_stream, ExecutionContext &exe_ctx, lldb_private::ExecutionPolicy execution_policy,
+                        bool keep_result_in_memory, bool generate_debug_info)
+{
+    InstallContext(exe_ctx);
+    m_interpreter.reset(new GoInterpreter(exe_ctx.GetFrameSP(), GetUserText()));
+    if (m_interpreter->Parse())
+        return true;
+    const char *error_cstr = m_interpreter->error().AsCString();
+    if (error_cstr && error_cstr[0])
+        error_stream.Printf("error: %s\n", error_cstr);
+    else
+        error_stream.Printf("error: expression can't be interpreted or run\n");
+    return false;
+}
 
 lldb::ExpressionResults
-GoUserExpression::Evaluate (ExecutionContext &exe_ctx,
-                            const EvaluateExpressionOptions& options,
-                            const char *expr_cstr,
-                            const char *expr_prefix,
-                            lldb::ValueObjectSP &result_valobj_sp,
-                            Error &error)
+GoUserExpression::Execute(Stream &error_stream, ExecutionContext &exe_ctx, const EvaluateExpressionOptions &options,
+                          lldb::UserExpressionSP &shared_ptr_to_me, lldb::ExpressionVariableSP &result)
 {
     Log *log(lldb_private::GetLogIfAnyCategoriesSet (LIBLLDB_LOG_EXPRESSIONS | LIBLLDB_LOG_STEP));
     
@@ -161,54 +194,70 @@ GoUserExpression::Evaluate (ExecutionContext &exe_ctx,
     lldb::ExpressionResults execution_results = lldb::eExpressionSetupError;
     
     Process *process = exe_ctx.GetProcessPtr();
-    
-    if (process == NULL || process->GetState() != lldb::eStateStopped)
+    Target *target = exe_ctx.GetTargetPtr();
+
+    if (target == nullptr || process == nullptr || process->GetState() != lldb::eStateStopped)
     {
         if (execution_policy == eExecutionPolicyAlways)
         {
             if (log)
                 log->Printf("== [GoUserExpression::Evaluate] Expression may not run, but is not constant ==");
-            
-            error.SetErrorString ("expression needed to run but couldn't");
-            
+
+            error_stream.Printf("expression needed to run but couldn't");
+
             return execution_results;
         }
     }
-    
-    if (process == NULL || !process->CanJIT())
-        execution_policy = eExecutionPolicyNever;
-    GoInterpreter expr(exe_ctx.GetFrameSP(), expr_cstr, options.GetUseDynamic(), error);
-    result_valobj_sp = expr.Evaluate();
-    
-    if (result_valobj_sp.get() == NULL)
+
+    m_interpreter->set_use_dynamic(options.GetUseDynamic());
+    ValueObjectSP result_val_sp = m_interpreter->Evaluate();
+    if (!result_val_sp)
     {
-        result_valobj_sp = ValueObjectConstResult::Create (exe_ctx.GetBestExecutionContextScope(), error);
-        return lldb::eExpressionParseError;
+        const char *error_cstr = m_interpreter->error().AsCString();
+        if (error_cstr && error_cstr[0])
+            error_stream.Printf("error: %s\n", error_cstr);
+        else
+            error_stream.Printf("error: expression can't be interpreted or run\n");
+        return lldb::eExpressionDiscarded;
     }
-    execution_results = lldb::eExpressionCompleted;
-    
-    return execution_results;
+    result.reset(new ExpressionVariable(ExpressionVariable::eKindGo));
+    result->SetName(target->GetPersistentVariables().GetNextPersistentVariableName());
+    result->m_live_sp = result->m_frozen_sp;
+    result->m_flags |= ClangExpressionVariable::EVIsProgramReference;
+    target->GetPersistentVariables().AddVariable(result);
+    return lldb::eExpressionCompleted;
 }
 
-ValueObjectSP
-GoInterpreter::Evaluate()
+bool
+GoUserExpression::GoInterpreter::Parse()
 {
-    ValueObjectSP result;
     for (std::unique_ptr<GoASTStmt> stmt(m_parser.Statement()); stmt; stmt.reset(m_parser.Statement()))
     {
         if (m_parser.Failed())
             break;
+        m_statements.emplace_back(std::move(stmt));
+    }
+    if (m_parser.Failed() || !m_parser.AtEOF())
+        m_parser.GetError(m_error);
+
+    return m_error.Success();
+}
+
+ValueObjectSP
+GoUserExpression::GoInterpreter::Evaluate()
+{
+    ValueObjectSP result;
+    for (const std::unique_ptr<GoASTStmt> &stmt : m_statements)
+    {
         result = EvaluateStatement(stmt.get());
         if (m_error.Fail())
             return nullptr;
     }
-    if (m_parser.Failed() || !m_parser.AtEOF())
-        m_parser.GetError(m_error);
     return result;
 }
 
 ValueObjectSP
-GoInterpreter::EvaluateStatement(const lldb_private::GoASTStmt *stmt)
+GoUserExpression::GoInterpreter::EvaluateStatement(const lldb_private::GoASTStmt *stmt)
 {
     ValueObjectSP result;
     switch (stmt->GetKind())
@@ -235,7 +284,7 @@ GoInterpreter::EvaluateStatement(const lldb_private::GoASTStmt *stmt)
 }
 
 ValueObjectSP
-GoInterpreter::EvaluateExpr(const lldb_private::GoASTExpr *e)
+GoUserExpression::GoInterpreter::EvaluateExpr(const lldb_private::GoASTExpr *e)
 {
     if (e)
         return e->Visit<ValueObjectSP>(this);
@@ -243,13 +292,13 @@ GoInterpreter::EvaluateExpr(const lldb_private::GoASTExpr *e)
 }
 
 ValueObjectSP
-GoInterpreter::VisitParenExpr(const lldb_private::GoASTParenExpr *e)
+GoUserExpression::GoInterpreter::VisitParenExpr(const lldb_private::GoASTParenExpr *e)
 {
     return EvaluateExpr(e->GetX());
 }
 
 ValueObjectSP
-GoInterpreter::VisitIdent(const GoASTIdent* e)
+GoUserExpression::GoInterpreter::VisitIdent(const GoASTIdent *e)
 {
     VariableSP var_sp;
     std::string varname = e->GetName().m_value.str();
@@ -323,9 +372,8 @@ GoInterpreter::VisitIdent(const GoASTIdent* e)
     return val;
 }
 
-
 ValueObjectSP
-GoInterpreter::VisitStarExpr(const GoASTStarExpr* e)
+GoUserExpression::GoInterpreter::VisitStarExpr(const GoASTStarExpr *e)
 {
     ValueObjectSP target = EvaluateExpr(e->GetX());
     if (!target)
@@ -334,7 +382,7 @@ GoInterpreter::VisitStarExpr(const GoASTStarExpr* e)
 }
 
 ValueObjectSP
-GoInterpreter::VisitSelectorExpr(const lldb_private::GoASTSelectorExpr *e)
+GoUserExpression::GoInterpreter::VisitSelectorExpr(const lldb_private::GoASTSelectorExpr *e)
 {
     ValueObjectSP target = EvaluateExpr(e->GetX());
     if (target)
@@ -364,7 +412,7 @@ GoInterpreter::VisitSelectorExpr(const lldb_private::GoASTSelectorExpr *e)
 }
 
 ValueObjectSP
-GoInterpreter::VisitBasicLit(const lldb_private::GoASTBasicLit *e)
+GoUserExpression::GoInterpreter::VisitBasicLit(const lldb_private::GoASTBasicLit *e)
 {
     std::string value =  e->GetValue().m_value.str();
     if (e->GetValue().m_type != GoLexer::LIT_INTEGER) {
@@ -397,7 +445,7 @@ GoInterpreter::VisitBasicLit(const lldb_private::GoASTBasicLit *e)
 }
 
 ValueObjectSP
-GoInterpreter::VisitIndexExpr(const lldb_private::GoASTIndexExpr *e)
+GoUserExpression::GoInterpreter::VisitIndexExpr(const lldb_private::GoASTIndexExpr *e)
 {
     ValueObjectSP target = EvaluateExpr(e->GetX());
     if (!target)
@@ -420,7 +468,7 @@ GoInterpreter::VisitIndexExpr(const lldb_private::GoASTIndexExpr *e)
 }
 
 ValueObjectSP
-GoInterpreter::VisitUnaryExpr(const GoASTUnaryExpr* e)
+GoUserExpression::GoInterpreter::VisitUnaryExpr(const GoASTUnaryExpr *e)
 {
     ValueObjectSP x = EvaluateExpr(e->GetX());
     if (!x)
@@ -444,7 +492,7 @@ GoInterpreter::VisitUnaryExpr(const GoASTUnaryExpr* e)
 }
 
 CompilerType
-GoInterpreter::EvaluateType(const GoASTExpr* e)
+GoUserExpression::GoInterpreter::EvaluateType(const GoASTExpr *e)
 {
     TargetSP target = m_frame->CalculateTarget();
     if (auto* id = llvm::dyn_cast<GoASTIdent>(e))
@@ -502,7 +550,7 @@ GoInterpreter::EvaluateType(const GoASTExpr* e)
 }
 
 ValueObjectSP
-GoInterpreter::VisitCallExpr(const lldb_private::GoASTCallExpr *e)
+GoUserExpression::GoInterpreter::VisitCallExpr(const lldb_private::GoASTCallExpr *e)
 {
     ValueObjectSP x = EvaluateExpr(e->GetFun());
     if (x || e->NumArgs() != 1)

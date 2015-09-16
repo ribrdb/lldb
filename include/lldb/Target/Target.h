@@ -1519,6 +1519,7 @@ protected:
     lldb::ProcessSP m_process_sp;
     lldb::SearchFilterSP  m_search_filter_sp;
     PathMappingList m_image_search_paths;
+    std::unique_ptr<GoASTContext> m_scratch_go_ast_context_ap;
     lldb::ClangASTContextUP m_scratch_ast_context_ap;
     lldb::ClangASTSourceUP m_scratch_ast_source_ap;
     lldb::ClangASTImporterUP m_ast_importer_ap;
