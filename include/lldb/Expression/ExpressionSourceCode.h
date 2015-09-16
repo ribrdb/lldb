@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #ifndef liblldb_ExpressionSourceCode_h
-#define liblldb_ExpGetSyntheticArrayMemberFromPointerressionSourceCode_h
+#define liblldb_ExpressionSourceCode_h
 
 #include "lldb/lldb-enumerations.h"
 

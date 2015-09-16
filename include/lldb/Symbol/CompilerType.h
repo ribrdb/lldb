@@ -16,10 +16,6 @@
 #include "lldb/lldb-private.h"
 #include "lldb/Core/ClangForward.h"
 
-namespace go {
-class Type;
-}
-
 namespace lldb_private {
 
 //----------------------------------------------------------------------
@@ -40,7 +36,6 @@ public:
     //----------------------------------------------------------------------
     CompilerType (TypeSystem *type_system, void *type);
     CompilerType (clang::ASTContext *ast_context, clang::QualType qual_type);
-    CompilerType (GoASTContext *ast_context, go::Type* type);
 
     CompilerType (const CompilerType &rhs) :
         m_type (rhs.m_type),
@@ -243,8 +238,6 @@ public:
     SetCompilerType (TypeSystem* type_system, void* type);
     void
     SetCompilerType (clang::ASTContext *ast, clang::QualType qual_type);
-	void
-    SetCompilerType (GoASTContext *ast, go::Type* type);
 
     unsigned
     GetTypeQualifiers() const;
