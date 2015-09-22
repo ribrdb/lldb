@@ -18,19 +18,15 @@
 #include <vector>
 
 // Other libraries and framework includes
-#include "clang/AST/CharUnits.h"
-#include "clang/AST/ExternalASTSource.h"
 #include "llvm/ADT/DenseMap.h"
 
 #include "lldb/lldb-private.h"
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Core/ConstString.h"
 #include "lldb/Core/dwarf.h"
 #include "lldb/Core/Flags.h"
 #include "lldb/Core/RangeMap.h"
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Expression/DWARFExpression.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/SymbolContext.h"
 
@@ -221,9 +217,6 @@ public:
               uint32_t type_mask,
               lldb_private::TypeList &type_list) override;
 
-    lldb_private::ClangASTContext &
-    GetClangASTContext () override;
-
     lldb_private::TypeSystem *
     GetTypeSystemForLanguage (lldb::LanguageType language) override;
 
@@ -330,8 +323,8 @@ public:
 protected:
     typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb_private::Type *> DIEToTypePtr;
     typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb::VariableSP> DIEToVariableSP;
-    typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb::clang_type_t> DIEToClangType;
-    typedef llvm::DenseMap<lldb::clang_type_t, DIERef> ClangTypeToDIE;
+    typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb::opaque_compiler_type_t> DIEToClangType;
+    typedef llvm::DenseMap<lldb::opaque_compiler_type_t, DIERef> ClangTypeToDIE;
 
     enum
     {

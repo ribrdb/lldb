@@ -52,12 +52,21 @@ public:
     GetDynamicTypeAndAddress (ValueObject &in_value, 
                               lldb::DynamicValueType use_dynamic, 
                               TypeAndOrName &class_type_or_name, 
-                              Address &address) = 0;
+                              Address &address,
+                              Value::ValueType &value_type) = 0;
     
     // This should be a fast test to determine whether it is likely that this value would
     // have a dynamic type.
     virtual bool
     CouldHaveDynamicValue (ValueObject &in_value) = 0;
+    
+    // The contract for GetDynamicTypeAndAddress() is to return a "bare-bones" dynamic type
+    // For instance, given a Base* pointer, GetDynamicTypeAndAddress() will return the type of
+    // Derived, not Derived*. The job of this API is to correct this misalignment between the
+    // static type and the discovered dynamic type
+    virtual TypeAndOrName
+    FixUpDynamicType (const TypeAndOrName& type_and_or_name,
+                      ValueObject& static_value) = 0;
 
     virtual void
     SetExceptionBreakpoints ()

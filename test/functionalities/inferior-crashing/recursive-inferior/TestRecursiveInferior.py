@@ -74,6 +74,7 @@ class CrashingRecursiveInferiorTestCase(TestBase):
 
     @skipIfFreeBSD # llvm.org/pr16684
     @expectedFailureWindows("llvm.org/pr24778")
+    @expectedFailureAndroid(archs=['aarch64'], api_levels=range(21 + 1)) # No eh_frame for sa_restorer
     def test_recursive_inferior_crashing_step_after_break_dwarf(self):
         """Test that lldb functions correctly after stepping through a crash."""
         self.buildDwarf()
@@ -85,7 +86,6 @@ class CrashingRecursiveInferiorTestCase(TestBase):
         self.buildDsym()
         self.recursive_inferior_crashing_expr_step_expr()
 
-    @expectedFailureFreeBSD('llvm.org/pr15989') # Couldn't allocate space for the stack frame
     @skipIfLinux # Inferior exits after stepping after a segfault. This is working as intended IMHO.
     @expectedFailureWindows("llvm.org/pr24778")
     def test_recursive_inferior_crashing_expr_step_and_expr_dwarf(self):
