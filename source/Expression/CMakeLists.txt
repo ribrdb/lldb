@@ -13,6 +13,9 @@ add_lldb_library(lldbExpression
   DWARFExpression.cpp
   Expression.cpp
   ExpressionSourceCode.cpp
+  GoLexer.cpp
+  GoParser.cpp
+  GoUserExpression.cpp
   ExpressionVariable.cpp
   FunctionCaller.cpp
   IRDynamicChecks.cpp

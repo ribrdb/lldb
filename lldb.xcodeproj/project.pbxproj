@@ -162,7 +162,7 @@
 		264A58EE1A7DBCAD00A6B1B0 /* OptionValueFormatEntity.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 264A58ED1A7DBCAD00A6B1B0 /* OptionValueFormatEntity.cpp */; };
 		264A97BF133918BC0017F0BE /* PlatformRemoteGDBServer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 264A97BD133918BC0017F0BE /* PlatformRemoteGDBServer.cpp */; };
 		264D8D5013661BD7003A368F /* UnwindAssembly.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 264D8D4F13661BD7003A368F /* UnwindAssembly.cpp */; };
-		265192C61BA8E905002F08F6 /* CompilerDecl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265192C51BA8E905002F08F6 /* CompilerDecl.cpp */; settings = {ASSET_TAGS = (); }; };
+		265192C61BA8E905002F08F6 /* CompilerDecl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265192C51BA8E905002F08F6 /* CompilerDecl.cpp */; };
 		265205A813D3E3F700132FE2 /* RegisterContextKDP_arm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265205A213D3E3F700132FE2 /* RegisterContextKDP_arm.cpp */; };
 		265205AA13D3E3F700132FE2 /* RegisterContextKDP_i386.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265205A413D3E3F700132FE2 /* RegisterContextKDP_i386.cpp */; };
 		265205AC13D3E3F700132FE2 /* RegisterContextKDP_x86_64.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265205A613D3E3F700132FE2 /* RegisterContextKDP_x86_64.cpp */; };
@@ -679,15 +679,15 @@
 		49DA65031485C92A005FF180 /* AppleObjCDeclVendor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 49DA65021485C92A005FF180 /* AppleObjCDeclVendor.cpp */; };
 		49DCF6FE170E6B4A0092F75E /* IRMemoryMap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 49DCF6FD170E6B4A0092F75E /* IRMemoryMap.cpp */; };
 		49DCF702170E70120092F75E /* Materializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 49DCF700170E70120092F75E /* Materializer.cpp */; };
-		4C0083401B9F9BA900D5CF24 /* UtilityFunction.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C00833F1B9F9BA900D5CF24 /* UtilityFunction.cpp */; settings = {ASSET_TAGS = (); }; };
-		4C2479BD1BA39295009C9A7B /* FunctionCaller.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C0083321B9A5DE200D5CF24 /* FunctionCaller.cpp */; settings = {ASSET_TAGS = (); }; };
+		4C0083401B9F9BA900D5CF24 /* UtilityFunction.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C00833F1B9F9BA900D5CF24 /* UtilityFunction.cpp */; };
+		4C2479BD1BA39295009C9A7B /* FunctionCaller.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C0083321B9A5DE200D5CF24 /* FunctionCaller.cpp */; };
 		4C3ADCD61810D88B00357218 /* BreakpointResolverFileRegex.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4CAA56141422D986001FFA01 /* BreakpointResolverFileRegex.cpp */; };
 		4C56543119D1EFAA002E9C44 /* ThreadPlanPython.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C56543019D1EFAA002E9C44 /* ThreadPlanPython.cpp */; };
 		4C56543519D2297A002E9C44 /* SBThreadPlan.h in Headers */ = {isa = PBXBuildFile; fileRef = 4C56543419D2297A002E9C44 /* SBThreadPlan.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		4C56543719D22B32002E9C44 /* SBThreadPlan.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C56543619D22B32002E9C44 /* SBThreadPlan.cpp */; };
 		4C6649A314EEE81000B0316F /* StreamCallback.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C6649A214EEE81000B0316F /* StreamCallback.cpp */; };
-		4C88BC2A1BA3722B00AA0964 /* Expression.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C88BC291BA3722B00AA0964 /* Expression.cpp */; settings = {ASSET_TAGS = (); }; };
-		4C88BC2D1BA391B000AA0964 /* UserExpression.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C0083331B9A5DE200D5CF24 /* UserExpression.cpp */; settings = {ASSET_TAGS = (); }; };
+		4C88BC2A1BA3722B00AA0964 /* Expression.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C88BC291BA3722B00AA0964 /* Expression.cpp */; };
+		4C88BC2D1BA391B000AA0964 /* UserExpression.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4C0083331B9A5DE200D5CF24 /* UserExpression.cpp */; };
 		4CABA9E0134A8BCD00539BDD /* ValueObjectMemory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4CABA9DF134A8BCD00539BDD /* ValueObjectMemory.cpp */; };
 		4CCA644D13B40B82003BDF98 /* ItaniumABILanguageRuntime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4CCA643D13B40B82003BDF98 /* ItaniumABILanguageRuntime.cpp */; };
 		4CCA645013B40B82003BDF98 /* AppleObjCRuntime.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4CCA644213B40B82003BDF98 /* AppleObjCRuntime.cpp */; };
@@ -817,10 +817,12 @@
 		9AC703AF117675410086C050 /* SBInstruction.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AC703AE117675410086C050 /* SBInstruction.cpp */; };
 		9AC703B1117675490086C050 /* SBInstructionList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AC703B0117675490086C050 /* SBInstructionList.cpp */; };
 		A36FF33C17D8E94600244D40 /* OptionParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A36FF33B17D8E94600244D40 /* OptionParser.cpp */; };
-		AE8F624919EF3E1E00326B21 /* OperatingSystemGo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */; };
-		AEB74D931A8C1BE300FE1A4A /* OperatingSystemGo.h in Headers */ = {isa = PBXBuildFile; fileRef = AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */; };
+		AE44FB301BB07EB20033EB62 /* GoUserExpression.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE44FB2C1BB07DD80033EB62 /* GoUserExpression.cpp */; };
+		AE44FB311BB07EB80033EB62 /* GoLexer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE44FB2A1BB07DD80033EB62 /* GoLexer.cpp */; };
+		AE44FB321BB07EBC0033EB62 /* GoParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE44FB2B1BB07DD80033EB62 /* GoParser.cpp */; };
 		AE6897281B94F6DE0018845D /* DWARFASTParserGo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE6897261B94F6DE0018845D /* DWARFASTParserGo.cpp */; };
 		AE7F56291B8FE418001377A8 /* GoASTContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEFFBA7C1AC4835D0087B932 /* GoASTContext.cpp */; };
+		AE8F624919EF3E1E00326B21 /* OperatingSystemGo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */; };
 		AEEA34051AC88A7400AB639D /* TypeSystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AEEA34041AC88A7400AB639D /* TypeSystem.cpp */; };
 		AF061F87182C97ED00B6A19C /* RegisterContextHistory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF061F85182C97ED00B6A19C /* RegisterContextHistory.cpp */; };
 		AF0C112818580CD800C4C45B /* QueueItem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF0C112718580CD800C4C45B /* QueueItem.cpp */; };
@@ -2626,10 +2628,17 @@
 		9AF16CC7114086A1007A7B3F /* SBBreakpointLocation.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SBBreakpointLocation.cpp; path = source/API/SBBreakpointLocation.cpp; sourceTree = "<group>"; };
 		A36FF33B17D8E94600244D40 /* OptionParser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = OptionParser.cpp; sourceTree = "<group>"; };
 		A36FF33D17D8E98800244D40 /* OptionParser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OptionParser.h; path = include/lldb/Host/OptionParser.h; sourceTree = "<group>"; };
-		AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = OperatingSystemGo.cpp; path = Go/OperatingSystemGo.cpp; sourceTree = "<group>"; };
-		AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OperatingSystemGo.h; path = Go/OperatingSystemGo.h; sourceTree = "<group>"; };
+		AE44FB261BB07DC60033EB62 /* GoAST.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoAST.h; path = include/lldb/Expression/GoAST.h; sourceTree = "<group>"; };
+		AE44FB271BB07DC60033EB62 /* GoLexer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoLexer.h; path = include/lldb/Expression/GoLexer.h; sourceTree = "<group>"; };
+		AE44FB281BB07DC60033EB62 /* GoParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoParser.h; path = include/lldb/Expression/GoParser.h; sourceTree = "<group>"; };
+		AE44FB291BB07DC60033EB62 /* GoUserExpression.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = GoUserExpression.h; path = include/lldb/Expression/GoUserExpression.h; sourceTree = "<group>"; };
+		AE44FB2A1BB07DD80033EB62 /* GoLexer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoLexer.cpp; path = source/Expression/GoLexer.cpp; sourceTree = "<group>"; };
+		AE44FB2B1BB07DD80033EB62 /* GoParser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoParser.cpp; path = source/Expression/GoParser.cpp; sourceTree = "<group>"; };
+		AE44FB2C1BB07DD80033EB62 /* GoUserExpression.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = GoUserExpression.cpp; path = source/Expression/GoUserExpression.cpp; sourceTree = "<group>"; };
 		AE6897261B94F6DE0018845D /* DWARFASTParserGo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DWARFASTParserGo.cpp; sourceTree = "<group>"; };
 		AE6897271B94F6DE0018845D /* DWARFASTParserGo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DWARFASTParserGo.h; sourceTree = "<group>"; };
+		AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = OperatingSystemGo.cpp; path = Go/OperatingSystemGo.cpp; sourceTree = "<group>"; };
+		AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OperatingSystemGo.h; path = Go/OperatingSystemGo.h; sourceTree = "<group>"; };
 		AEEA33F61AC74FE700AB639D /* TypeSystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TypeSystem.h; path = include/lldb/Symbol/TypeSystem.h; sourceTree = "<group>"; };
 		AEEA34041AC88A7400AB639D /* TypeSystem.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = TypeSystem.cpp; path = source/Symbol/TypeSystem.cpp; sourceTree = "<group>"; };
 		AEEA340F1ACA08A000AB639D /* GoASTContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GoASTContext.h; path = include/lldb/Symbol/GoASTContext.h; sourceTree = "<group>"; };
@@ -4400,6 +4409,8 @@
 				4C0083331B9A5DE200D5CF24 /* UserExpression.cpp */,
 				49445E341225AB6A00C11A81 /* ClangUserExpression.h */,
 				26BC7ED510F1B86700F91463 /* ClangUserExpression.cpp */,
+				AE44FB291BB07DC60033EB62 /* GoUserExpression.h */,
+				AE44FB2C1BB07DD80033EB62 /* GoUserExpression.cpp */,
 				497C86C1122823F300B54702 /* ClangUtilityFunction.h */,
 				497C86BD122823D800B54702 /* ClangUtilityFunction.cpp */,
 				4C00833D1B9F9B8400D5CF24 /* UtilityFunction.h */,
@@ -4427,6 +4438,11 @@
 				49A8A39F11D568A300AD3B68 /* ASTResultSynthesizer.cpp */,
 				4911934B1226383D00578B7F /* ASTStructExtractor.h */,
 				491193501226386000578B7F /* ASTStructExtractor.cpp */,
+				AE44FB261BB07DC60033EB62 /* GoAST.h */,
+				AE44FB271BB07DC60033EB62 /* GoLexer.h */,
+				AE44FB2A1BB07DD80033EB62 /* GoLexer.cpp */,
+				AE44FB281BB07DC60033EB62 /* GoParser.h */,
+				AE44FB2B1BB07DD80033EB62 /* GoParser.cpp */,
 				49CF9833122C718B007A0B96 /* IRDynamicChecks.h */,
 				49CF9829122C70BD007A0B96 /* IRDynamicChecks.cpp */,
 				49C66B1C17011A43004D1922 /* IRMemoryMap.h */,
@@ -5427,15 +5443,6 @@
 			name = DataFormatters;
 			sourceTree = "<group>";
 		};
-		AE8F624519EF3DFC00326B21 /* Go */ = {
-			isa = PBXGroup;
-			children = (
-				AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */,
-				AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */,
-			);
-			name = Go;
-			sourceTree = "<group>";
-		};
 		9694FA6E1B32AA35005EBB16 /* SysV-mips */ = {
 			isa = PBXGroup;
 			children = (
@@ -5443,6 +5450,15 @@
 				9694FA701B32AA64005EBB16 /* ABISysV_mips.h */,
 			);
 			name = "SysV-mips";
+			sourceTree = "<group>";
+		};
+		AE8F624519EF3DFC00326B21 /* Go */ = {
+			isa = PBXGroup;
+			children = (
+				AE8F624719EF3E1E00326B21 /* OperatingSystemGo.cpp */,
+				AE8F624819EF3E1E00326B21 /* OperatingSystemGo.h */,
+			);
+			name = Go;
 			sourceTree = "<group>";
 		};
 		AF11CB34182CA85A00D9B618 /* SystemRuntime */ = {
@@ -6286,6 +6302,7 @@
 				4984BA131B978C55008658D4 /* ClangExpressionVariable.cpp in Sources */,
 				3F81691A1ABA2419001DA9DF /* NameMatches.cpp in Sources */,
 				AF0E22F018A09FB20009B7D1 /* AppleGetItemInfoHandler.cpp in Sources */,
+				AE44FB301BB07EB20033EB62 /* GoUserExpression.cpp in Sources */,
 				2689004E13353E0400698AC0 /* Stream.cpp in Sources */,
 				2689004F13353E0400698AC0 /* StreamFile.cpp in Sources */,
 				2689005013353E0400698AC0 /* StreamString.cpp in Sources */,
@@ -6401,6 +6418,7 @@
 				949EEDA31BA76577008C63CF /* Cocoa.cpp in Sources */,
 				3FDFE56C19AF9C44009756A7 /* HostProcessPosix.cpp in Sources */,
 				268900B413353E5000698AC0 /* RegisterContextMacOSXFrameBackchain.cpp in Sources */,
+				AE44FB321BB07EBC0033EB62 /* GoParser.cpp in Sources */,
 				3F8169311ABB7A6D001DA9DF /* SystemInitializer.cpp in Sources */,
 				949EEDB21BA76731008C63CF /* NSIndexPath.cpp in Sources */,
 				267A47FD1B1411CC0021A5BC /* NativeRegisterContextRegisterInfo.cpp in Sources */,
@@ -6560,6 +6578,7 @@
 				26D5E163135BB054006EA0A7 /* OptionGroupPlatform.cpp in Sources */,
 				94CD131A19BA33B400DB7BED /* TypeValidator.cpp in Sources */,
 				26BD407F135D2AE000237D80 /* FileLineResolver.cpp in Sources */,
+				AE44FB311BB07EB80033EB62 /* GoLexer.cpp in Sources */,
 				26A7A035135E6E4200FB369E /* OptionValue.cpp in Sources */,
 				9A22A161135E30370024DDC3 /* EmulateInstructionARM.cpp in Sources */,
 				AFDFDFD119E34D3400EAE509 /* ConnectionFileDescriptorPosix.cpp in Sources */,

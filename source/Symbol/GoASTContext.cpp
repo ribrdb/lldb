@@ -14,11 +14,13 @@
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/StringPrinter.h"
+#include "lldb/Expression/GoUserExpression.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/ExecutionContext.h"
+#include "lldb/Target/Target.h"
 
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserGo.h"
 
@@ -1124,6 +1126,9 @@ GoASTContext::GetChildClangTypeAtIndex(void *type, ExecutionContext *exe_ctx, si
 uint32_t
 GoASTContext::GetIndexOfChildWithName(void *type, const char *name, bool omit_empty_base_classes)
 {
+    if (!type || !GetCompleteType(type))
+        return UINT_MAX;
+    
     GoType *t = static_cast<GoType *>(type);
     GoStruct *s = t->GetStruct();
     if (s)
@@ -1407,4 +1412,14 @@ GoASTContext::GetDWARFParser()
     if (!m_dwarf_ast_parser_ap)
         m_dwarf_ast_parser_ap.reset(new DWARFASTParserGo(*this));
     return m_dwarf_ast_parser_ap.get();
+}
+
+UserExpression *
+GoASTContextForExpr::GetUserExpression(const char *expr, const char *expr_prefix, lldb::LanguageType language,
+                                       Expression::ResultType desired_type)
+{
+    TargetSP target = m_target_wp.lock();
+    if (target)
+        return new GoUserExpression(*target, expr, expr_prefix, language, desired_type);
+    return nullptr;
 }
