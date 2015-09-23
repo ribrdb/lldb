@@ -9,7 +9,7 @@
 
 #include <string.h>
 
-#include "lldb/Expression/GoLexer.h"
+#include "GoLexer.h"
 
 using namespace lldb_private;
 

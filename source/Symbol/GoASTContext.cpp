@@ -16,7 +16,6 @@
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/StringPrinter.h"
-#include "lldb/Expression/GoUserExpression.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolFile.h"
@@ -25,6 +24,7 @@
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Target.h"
 
+#include "Plugins/ExpressionParser/Go/GoUserExpression.h"
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserGo.h"
 
 using namespace lldb;

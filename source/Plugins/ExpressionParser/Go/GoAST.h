@@ -15,8 +15,9 @@
 
 #include "lldb/lldb-forward.h"
 #include "lldb/lldb-private.h"
-#include "lldb/Expression/GoLexer.h"
 #include "llvm/Support/Casting.h"
+
+#include "Plugins/ExpressionParser/Go/GoLexer.h"
 
 namespace lldb_private {
 

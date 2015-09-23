@@ -11,8 +11,8 @@
 #define liblldb_GoParser_h
 
 #include "lldb/lldb-private.h"
-#include "lldb/Expression/GoAST.h"
-#include "lldb/Expression/GoLexer.h"
+#include "Plugins/ExpressionParser/Go/GoAST.h"
+#include "Plugins/ExpressionParser/Go/GoLexer.h"
 
 namespace lldb_private
 {

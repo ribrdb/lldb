@@ -17,6 +17,8 @@
 #include <map>
 #include <vector>
 
+#include "GoUserExpression.h"
+
 #include "lldb/lldb-private.h"
 #include "lldb/Core/ConstString.h"
 #include "lldb/Core/DataBufferHeap.h"
@@ -29,9 +31,6 @@
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Core/ValueObjectRegister.h"
 #include "lldb/Expression/ClangPersistentVariables.h"
-#include "lldb/Expression/GoAST.h"
-#include "lldb/Expression/GoParser.h"
-#include "lldb/Expression/GoUserExpression.h"
 #include "lldb/Symbol/TypeList.h"
 #include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/VariableList.h"
@@ -44,6 +43,10 @@
 #include "lldb/Target/ThreadPlanCallUserExpression.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringMap.h"
+
+#include "Plugins/ExpressionParser/Go/GoAST.h"
+#include "Plugins/ExpressionParser/Go/GoParser.h"
+
 
 using namespace lldb_private;
 using namespace lldb;

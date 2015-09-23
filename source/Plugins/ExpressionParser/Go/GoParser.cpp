@@ -9,10 +9,12 @@
 
 #include <vector>
 
+#include "GoParser.h"
+
 #include "lldb/Core/Error.h"
-#include "lldb/Expression/GoAST.h"
-#include "lldb/Expression/GoParser.h"
 #include "llvm/ADT/SmallString.h"
+#include "Plugins/ExpressionParser/Go/GoAST.h"
+
 
 using namespace lldb_private;
 using namespace lldb;
