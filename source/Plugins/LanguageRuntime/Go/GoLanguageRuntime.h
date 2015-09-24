@@ -27,46 +27,34 @@ namespace lldb_private {
     public:
         ~GoLanguageRuntime() { }
       
-        lldb::LanguageType
-        GetLanguageType () const override
-        {
+        virtual lldb::LanguageType
+        GetLanguageType () const {
             return lldb::eLanguageTypeGo;
         }
 
-        bool
-        GetObjectDescription (Stream &str, ValueObject &object) override
-        {
+        virtual bool
+        GetObjectDescription (Stream &str, ValueObject &object) {
             // TODO(ribrdb): Maybe call String() method?
             return false;
         }
         
-        bool
-        GetObjectDescription (Stream &str, Value &value, ExecutionContextScope *exe_scope) override
-        {
+        virtual bool
+        GetObjectDescription (Stream &str, Value &value, ExecutionContextScope *exe_scope)  {
             return false;
         }
 
-        TypeAndOrName
-        FixUpDynamicType (const TypeAndOrName& type_and_or_name,
-                          ValueObject& static_value) override
-        {
-            return type_and_or_name;
-        }
-
         
-        bool
+        virtual bool
         GetDynamicTypeAndAddress (ValueObject &in_value,
                                   lldb::DynamicValueType use_dynamic,
                                   TypeAndOrName &class_type_or_name,
-                                  Address &address,
-                                  Value::ValueType &value_type) override;
+                                  Address &address);
         
-        bool
-        CouldHaveDynamicValue (ValueObject &in_value) override;
+        virtual bool
+        CouldHaveDynamicValue (ValueObject &in_value);
         
-        lldb::BreakpointResolverSP
-        CreateExceptionResolver (Breakpoint *bkpt, bool catch_bp, bool throw_bp) override
-        {
+        virtual lldb::BreakpointResolverSP
+        CreateExceptionResolver (Breakpoint *bkpt, bool catch_bp, bool throw_bp) {
             return lldb::BreakpointResolverSP();
         }
         
