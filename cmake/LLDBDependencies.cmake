@@ -22,6 +22,7 @@ set( LLDB_USED_LIBS
   lldbPluginDynamicLoaderWindowsDYLD
   
   lldbPluginCPlusPlusLanguage
+  lldbPluginGoLanguage
   lldbPluginObjCLanguage
   lldbPluginObjCPlusPlusLanguage
 
@@ -75,6 +76,7 @@ set( LLDB_USED_LIBS
   lldbPluginProcessElfCore
   lldbPluginJITLoaderGDB
   lldbPluginExpressionParserClang
+  lldbPluginExpressionParserGo
   )
 
 # Windows-only libraries

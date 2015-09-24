@@ -80,7 +80,11 @@ ReadTypeName(ValueObjectSP type, Process* process)
         ValueObjectSP package = GetChild(*uncommon, "pkgpath");
         if (name && name->GetPointerValue() != 0 && package && package->GetPointerValue() != 0)
         {
-            return ConstString((ReadString(*package, process).GetStringRef() + "." + ReadString(*name, process).GetStringRef()).str());
+            ConstString package_const_str = ReadString(*package, process);
+            ConstString name_const_str = ReadString(*name, process);
+            if (package_const_str.GetLength() == 0)
+                return name_const_str;
+            return ConstString((package_const_str.GetStringRef() + "." + name_const_str.GetStringRef()).str());
         }
     }
     ValueObjectSP name = GetChild(*type, "_string");
@@ -133,11 +137,11 @@ GoLanguageRuntime::CouldHaveDynamicValue (ValueObject &in_value)
 }
 
 bool
-GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
-                                                     lldb::DynamicValueType use_dynamic,
-                                                     TypeAndOrName &class_type_or_name,
-                                                     Address &dynamic_address)
+GoLanguageRuntime::GetDynamicTypeAndAddress(ValueObject &in_value, lldb::DynamicValueType use_dynamic,
+                                            TypeAndOrName &class_type_or_name, Address &dynamic_address,
+                                            Value::ValueType &value_type)
 {
+    value_type = Value::eValueTypeScalar;
     class_type_or_name.Clear();
     if (CouldHaveDynamicValue (in_value))
     {
@@ -176,6 +180,12 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
         return true;
     }
     return false;
+}
+
+TypeAndOrName
+GoLanguageRuntime::FixUpDynamicType(const TypeAndOrName &type_and_or_name, ValueObject &static_value)
+{
+    return type_and_or_name;
 }
 
 //------------------------------------------------------------------

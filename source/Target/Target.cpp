@@ -1906,7 +1906,7 @@ Target::GetScratchTypeSystemForLanguage (lldb::LanguageType language, bool creat
     if (eLanguageTypeGo == language)
     {
         if (!m_scratch_go_ast_context_ap && create_on_demand) {
-            m_scratch_go_ast_context_ap.reset(new GoASTContext);
+            m_scratch_go_ast_context_ap.reset(new GoASTContextForExpr(shared_from_this()));
             m_scratch_go_ast_context_ap->SetAddressByteSize(GetArchitecture().GetAddressByteSize());
         }
         return m_scratch_go_ast_context_ap.get();
@@ -2139,17 +2139,6 @@ Target::EvaluateExpression
     else
     {
         const char *prefix = GetExpressionPrefixContentsAsCString();
-        bool use_clang = true;
-        if (!frame)
-        {
-            frame = exe_ctx.GetFramePtr();
-        }
-        if (frame)
-        {
-            const SymbolContext& sc = frame->GetSymbolContext(eSymbolContextCompUnit);
-            if (sc.comp_unit && sc.comp_unit->GetLanguage() == eLanguageTypeGo)
-                use_clang = false;
-        }
         Error error;
         execution_results = UserExpression::Evaluate (exe_ctx,
                                                       options,

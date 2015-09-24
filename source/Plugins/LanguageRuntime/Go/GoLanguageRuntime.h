@@ -26,38 +26,40 @@ namespace lldb_private {
     {
     public:
         ~GoLanguageRuntime() { }
-      
-        virtual lldb::LanguageType
-        GetLanguageType () const {
+
+        lldb::LanguageType
+        GetLanguageType() const override
+        {
             return lldb::eLanguageTypeGo;
         }
 
-        virtual bool
-        GetObjectDescription (Stream &str, ValueObject &object) {
+        bool
+        GetObjectDescription(Stream &str, ValueObject &object) override
+        {
             // TODO(ribrdb): Maybe call String() method?
             return false;
         }
-        
-        virtual bool
-        GetObjectDescription (Stream &str, Value &value, ExecutionContextScope *exe_scope)  {
+
+        bool
+        GetObjectDescription(Stream &str, Value &value, ExecutionContextScope *exe_scope) override
+        {
             return false;
         }
 
-        
-        virtual bool
-        GetDynamicTypeAndAddress (ValueObject &in_value,
-                                  lldb::DynamicValueType use_dynamic,
-                                  TypeAndOrName &class_type_or_name,
-                                  Address &address);
-        
-        virtual bool
-        CouldHaveDynamicValue (ValueObject &in_value);
-        
-        virtual lldb::BreakpointResolverSP
-        CreateExceptionResolver (Breakpoint *bkpt, bool catch_bp, bool throw_bp) {
+        bool GetDynamicTypeAndAddress(ValueObject &in_value, lldb::DynamicValueType use_dynamic,
+                                      TypeAndOrName &class_type_or_name, Address &address,
+                                      Value::ValueType &value_type) override;
+
+        bool CouldHaveDynamicValue(ValueObject &in_value) override;
+
+        lldb::BreakpointResolverSP
+        CreateExceptionResolver(Breakpoint *bkpt, bool catch_bp, bool throw_bp) override
+        {
             return lldb::BreakpointResolverSP();
         }
-        
+
+        TypeAndOrName FixUpDynamicType(const TypeAndOrName &type_and_or_name, ValueObject &static_value) override;
+
         //------------------------------------------------------------------
         // Static Functions
         //------------------------------------------------------------------
