@@ -44,6 +44,7 @@
 #include "Plugins/InstrumentationRuntime/AddressSanitizer/AddressSanitizerRuntime.h"
 #include "Plugins/JITLoader/GDB/JITLoaderGDB.h"
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
+#include "Plugins/Language/Go/GoLanguage.h"
 #include "Plugins/Language/ObjC/ObjCLanguage.h"
 #include "Plugins/Language/ObjCPlusPlus/ObjCPlusPlusLanguage.h"
 #include "Plugins/LanguageRuntime/CPlusPlus/ItaniumABI/ItaniumABILanguageRuntime.h"
@@ -293,6 +294,7 @@ SystemInitializerFull::Initialize()
     GoLanguageRuntime::Initialize();
     
     CPlusPlusLanguage::Initialize();
+    GoLanguage::Initialize();
     ObjCLanguage::Initialize();
     ObjCPlusPlusLanguage::Initialize();
 
@@ -404,6 +406,7 @@ SystemInitializerFull::Terminate()
     RenderScriptRuntime::Terminate();
 
     CPlusPlusLanguage::Terminate();
+    GoLanguage::Terminate();
     ObjCLanguage::Terminate();
     ObjCPlusPlusLanguage::Terminate();
     
