@@ -70,6 +70,7 @@ USEDLIBS = lldbAPI.a \
 	lldbPluginObjectFileJIT.a \
 	lldbPluginSymbolVendorELF.a \
 	lldbPluginObjectFilePECOFF.a \
+	lldbPluginOSGo.a \
 	lldbPluginOSPython.a \
     lldbPluginOSGo.a \
 	lldbPluginPlatformGDB.a \
@@ -98,6 +99,7 @@ USEDLIBS = lldbAPI.a \
 	LLVMMCDisassembler.a \
 	LLVMProfileData.a \
 	LLVMObjCARCOpts.a \
+	LLVMSupport.a \
 	lldbPluginPlatformMacOSX.a \
 	lldbPluginPlatformLinux.a \
 	lldbPluginPlatformWindows.a \

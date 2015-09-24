@@ -1351,7 +1351,6 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
     {
         ValueObjectSP valobj;
         VariableSP var;
-        Error err;
 
         if (frame && !namespace_decl)
         {
@@ -1366,17 +1365,21 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
 
                 // Search for declarations matching the name
                 std::vector<CompilerDecl> found_decls = compiler_decl_context.FindDeclByName(name);
+                
+                bool variable_found = false;
                 for (CompilerDecl decl : found_decls)
                 {
                     var = decl.GetAsVariable();
                     if (var)
                     {
+                        variable_found = true;
                         valobj = ValueObjectVariable::Create(frame, var);
                         AddOneVariable(context, var, valobj, current_id);
                         context.m_found.variable = true;
-                        return;
                     }
                 }
+                if (variable_found)
+                    return;
             }
         }
         if (target)
@@ -1611,11 +1614,11 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
     }
 }
 
-//static clang_type_t
+//static opaque_compiler_type_t
 //MaybePromoteToBlockPointerType
 //(
 //    ASTContext *ast_context,
-//    clang_type_t candidate_type
+//    opaque_compiler_type_t candidate_type
 //)
 //{
 //    if (!candidate_type)
@@ -1675,7 +1678,17 @@ ClangExpressionDeclMap::GetVariableValue (VariableSP &var,
         return false;
     }
 
-    ASTContext *ast = var_type->GetClangASTContext().getASTContext();
+    ClangASTContext *clang_ast = llvm::dyn_cast_or_null<ClangASTContext>(var_type->GetForwardCompilerType().GetTypeSystem());
+
+    if (!clang_ast)
+    {
+        if (log)
+            log->PutCString("Skipped a definition because it has no Clang AST");
+        return false;
+    }
+
+
+    ASTContext *ast = clang_ast->getASTContext();
 
     if (!ast)
     {
@@ -1782,7 +1795,7 @@ ClangExpressionDeclMap::AddOneVariable (NameSearchContext &context, VariableSP v
     if (is_reference)
         var_decl = context.AddVarDecl(pt);
     else
-        var_decl = context.AddVarDecl(ClangASTContext::GetLValueReferenceType(pt));
+        var_decl = context.AddVarDecl(pt.GetLValueReferenceType());
 
     std::string decl_name(context.m_decl_name.getAsString());
     ConstString entity_name(decl_name.c_str());
@@ -1826,7 +1839,7 @@ ClangExpressionDeclMap::AddOneVariable(NameSearchContext &context,
         return;
     }
 
-    NamedDecl *var_decl = context.AddVarDecl(ClangASTContext::GetLValueReferenceType(parser_type));
+    NamedDecl *var_decl = context.AddVarDecl(parser_type.GetLValueReferenceType());
 
     llvm::cast<ClangExpressionVariable>(pvar_sp.get())->EnableParserVars(GetParserID());
     ClangExpressionVariable::ParserVars *parser_vars = llvm::cast<ClangExpressionVariable>(pvar_sp.get())->GetParserVars(GetParserID());
@@ -1858,8 +1871,8 @@ ClangExpressionDeclMap::AddOneGenericVariable(NameSearchContext &context,
 
     ASTContext *scratch_ast_context = target->GetScratchClangASTContext()->getASTContext();
 
-    TypeFromUser user_type (ClangASTContext::GetLValueReferenceType(ClangASTContext::GetBasicType(scratch_ast_context, eBasicTypeVoid).GetPointerType()));
-    TypeFromParser parser_type (ClangASTContext::GetLValueReferenceType(ClangASTContext::GetBasicType(m_ast_context, eBasicTypeVoid).GetPointerType()));
+    TypeFromUser user_type (ClangASTContext::GetBasicType(scratch_ast_context, eBasicTypeVoid).GetPointerType().GetLValueReferenceType());
+    TypeFromParser parser_type (ClangASTContext::GetBasicType(m_ast_context, eBasicTypeVoid).GetPointerType().GetLValueReferenceType());
     NamedDecl *var_decl = context.AddVarDecl(parser_type);
 
     std::string decl_name(context.m_decl_name.getAsString());
@@ -1933,7 +1946,7 @@ ClangExpressionDeclMap::ResolveUnknownTypes()
             QualType var_type = var_decl->getType();
             TypeFromParser parser_type(var_type.getAsOpaquePtr(), ClangASTContext::GetASTContext(&var_decl->getASTContext()));
 
-            lldb::clang_type_t copied_type = m_ast_importer->CopyType(scratch_ast_context->getASTContext(), &var_decl->getASTContext(), var_type.getAsOpaquePtr());
+            lldb::opaque_compiler_type_t copied_type = m_ast_importer->CopyType(scratch_ast_context->getASTContext(), &var_decl->getASTContext(), var_type.getAsOpaquePtr());
 
             if (!copied_type)
             {

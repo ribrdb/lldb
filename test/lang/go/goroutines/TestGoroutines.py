@@ -11,7 +11,8 @@ class TestGoASTContext(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @python_api_test
-    @skipIfRemote # Not remote test suit ready
+    @skipIfFreeBSD # llvm.org/pr24895 triggers assertion failure
+    @skipIfRemote # Not remote test suite ready
     @skipUnlessGoInstalled
     def test_goroutine_plugin(self):
         """Test goroutine as threads support."""

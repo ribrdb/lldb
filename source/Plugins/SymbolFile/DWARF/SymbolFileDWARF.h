@@ -18,18 +18,15 @@
 #include <vector>
 
 // Other libraries and framework includes
-#include "clang/AST/CharUnits.h"
-#include "clang/AST/ExternalASTSource.h"
 #include "llvm/ADT/DenseMap.h"
 
 #include "lldb/lldb-private.h"
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Core/ConstString.h"
 #include "lldb/Core/dwarf.h"
 #include "lldb/Core/Flags.h"
 #include "lldb/Core/RangeMap.h"
 #include "lldb/Core/UniqueCStringMap.h"
-#include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Expression/DWARFExpression.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/SymbolContext.h"
 
@@ -161,6 +158,10 @@ public:
     lldb_private::CompilerDeclContext
     GetDeclContextContainingUID (lldb::user_id_t uid) override;
 
+    void
+    ParseDeclsForContext (lldb_private::CompilerDeclContext decl_ctx) override;
+    
+
     uint32_t
     ResolveSymbolContext (const lldb_private::Address& so_addr,
                           uint32_t resolve_scope,
@@ -215,9 +216,6 @@ public:
     GetTypes (lldb_private::SymbolContextScope *sc_scope,
               uint32_t type_mask,
               lldb_private::TypeList &type_list) override;
-
-    lldb_private::ClangASTContext &
-    GetClangASTContext () override;
 
     lldb_private::TypeSystem *
     GetTypeSystemForLanguage (lldb::LanguageType language) override;
@@ -319,11 +317,14 @@ public:
     virtual lldb::CompUnitSP
     ParseCompileUnit (DWARFCompileUnit* dwarf_cu, uint32_t cu_idx);
 
+    virtual lldb_private::DWARFExpression::LocationListFormat
+    GetLocationListFormat() const;
+
 protected:
     typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb_private::Type *> DIEToTypePtr;
     typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb::VariableSP> DIEToVariableSP;
-    typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb::clang_type_t> DIEToClangType;
-    typedef llvm::DenseMap<lldb::clang_type_t, DIERef> ClangTypeToDIE;
+    typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb::opaque_compiler_type_t> DIEToClangType;
+    typedef llvm::DenseMap<lldb::opaque_compiler_type_t, DIERef> ClangTypeToDIE;
 
     enum
     {

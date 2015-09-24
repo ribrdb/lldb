@@ -18,6 +18,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/RegisterValue.h"
+#include "lldb/Core/Section.h"
 #include "lldb/Core/StreamString.h"
 #include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -150,17 +151,7 @@ class RegisterContextGo : public RegisterContextMemory
     DISALLOW_COPY_AND_ASSIGN(RegisterContextGo);
 };
 
-bool
-ModuleContainsGoRuntime(Module *module)
-{
-    const Symbol *symbol = module->FindFirstSymbolWithNameAndType(ConstString("runtime.allg"), lldb::eSymbolTypeAny);
-    if (symbol == nullptr)
-        return nullptr;
-    symbol = module->FindFirstSymbolWithNameAndType(ConstString("runtime.allglen"), lldb::eSymbolTypeAny);
-
-    return symbol != nullptr;
-}
-}
+}  // namespace
 
 struct OperatingSystemGo::Goroutine
 {
@@ -210,11 +201,16 @@ OperatingSystemGo::CreateInstance(Process *process, bool force)
         bool found_go_runtime = false;
         for (size_t i = 0; i < num_modules; ++i)
         {
-            Module *module_pointer = module_list.GetModulePointerAtIndexUnlocked(i);
-            if (ModuleContainsGoRuntime(module_pointer))
+            Module *module = module_list.GetModulePointerAtIndexUnlocked(i);
+            const SectionList *section_list = module->GetSectionList();
+            if (section_list)
             {
-                found_go_runtime = true;
-                break;
+                SectionSP section_sp(section_list->FindSectionByType(eSectionTypeGoSymtab, true));
+                if (section_sp)
+                {
+                    found_go_runtime = true;
+                    break;
+                }
             }
         }
         if (!found_go_runtime)
@@ -340,7 +336,7 @@ bool
 OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &real_thread_list,
                                     ThreadList &new_thread_list)
 {
-    new_thread_list.Update(real_thread_list);
+    new_thread_list = real_thread_list;
     Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
 
     if (!(m_allg_sp || Init(real_thread_list)) || (m_allg_sp && !m_allglen_sp) ||
@@ -389,7 +385,9 @@ OperatingSystemGo::UpdateThreadList(ThreadList &old_thread_list, ThreadList &rea
         if (memory_thread && IsOperatingSystemPluginThread(memory_thread) && memory_thread->IsValid())
         {
             memory_thread->ClearBackingThread();
-        } else {
+        }
+        else
+        {
             memory_thread.reset(new ThreadMemory(*m_process, goroutine.m_goid, nullptr, nullptr, goroutine.m_gobuf));
         }
         // Search for the backing thread if the goroutine is running.

@@ -16,9 +16,8 @@ class TestCppNsImport(TestBase):
         self.buildDsym()
         self.check()
 
-    # This test is expected to fail because DW_TAG_imported_declaration and DW_TAG_imported_module are not parsed in SymbolFileDWARF
-    @expectedFailureAll
     @dwarf_test
+    @expectedFailureGcc(None, ['>=', '4.9'])
     def test_with_dwarf_and_run_command(self):
         """Tests imported namespaces in C++."""
         self.buildDwarf()
@@ -82,11 +81,21 @@ class TestCppNsImport(TestBase):
         test_result = frame.EvaluateExpression("fun_var")
         self.assertTrue(test_result.IsValid() and test_result.GetValueAsSigned() == 9, "fun_var = 9")
 
+        test_result = frame.EvaluateExpression("Fun::fun_var")
+        self.assertTrue(test_result.IsValid() and test_result.GetValueAsSigned() == 0, "Fun::fun_var = 0")
+
         test_result = frame.EvaluateExpression("not_imported")
         self.assertTrue(test_result.IsValid() and test_result.GetValueAsSigned() == 35, "not_imported = 35")
 
+        # Currently there is no way to distinguish between "::imported" and "imported" in ClangExpressionDeclMap so this fails
+        #test_result = frame.EvaluateExpression("::imported")
+        #self.assertTrue(test_result.IsValid() and test_result.GetValueAsSigned() == 89, "::imported = 89")
+
+        test_result = frame.EvaluateExpression("Imported::imported")
+        self.assertTrue(test_result.IsValid() and test_result.GetValueAsSigned() == 99, "Imported::imported = 99")
+        
         test_result = frame.EvaluateExpression("imported")
-        self.assertTrue(test_result.IsValid() and test_result.GetValueAsSigned() == 99, "imported = 99")
+        self.assertTrue(test_result.IsValid() and test_result.GetError().Fail(), "imported is ambiguous")
 
         test_result = frame.EvaluateExpression("single")
         self.assertTrue(test_result.IsValid() and test_result.GetValueAsSigned() == 3, "single = 3")

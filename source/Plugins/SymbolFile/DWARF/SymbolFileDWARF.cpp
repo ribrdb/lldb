@@ -10,20 +10,6 @@
 #include "SymbolFileDWARF.h"
 
 // Other libraries and framework includes
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/Decl.h"
-#include "clang/AST/DeclGroup.h"
-#include "clang/AST/DeclObjC.h"
-#include "clang/AST/DeclTemplate.h"
-#include "clang/Basic/Builtins.h"
-#include "clang/Basic/IdentifierTable.h"
-#include "clang/Basic/LangOptions.h"
-#include "clang/Basic/SourceManager.h"
-#include "clang/Basic/TargetInfo.h"
-#include "clang/Basic/Specifiers.h"
-#include "clang/Sema/DeclSpec.h"
-
 #include "llvm/Support/Casting.h"
 
 #include "lldb/Core/ArchSpec.h"
@@ -48,12 +34,14 @@
 #include "lldb/Interpreter/OptionValueProperties.h"
 
 #include "lldb/Symbol/Block.h"
+#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/CompilerDecl.h"
 #include "lldb/Symbol/CompilerDeclContext.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolVendor.h"
+#include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Symbol/VariableList.h"
 
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
@@ -72,7 +60,6 @@
 #include "DWARFDeclContext.h"
 #include "DWARFDIECollection.h"
 #include "DWARFFormValue.h"
-#include "DWARFLocationList.h"
 #include "LogChannelDWARF.h"
 #include "SymbolFileDWARFDwo.h"
 #include "SymbolFileDWARFDebugMap.h"
@@ -496,15 +483,6 @@ SymbolFileDWARF::GetUniqueDWARFASTTypeMap ()
     return m_unique_ast_type_map;
 }
 
-ClangASTContext &
-SymbolFileDWARF::GetClangASTContext ()
-{
-    if (GetDebugMapSymfile ())
-        return m_debug_map_symfile->GetClangASTContext ();
-    else
-        return m_obj_file->GetModule()->GetClangASTContext();
-}
-
 TypeSystem *
 SymbolFileDWARF::GetTypeSystemForLanguage (LanguageType language)
 {
@@ -576,12 +554,6 @@ SymbolFileDWARF::InitializeObject()
         else
             m_apple_objc_ap.reset();
     }
-
-    // Set the symbol file to this file if we don't have a debug map symbol
-    // file as our main symbol file. This allows the clang ASTContext to complete
-    // types using this symbol file when it needs to complete classes and structures.
-    if (GetDebugMapSymfile () == nullptr)
-        GetClangASTContext().SetSymbolFile(this);
 }
 
 bool
@@ -1138,6 +1110,7 @@ struct ParseDWARFLineTableCallbackInfo
 {
     LineTable* line_table;
     std::unique_ptr<LineSequence> sequence_ap;
+    lldb::addr_t addr_mask;
 };
 
 //----------------------------------------------------------------------
@@ -1167,7 +1140,7 @@ ParseDWARFLineTableCallback(dw_offset_t offset, const DWARFDebugLine::State& sta
             assert(info->sequence_ap.get());
         }
         line_table->AppendLineEntryToSequence (info->sequence_ap.get(),
-                                               state.address,
+                                               state.address & info->addr_mask,
                                                state.line,
                                                state.column,
                                                state.file,
@@ -1207,6 +1180,28 @@ SymbolFileDWARF::ParseCompileUnitLineTable (const SymbolContext &sc)
                 {
                     ParseDWARFLineTableCallbackInfo info;
                     info.line_table = line_table_ap.get();
+
+                    /*
+                     * MIPS:
+                     * The SymbolContext may not have a valid target, thus we may not be able
+                     * to call Address::GetOpcodeLoadAddress() which would clear the bit #0
+                     * for MIPS. Use ArchSpec to clear the bit #0.
+                    */
+                    ArchSpec arch;
+                    GetObjectFile()->GetArchitecture(arch);
+                    switch (arch.GetMachine())
+                    {
+                    case llvm::Triple::mips:
+                    case llvm::Triple::mipsel:
+                    case llvm::Triple::mips64:
+                    case llvm::Triple::mips64el:
+                        info.addr_mask = ~((lldb::addr_t)1);
+                        break;
+                    default:
+                        info.addr_mask = ~((lldb::addr_t)0);
+                        break;
+                    }
+
                     lldb::offset_t offset = cu_line_offset;
                     DWARFDebugLine::ParseStatementTable(get_debug_line_data(), &offset, ParseDWARFLineTableCallback, &info);
                     if (m_debug_map_symfile)
@@ -1391,6 +1386,18 @@ SymbolFileDWARF::ClassOrStructIsVirtual (const DWARFDIE &parent_die)
         }
     }
     return false;
+}
+
+void
+SymbolFileDWARF::ParseDeclsForContext (CompilerDeclContext decl_ctx)
+{
+    TypeSystem *type_system = decl_ctx.GetTypeSystem();
+    DWARFASTParser *ast_parser = type_system->GetDWARFParser();
+    std::vector<DWARFDIE> decl_ctx_die_list = ast_parser->GetDIEForDeclContext(decl_ctx);
+
+    for (DWARFDIE decl_ctx_die : decl_ctx_die_list)
+        for (DWARFDIE decl = decl_ctx_die.GetFirstChild(); decl; decl = decl.GetSibling())
+            ast_parser->GetDeclForUIDFromDWARF(decl);
 }
 
 CompilerDecl
@@ -2087,7 +2094,9 @@ SymbolFileDWARF::DeclContextMatchesThisSymbolFile (const lldb_private::CompilerD
         return true;
     }
 
-    if ((TypeSystem *)&GetClangASTContext() == decl_ctx->GetTypeSystem())
+    TypeSystem *decl_ctx_type_system = decl_ctx->GetTypeSystem();
+    TypeSystem *type_system = GetTypeSystemForLanguage(decl_ctx_type_system->GetMinimumLanguage(nullptr));
+    if (decl_ctx_type_system == type_system)
         return true;    // The type systems match, return true
     
     // The namespace AST was valid, and it does not match...
@@ -3874,10 +3883,10 @@ SymbolFileDWARF::ParseVariableDIE
                             }
                             else
                             {
-                                const DWARFDataExtractor&    debug_loc_data = get_debug_loc_data();
+                                const DWARFDataExtractor& debug_loc_data = get_debug_loc_data();
                                 const dw_offset_t debug_loc_offset = form_value.Unsigned();
 
-                                size_t loc_list_length = DWARFLocationList::Size(debug_loc_data, debug_loc_offset);
+                                size_t loc_list_length = DWARFExpression::LocationListSize(die.GetCU(), debug_loc_data, debug_loc_offset);
                                 if (loc_list_length > 0)
                                 {
                                     location.CopyOpcodeData(module, debug_loc_data, debug_loc_offset, loc_list_length);
@@ -4338,4 +4347,10 @@ SymbolFileDWARF::GetDebugMapSymfile ()
         }
     }
     return m_debug_map_symfile;
+}
+
+DWARFExpression::LocationListFormat
+SymbolFileDWARF::GetLocationListFormat() const
+{
+    return DWARFExpression::RegularLocationList;
 }
