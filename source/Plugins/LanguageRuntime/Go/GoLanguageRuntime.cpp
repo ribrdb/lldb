@@ -41,11 +41,13 @@ GoLanguageRuntime::CouldHaveDynamicValue (ValueObject &in_value)
 
 bool
 GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
-                                                     lldb::DynamicValueType use_dynamic,
-                                                     TypeAndOrName &class_type_or_name,
-                                                     Address &dynamic_address)
+                                             lldb::DynamicValueType use_dynamic,
+                                             TypeAndOrName &class_type_or_name,
+                                             Address &dynamic_address,
+                                             Value::ValueType &value_type)
 {
     class_type_or_name.Clear();
+    value_type = Value::ValueType::eValueTypeScalar;
     if (CouldHaveDynamicValue (in_value))
     {
         ConstString tab_cs("tab");
@@ -119,19 +121,17 @@ GoLanguageRuntime::GetDynamicTypeAndAddress (ValueObject &in_value,
         } else {
             class_type_or_name.SetName(const_typename);
         }
-        ValueObjectSP size_sp = type->GetChildMemberWithName(size_cs, true);
-        if (!size_sp)
+        ValueObjectSP data = iface->GetChildMemberWithName(data_cs, true);
+        if (!data)
             return false;
-        // size is a uintptr
-        if (size_sp->GetValueAsUnsigned(0) > size_sp->GetByteSize())
+        if (GoASTContext::IsDirectIface(iface->GetCompilerType()))
         {
-            if (class_type_or_name.HasTypeSP())
-            {
-                class_type_or_name.SetCompilerType(class_type_or_name.GetTypeSP()->GetLayoutCompilerType().GetPointeeType());
-            }
+            dynamic_address.SetLoadAddress(data->GetAddressOf(), target);
         }
-        dynamic_address.SetLoadAddress(iface->GetChildMemberWithName(data_cs, true)->GetAddressOf(), target);
-
+        else
+        {
+            dynamic_address.SetLoadAddress(data->GetValueAsUnsigned(0), target);
+        }
         return true;
     }
     return false;

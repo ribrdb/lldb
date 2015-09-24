@@ -2937,22 +2937,6 @@ PluginManager::CreateSettingForJITLoaderPlugin (Debugger &debugger,
                                   properties_sp,
                                   description,
                                   is_global_property);
-    if (properties_sp)
-    {
-        lldb::OptionValuePropertiesSP plugin_type_properties_sp (GetDebuggerPropertyForPlugins (debugger,
-                                                                                                ConstString(kSymbolFilePluginName),
-                                                                                                ConstString("Settings for symbol file plug-ins"),
-                                                                                                true));
-        if (plugin_type_properties_sp)
-        {
-            plugin_type_properties_sp->AppendProperty (properties_sp->GetName(),
-                                                       description,
-                                                       is_global_property,
-                                                       properties_sp);
-            return true;
-        }
-    }
-    return false;
 }
 
 static const char *kOperatingSystemPluginName("os");
