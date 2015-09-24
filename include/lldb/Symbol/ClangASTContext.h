@@ -55,7 +55,28 @@ public:
     ClangASTContext (const char *triple = NULL);
 
     ~ClangASTContext() override;
-    
+
+    //------------------------------------------------------------------
+    // PluginInterface functions
+    //------------------------------------------------------------------
+    ConstString
+    GetPluginName() override;
+
+    uint32_t
+    GetPluginVersion() override;
+
+    static ConstString
+    GetPluginNameStatic ();
+
+    static lldb::TypeSystemSP
+    CreateInstance (lldb::LanguageType language, const lldb_private::ArchSpec &arch);
+
+    static void
+    Initialize ();
+
+    static void
+    Terminate ();
+
     static ClangASTContext*
     GetASTContext (clang::ASTContext* ast_ctx);
 
@@ -153,7 +174,7 @@ public:
     //------------------------------------------------------------------
     CompilerType
     GetBuiltinTypeForEncodingAndBitSize (lldb::Encoding encoding,
-                                          uint32_t bit_size);
+                                         size_t bit_size) override;
 
     static CompilerType
     GetBuiltinTypeForEncodingAndBitSize (clang::ASTContext *ast,
@@ -448,13 +469,7 @@ public:
     //------------------------------------------------------------------
     // Integer type functions
     //------------------------------------------------------------------
-    
-    CompilerType
-    GetIntTypeFromBitSize (size_t bit_size, bool is_signed) override
-    {
-        return GetIntTypeFromBitSize (getASTContext(), bit_size, is_signed);
-    }
-    
+        
     static CompilerType
     GetIntTypeFromBitSize (clang::ASTContext *ast,
                            size_t bit_size, bool is_signed);
@@ -471,12 +486,6 @@ public:
     //------------------------------------------------------------------
     // Floating point functions
     //------------------------------------------------------------------
-    
-    CompilerType
-    GetFloatTypeFromBitSize (size_t bit_size) override
-    {
-        return GetFloatTypeFromBitSize (getASTContext(), bit_size);
-    }
 
     static CompilerType
     GetFloatTypeFromBitSize (clang::ASTContext *ast,
@@ -507,8 +516,23 @@ public:
                      llvm::DenseMap<const clang::CXXRecordDecl *, clang::CharUnits> &vbase_offsets);
 
     //----------------------------------------------------------------------
+    // CompilerDecl override functions
+    //----------------------------------------------------------------------
+    lldb::VariableSP
+    DeclGetVariable (void *opaque_decl) override;
+
+    void
+    DeclLinkToObject (void *opaque_decl, std::shared_ptr<void> object) override;
+    
+    ConstString
+    DeclGetName (void *opaque_decl) override;
+
+    //----------------------------------------------------------------------
     // CompilerDeclContext override functions
     //----------------------------------------------------------------------
+    
+    std::vector<void *>
+    DeclContextFindDeclByName (void *opaque_decl_ctx, ConstString name) override;
 
     bool
     DeclContextIsStructUnionOrClass (void *opaque_decl_ctx) override;
@@ -658,7 +682,10 @@ public:
     
     bool
     IsVoidType (void *type) override;
-    
+
+    bool
+    SupportsLanguage (lldb::LanguageType language) override;
+
     static bool
     GetCXXClassName (const CompilerType& type, std::string &class_name);
     
@@ -695,15 +722,6 @@ public:
     // Creating related types
     //----------------------------------------------------------------------
     
-    static CompilerType
-    AddConstModifier (const CompilerType& type);
-    
-    static CompilerType
-    AddRestrictModifier (const CompilerType& type);
-    
-    static CompilerType
-    AddVolatileModifier (const CompilerType& type);
-    
     // Using the current type, create a new typedef to that type using "typedef_name"
     // as the name and "decl_ctx" as the decl context.
     static CompilerType
@@ -737,9 +755,6 @@ public:
     TypeMemberFunctionImpl
     GetMemberFunctionAtIndex (void *type, size_t idx) override;
     
-    static CompilerType
-    GetLValueReferenceType (const CompilerType& type);
-    
     CompilerType
     GetNonReferenceType (void *type) override;
     
@@ -748,10 +763,25 @@ public:
     
     CompilerType
     GetPointerType (void *type) override;
-    
-    static CompilerType
-    GetRValueReferenceType (const CompilerType& type);
-    
+
+    CompilerType
+    GetLValueReferenceType (void *type) override;
+
+    CompilerType
+    GetRValueReferenceType (void *type) override;
+
+    CompilerType
+    AddConstModifier (void *type) override;
+
+    CompilerType
+    AddVolatileModifier (void *type) override;
+
+    CompilerType
+    AddRestrictModifier (void *type) override;
+
+    CompilerType
+    CreateTypedef (void *type, const char *name, const CompilerDeclContext &decl_ctx) override;
+
     // If the current object represents a typedef type, get the underlying type
     CompilerType
     GetTypedefedType (void *type) override;
@@ -789,7 +819,10 @@ public:
     
     uint32_t
     GetNumChildren (void *type, bool omit_empty_base_classes) override;
-    
+
+    CompilerType
+    GetBuiltinTypeByName (const ConstString &name) override;
+
     lldb::BasicType
     GetBasicTypeEnumeration (void *type) override;
     
@@ -830,20 +863,20 @@ public:
     GetNumPointeeChildren (clang::QualType type);
     
     CompilerType
-    GetChildClangTypeAtIndex (void *type,
-                              ExecutionContext *exe_ctx,
-                              size_t idx,
-                              bool transparent_pointers,
-                              bool omit_empty_base_classes,
-                              bool ignore_array_bounds,
-                              std::string& child_name,
-                              uint32_t &child_byte_size,
-                              int32_t &child_byte_offset,
-                              uint32_t &child_bitfield_bit_size,
-                              uint32_t &child_bitfield_bit_offset,
-                              bool &child_is_base_class,
-                              bool &child_is_deref_of_parent,
-                              ValueObject *valobj) override;
+    GetChildCompilerTypeAtIndex (void *type,
+                                 ExecutionContext *exe_ctx,
+                                 size_t idx,
+                                 bool transparent_pointers,
+                                 bool omit_empty_base_classes,
+                                 bool ignore_array_bounds,
+                                 std::string& child_name,
+                                 uint32_t &child_byte_size,
+                                 int32_t &child_byte_offset,
+                                 uint32_t &child_bitfield_bit_size,
+                                 uint32_t &child_bitfield_bit_offset,
+                                 bool &child_is_base_class,
+                                 bool &child_is_deref_of_parent,
+                                 ValueObject *valobj) override;
     
     // Lookup a child given a name. This function will match base class names
     // and member member names in "clang_type" only, not descendants.
@@ -1070,6 +1103,17 @@ public:
                             int tag_decl_kind,
                             const ClangASTContext::TemplateParameterInfos &template_param_infos);
 
+    clang::BlockDecl *
+    CreateBlockDeclaration (clang::DeclContext *ctx);
+
+    clang::UsingDirectiveDecl *
+    CreateUsingDirectiveDeclaration (clang::DeclContext *decl_ctx, clang::NamespaceDecl *ns_decl);
+
+    clang::UsingDecl *
+    CreateUsingDeclaration (clang::DeclContext *current_decl_ctx, clang::NamedDecl *target);
+
+    clang::VarDecl *
+    CreateVariableDeclaration (clang::DeclContext *decl_context, const char *name, clang::QualType type);
 protected:
     static clang::QualType
     GetQualType (void *type)
@@ -1109,6 +1153,8 @@ protected:
     void *                                          m_callback_baton;
     uint32_t                                        m_pointer_byte_size;
     bool                                            m_ast_owned;
+    bool                                            m_can_evaluate_expressions;
+    std::map<void *, std::shared_ptr<void>>         m_decl_objects;
 
 private:
     //------------------------------------------------------------------
@@ -1116,6 +1162,31 @@ private:
     //------------------------------------------------------------------
     ClangASTContext(const ClangASTContext&);
     const ClangASTContext& operator=(const ClangASTContext&);
+};
+
+class ClangASTContextForExpressions : public ClangASTContext
+{
+public:
+    ClangASTContextForExpressions (Target &target);
+    
+    virtual ~ClangASTContextForExpressions () {}
+    
+    UserExpression *
+    GetUserExpression (const char *expr,
+                       const char *expr_prefix,
+                       lldb::LanguageType language,
+                       Expression::ResultType desired_type) override;
+    
+    FunctionCaller *
+    GetFunctionCaller (const CompilerType &return_type,
+                       const Address& function_address,
+                       const ValueList &arg_value_list,
+                       const char *name) override;
+    
+    UtilityFunction *
+    GetUtilityFunction(const char *text, const char *name) override;
+private:
+    lldb::TargetWP m_target_wp;
 };
 
 } // namespace lldb_private

@@ -100,9 +100,10 @@ public:
     GetDynamicTypeAndAddress (ValueObject &in_value, 
                               lldb::DynamicValueType use_dynamic, 
                               TypeAndOrName &class_type_or_name, 
-                              Address &address);
+                              Address &address,
+                              Value::ValueType &value_type);
 
-    virtual ClangUtilityFunction *
+    virtual UtilityFunction *
     CreateObjectChecker (const char *);
 
     //------------------------------------------------------------------

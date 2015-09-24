@@ -15,7 +15,6 @@
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Expression/ASTDumper.h"
 #include "lldb/Expression/ClangASTSource.h"
-#include "lldb/Expression/ClangExpression.h"
 #include "lldb/Expression/ClangModulesDeclVendor.h"
 #include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/CompilerDeclContext.h"
@@ -402,7 +401,7 @@ ClangASTSource::GetCompleteObjCInterface (clang::ObjCInterfaceDecl *interface_de
         return NULL;
 
     TypeFromUser complete_type = TypeFromUser(complete_type_sp->GetFullCompilerType ());
-    lldb::clang_type_t complete_opaque_type = complete_type.GetOpaqueQualType();
+    lldb::opaque_compiler_type_t complete_opaque_type = complete_type.GetOpaqueQualType();
 
     if (!complete_opaque_type)
         return NULL;
@@ -515,7 +514,7 @@ ClangASTSource::FindExternalLexicalDecls (const DeclContext *decl_context,
                 else
                     log->Printf("  FELD[%d] Adding lexical %sDecl %s", current_id, decl->getDeclKindName(), ast_dumper.GetCString());
             }
-
+            
             Decl *copied_decl = m_ast_importer->CopyDecl(m_ast_context, original_ctx, decl);
 
             if (!copied_decl)

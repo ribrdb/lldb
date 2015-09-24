@@ -419,6 +419,22 @@ public:
     static InstrumentationRuntimeCreateInstance
     GetInstrumentationRuntimeCreateCallbackForPluginName (const ConstString &name);
 
+    //------------------------------------------------------------------
+    // TypeSystem
+    //------------------------------------------------------------------
+    static bool
+    RegisterPlugin (const ConstString &name,
+                    const char *description,
+                    TypeSystemCreateInstance create_callback);
+
+    static bool
+    UnregisterPlugin (TypeSystemCreateInstance create_callback);
+
+    static TypeSystemCreateInstance
+    GetTypeSystemCreateCallbackAtIndex (uint32_t idx);
+
+    static TypeSystemCreateInstance
+    GetTypeSystemCreateCallbackForPluginName (const ConstString &name);
     
     //------------------------------------------------------------------
     // Some plug-ins might register a DebuggerInitializeCallback
@@ -469,6 +485,16 @@ public:
                                       const lldb::OptionValuePropertiesSP &properties_sp,
                                       const ConstString &description,
                                       bool is_global_property);
+
+    static lldb::OptionValuePropertiesSP
+    GetSettingForJITLoaderPlugin (Debugger &debugger,
+                                   const ConstString &setting_name);
+
+    static bool
+    CreateSettingForJITLoaderPlugin (Debugger &debugger,
+                                     const lldb::OptionValuePropertiesSP &properties_sp,
+                                     const ConstString &description,
+                                     bool is_global_property);
 
     static lldb::OptionValuePropertiesSP GetSettingForOperatingSystemPlugin(Debugger &debugger,
                                                                             const ConstString &setting_name);

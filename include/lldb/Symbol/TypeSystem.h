@@ -13,10 +13,10 @@
 #include <functional>
 #include <string>
 #include "lldb/lldb-private.h"
-#include "lldb/Core/ClangForward.h"
+#include "lldb/Core/PluginInterface.h"
+#include "lldb/Expression/Expression.h"
 #include "lldb/Symbol/CompilerDeclContext.h"
-#include "clang/AST/CharUnits.h"
-#include "clang/AST/Type.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/Support/Casting.h"
 
 class DWARFDIE;
@@ -27,7 +27,7 @@ namespace lldb_private {
 //----------------------------------------------------------------------
 // Interface for representing the Type Systems in different languages.
 //----------------------------------------------------------------------
-class TypeSystem
+class TypeSystem : public PluginInterface
 {
 public:
     //----------------------------------------------------------------------
@@ -70,6 +70,9 @@ public:
 
     LLVMCastKind getKind() const { return m_kind; }
 
+    static lldb::TypeSystemSP
+    CreateInstance (lldb::LanguageType language, const lldb_private::ArchSpec &arch);
+
     //----------------------------------------------------------------------
     // Constructors and Destructors
     //----------------------------------------------------------------------
@@ -97,8 +100,23 @@ public:
     }
 
     //----------------------------------------------------------------------
+    // CompilerDecl functions
+    //----------------------------------------------------------------------
+    virtual ConstString
+    DeclGetName (void *opaque_decl) = 0;
+
+    virtual lldb::VariableSP
+    DeclGetVariable (void *opaque_decl) = 0;
+
+    virtual void
+    DeclLinkToObject (void *opaque_decl, std::shared_ptr<void> object) = 0;
+
+    //----------------------------------------------------------------------
     // CompilerDeclContext functions
     //----------------------------------------------------------------------
+    
+    virtual std::vector<void *>
+    DeclContextFindDeclByName (void *opaque_decl_ctx, ConstString name) = 0;
 
     virtual bool
     DeclContextIsStructUnionOrClass (void *opaque_decl_ctx) = 0;
@@ -166,7 +184,11 @@ public:
     
     virtual bool
     IsVoidType (void *type) = 0;
-    
+
+    // TypeSystems can support more than one language
+    virtual bool
+    SupportsLanguage (lldb::LanguageType language) = 0;
+
     //----------------------------------------------------------------------
     // Type Completion
     //----------------------------------------------------------------------
@@ -229,7 +251,25 @@ public:
     
     virtual CompilerType
     GetPointerType (void *type) = 0;
-    
+
+    virtual CompilerType
+    GetLValueReferenceType (void *type);
+
+    virtual CompilerType
+    GetRValueReferenceType (void *type);
+
+    virtual CompilerType
+    AddConstModifier (void *type);
+
+    virtual CompilerType
+    AddVolatileModifier (void *type);
+
+    virtual CompilerType
+    AddRestrictModifier (void *type);
+
+    virtual CompilerType
+    CreateTypedef (void *type, const char *name, const CompilerDeclContext &decl_ctx);
+
     //----------------------------------------------------------------------
     // Exploring the type
     //----------------------------------------------------------------------
@@ -245,7 +285,10 @@ public:
     
     virtual uint32_t
     GetNumChildren (void *type, bool omit_empty_base_classes) = 0;
-    
+
+    virtual CompilerType
+    GetBuiltinTypeByName (const ConstString &name);
+
     virtual lldb::BasicType
     GetBasicTypeEnumeration (void *type) = 0;
 
@@ -282,20 +325,20 @@ public:
                                 uint32_t *bit_offset_ptr) = 0;
 
     virtual CompilerType
-    GetChildClangTypeAtIndex (void *type,
-                              ExecutionContext *exe_ctx,
-                              size_t idx,
-                              bool transparent_pointers,
-                              bool omit_empty_base_classes,
-                              bool ignore_array_bounds,
-                              std::string& child_name,
-                              uint32_t &child_byte_size,
-                              int32_t &child_byte_offset,
-                              uint32_t &child_bitfield_bit_size,
-                              uint32_t &child_bitfield_bit_offset,
-                              bool &child_is_base_class,
-                              bool &child_is_deref_of_parent,
-                              ValueObject *valobj) = 0;
+    GetChildCompilerTypeAtIndex (void *type,
+                                 ExecutionContext *exe_ctx,
+                                 size_t idx,
+                                 bool transparent_pointers,
+                                 bool omit_empty_base_classes,
+                                 bool ignore_array_bounds,
+                                 std::string& child_name,
+                                 uint32_t &child_byte_size,
+                                 int32_t &child_byte_offset,
+                                 uint32_t &child_bitfield_bit_size,
+                                 uint32_t &child_bitfield_bit_offset,
+                                 bool &child_is_base_class,
+                                 bool &child_is_deref_of_parent,
+                                 ValueObject *valobj) = 0;
     
     // Lookup a child given a name. This function will match base class names
     // and member member names in "clang_type" only, not descendants.
@@ -401,10 +444,8 @@ public:
     GetBasicTypeFromAST (lldb::BasicType basic_type) = 0;
     
     virtual CompilerType
-    GetIntTypeFromBitSize (size_t bit_size, bool is_signed) = 0;
-    
-    virtual CompilerType
-    GetFloatTypeFromBitSize (size_t bit_size) = 0;
+    GetBuiltinTypeForEncodingAndBitSize(lldb::Encoding encoding,
+                                        size_t bit_size) = 0;
 
     virtual bool
     IsBeingDefined (void *type) = 0;
@@ -438,6 +479,31 @@ public:
     
     virtual bool
     IsReferenceType (void *type, CompilerType *pointee_type, bool* is_rvalue) = 0;
+    
+    virtual UserExpression *
+    GetUserExpression (const char *expr,
+                       const char *expr_prefix,
+                       lldb::LanguageType language,
+                       Expression::ResultType desired_type)
+    {
+        return nullptr;
+    }
+    
+    virtual FunctionCaller *
+    GetFunctionCaller (const CompilerType &return_type,
+                       const Address& function_address,
+                       const ValueList &arg_value_list,
+                       const char *name)
+    {
+        return nullptr;
+    }
+    
+    virtual UtilityFunction *
+    GetUtilityFunction(const char *text, const char *name)
+    {
+        return nullptr;
+    }
+    
 protected:
     const LLVMCastKind m_kind; // Support for llvm casting
     SymbolFile *m_sym_file;

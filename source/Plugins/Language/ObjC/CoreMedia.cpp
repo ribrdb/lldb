@@ -25,13 +25,13 @@ lldb_private::formatters::CMTimeSummaryProvider (ValueObject& valobj, Stream& st
     if (!type.IsValid())
         return false;
 
-    TypeSystem *type_system = valobj.GetExecutionContextRef().GetTargetSP()->GetTypeSystemForLanguage(lldb::eLanguageTypeC);
+    TypeSystem *type_system = valobj.GetExecutionContextRef().GetTargetSP()->GetScratchTypeSystemForLanguage(lldb::eLanguageTypeC);
     if (!type_system)
         return false;
     
     // fetch children by offset to compensate for potential lack of debug info
-    auto int64_ty = type_system->GetIntTypeFromBitSize(64, true);
-    auto int32_ty = type_system->GetIntTypeFromBitSize(32, true);
+    auto int64_ty = type_system->GetBuiltinTypeForEncodingAndBitSize(eEncodingSint, 64);
+    auto int32_ty = type_system->GetBuiltinTypeForEncodingAndBitSize(eEncodingSint, 32);
     
     auto value_sp(valobj.GetSyntheticChildAtOffset(0, int64_ty, true));
     auto timescale_sp(valobj.GetSyntheticChildAtOffset(8, int32_ty, true));

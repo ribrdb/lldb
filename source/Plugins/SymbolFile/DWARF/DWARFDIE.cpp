@@ -18,12 +18,11 @@
 #include "DWARFDeclContext.h"
 #include "DWARFDIECollection.h"
 #include "DWARFFormValue.h"
-#include "DWARFLocationDescription.h"
-#include "DWARFLocationList.h"
 #include "SymbolFileDWARF.h"
 
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/ObjectFile.h"
+#include "lldb/Symbol/TypeSystem.h"
 
 DIERef
 DWARFDIE::GetDIERef() const

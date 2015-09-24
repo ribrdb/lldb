@@ -28,6 +28,7 @@
 #include "lldb/Expression/Materializer.h"
 #include "lldb/Host/Endian.h"
 #include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/CompilerDecl.h"
 #include "lldb/Symbol/CompilerDeclContext.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/Function.h"
@@ -1035,6 +1036,9 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
     // doesn't start with our phony prefix of '$'
     Target *target = m_parser_vars->m_exe_ctx.GetTargetPtr();
     StackFrame *frame = m_parser_vars->m_exe_ctx.GetFramePtr();
+    SymbolContext sym_ctx;
+    if (frame != nullptr)
+        sym_ctx = frame->GetSymbolContext(lldb::eSymbolContextFunction|lldb::eSymbolContextBlock);
     if (name_unique_cstr[0] == '$' && !namespace_decl)
     {
         static ConstString g_lldb_class_name ("$__lldb_class");
@@ -1046,7 +1050,6 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
             if (frame == NULL)
                 return;
 
-            SymbolContext sym_ctx = frame->GetSymbolContext(lldb::eSymbolContextFunction|lldb::eSymbolContextBlock);
 
             // Find the block that defines the function represented by "sym_ctx"
             Block *function_block = sym_ctx.GetFunctionBlock();
@@ -1348,28 +1351,37 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
     {
         ValueObjectSP valobj;
         VariableSP var;
-        Error err;
 
         if (frame && !namespace_decl)
         {
-            valobj = frame->GetValueForVariableExpressionPath(name_unique_cstr,
-                                                              eNoDynamicValues,
-                                                              StackFrame::eExpressionPathOptionCheckPtrVsMember |
-                                                              StackFrame::eExpressionPathOptionsNoFragileObjcIvar |
-                                                              StackFrame::eExpressionPathOptionsNoSyntheticChildren |
-                                                              StackFrame::eExpressionPathOptionsNoSyntheticArrayRange,
-                                                              var,
-                                                              err);
+            CompilerDeclContext compiler_decl_context = sym_ctx.block != nullptr ? sym_ctx.block->GetDeclContext() : CompilerDeclContext();
 
-            // If we found a variable in scope, no need to pull up function names
-            if (err.Success() && var)
+            if (compiler_decl_context)
             {
-                AddOneVariable(context, var, valobj, current_id);
-                context.m_found.variable = true;
-                return;
+                // Make sure that the variables are parsed so that we have the declarations
+                VariableListSP vars = frame->GetInScopeVariableList(true);
+                for (size_t i = 0; i < vars->GetSize(); i++)
+                    vars->GetVariableAtIndex(i)->GetDecl();
+
+                // Search for declarations matching the name
+                std::vector<CompilerDecl> found_decls = compiler_decl_context.FindDeclByName(name);
+                
+                bool variable_found = false;
+                for (CompilerDecl decl : found_decls)
+                {
+                    var = decl.GetAsVariable();
+                    if (var)
+                    {
+                        variable_found = true;
+                        valobj = ValueObjectVariable::Create(frame, var);
+                        AddOneVariable(context, var, valobj, current_id);
+                        context.m_found.variable = true;
+                    }
+                }
+                if (variable_found)
+                    return;
             }
         }
-
         if (target)
         {
             var = FindGlobalVariable (*target,
@@ -1602,11 +1614,11 @@ ClangExpressionDeclMap::FindExternalVisibleDecls (NameSearchContext &context,
     }
 }
 
-//static clang_type_t
+//static opaque_compiler_type_t
 //MaybePromoteToBlockPointerType
 //(
 //    ASTContext *ast_context,
-//    clang_type_t candidate_type
+//    opaque_compiler_type_t candidate_type
 //)
 //{
 //    if (!candidate_type)
@@ -1666,7 +1678,17 @@ ClangExpressionDeclMap::GetVariableValue (VariableSP &var,
         return false;
     }
 
-    ASTContext *ast = var_type->GetClangASTContext().getASTContext();
+    ClangASTContext *clang_ast = llvm::dyn_cast_or_null<ClangASTContext>(var_type->GetForwardCompilerType().GetTypeSystem());
+
+    if (!clang_ast)
+    {
+        if (log)
+            log->PutCString("Skipped a definition because it has no Clang AST");
+        return false;
+    }
+
+
+    ASTContext *ast = clang_ast->getASTContext();
 
     if (!ast)
     {
@@ -1773,7 +1795,7 @@ ClangExpressionDeclMap::AddOneVariable (NameSearchContext &context, VariableSP v
     if (is_reference)
         var_decl = context.AddVarDecl(pt);
     else
-        var_decl = context.AddVarDecl(ClangASTContext::GetLValueReferenceType(pt));
+        var_decl = context.AddVarDecl(pt.GetLValueReferenceType());
 
     std::string decl_name(context.m_decl_name.getAsString());
     ConstString entity_name(decl_name.c_str());
@@ -1817,7 +1839,7 @@ ClangExpressionDeclMap::AddOneVariable(NameSearchContext &context,
         return;
     }
 
-    NamedDecl *var_decl = context.AddVarDecl(ClangASTContext::GetLValueReferenceType(parser_type));
+    NamedDecl *var_decl = context.AddVarDecl(parser_type.GetLValueReferenceType());
 
     llvm::cast<ClangExpressionVariable>(pvar_sp.get())->EnableParserVars(GetParserID());
     ClangExpressionVariable::ParserVars *parser_vars = llvm::cast<ClangExpressionVariable>(pvar_sp.get())->GetParserVars(GetParserID());
@@ -1849,8 +1871,8 @@ ClangExpressionDeclMap::AddOneGenericVariable(NameSearchContext &context,
 
     ASTContext *scratch_ast_context = target->GetScratchClangASTContext()->getASTContext();
 
-    TypeFromUser user_type (ClangASTContext::GetLValueReferenceType(ClangASTContext::GetBasicType(scratch_ast_context, eBasicTypeVoid).GetPointerType()));
-    TypeFromParser parser_type (ClangASTContext::GetLValueReferenceType(ClangASTContext::GetBasicType(m_ast_context, eBasicTypeVoid).GetPointerType()));
+    TypeFromUser user_type (ClangASTContext::GetBasicType(scratch_ast_context, eBasicTypeVoid).GetPointerType().GetLValueReferenceType());
+    TypeFromParser parser_type (ClangASTContext::GetBasicType(m_ast_context, eBasicTypeVoid).GetPointerType().GetLValueReferenceType());
     NamedDecl *var_decl = context.AddVarDecl(parser_type);
 
     std::string decl_name(context.m_decl_name.getAsString());
@@ -1924,7 +1946,7 @@ ClangExpressionDeclMap::ResolveUnknownTypes()
             QualType var_type = var_decl->getType();
             TypeFromParser parser_type(var_type.getAsOpaquePtr(), ClangASTContext::GetASTContext(&var_decl->getASTContext()));
 
-            lldb::clang_type_t copied_type = m_ast_importer->CopyType(scratch_ast_context->getASTContext(), &var_decl->getASTContext(), var_type.getAsOpaquePtr());
+            lldb::opaque_compiler_type_t copied_type = m_ast_importer->CopyType(scratch_ast_context->getASTContext(), &var_decl->getASTContext(), var_type.getAsOpaquePtr());
 
             if (!copied_type)
             {

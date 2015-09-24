@@ -32,6 +32,8 @@ ulimit -c unlimited
 echo core.%p | sudo tee /proc/sys/kernel/core_pattern
 """
 
+import asyncore
+import distutils.version
 import fnmatch
 import multiprocessing
 import multiprocessing.pool
@@ -43,10 +45,9 @@ import signal
 import subprocess
 import sys
 import threading
-
+import test_results
+import dotest_channels
 import dotest_args
-
-from optparse import OptionParser
 
 
 def get_timeout_command():
@@ -75,9 +76,17 @@ total_tests = None
 test_name_len = None
 dotest_options = None
 output_on_success = False
+RESULTS_FORMATTER = None
+RUNNER_PROCESS_ASYNC_MAP = None
+RESULTS_LISTENER_CHANNEL = None
+
+"""Contains an optional function pointer that can return the worker index
+   for the given thread/process calling it.  Returns a 0-based index."""
+GET_WORKER_INDEX = None
 
 
-def setup_global_variables(lock, counter, total, name_len, options):
+def setup_global_variables(
+        lock, counter, total, name_len, options, worker_index_map):
     global output_lock, test_counter, total_tests, test_name_len
     global dotest_options
     output_lock = lock
@@ -86,24 +95,42 @@ def setup_global_variables(lock, counter, total, name_len, options):
     test_name_len = name_len
     dotest_options = options
 
+    if worker_index_map is not None:
+        # We'll use the output lock for this to avoid sharing another lock.
+        # This won't be used much.
+        index_lock = lock
+
+        def get_worker_index_use_pid():
+            """Returns a 0-based, process-unique index for the worker."""
+            pid = os.getpid()
+            with index_lock:
+                if pid not in worker_index_map:
+                    worker_index_map[pid] = len(worker_index_map)
+                return worker_index_map[pid]
+
+        global GET_WORKER_INDEX
+        GET_WORKER_INDEX = get_worker_index_use_pid
+
 
 def report_test_failure(name, command, output):
     global output_lock
     with output_lock:
-        print >> sys.stderr
-        print >> sys.stderr, output
-        print >> sys.stderr, "[%s FAILED]" % name
-        print >> sys.stderr, "Command invoked: %s" % ' '.join(command)
+        if not (RESULTS_FORMATTER and RESULTS_FORMATTER.is_using_terminal()):
+            print >> sys.stderr
+            print >> sys.stderr, output
+            print >> sys.stderr, "[%s FAILED]" % name
+            print >> sys.stderr, "Command invoked: %s" % ' '.join(command)
         update_progress(name)
 
 
 def report_test_pass(name, output):
     global output_lock, output_on_success
     with output_lock:
-        if output_on_success:
-            print >> sys.stderr
-            print >> sys.stderr, output
-            print >> sys.stderr, "[%s PASSED]" % name
+        if not (RESULTS_FORMATTER and RESULTS_FORMATTER.is_using_terminal()):
+            if output_on_success:
+                print >> sys.stderr
+                print >> sys.stderr, output
+                print >> sys.stderr, "[%s PASSED]" % name
         update_progress(name)
 
 
@@ -111,10 +138,11 @@ def update_progress(test_name=""):
     global output_lock, test_counter, total_tests, test_name_len
     with output_lock:
         counter_len = len(str(total_tests))
-        sys.stderr.write(
-            "\r%*d out of %d test suites processed - %-*s" %
-            (counter_len, test_counter.value, total_tests,
-             test_name_len.value, test_name))
+        if not (RESULTS_FORMATTER and RESULTS_FORMATTER.is_using_terminal()):
+            sys.stderr.write(
+                "\r%*d out of %d test suites processed - %-*s" %
+                (counter_len, test_counter.value, total_tests,
+                 test_name_len.value, test_name))
         if len(test_name) > test_name_len.value:
             test_name_len.value = len(test_name)
         test_counter.value += 1
@@ -147,12 +175,28 @@ def parse_test_results(output):
     return passes, failures, unexpected_successes
 
 
+def create_new_process_group():
+    """Creates a new process group for the process."""
+    os.setpgid(os.getpid(), os.getpid())
+
+
 def call_with_timeout(command, timeout, name, inferior_pid_events):
-    """Run command with a timeout if possible."""
-    """-s QUIT will create a coredump if they are enabled on your system"""
+    """Run command with a timeout if possible.
+    -s QUIT will create a coredump if they are enabled on your system
+    """
     process = None
     if timeout_command and timeout != "0":
         command = [timeout_command, '-s', 'QUIT', timeout] + command
+
+    if GET_WORKER_INDEX is not None:
+        try:
+            worker_index = GET_WORKER_INDEX()
+            command.extend([
+                "--event-add-entries", "worker_index={}:int".format(worker_index)])
+        except:
+            # Ctrl-C does bad things to multiprocessing.Manager.dict() lookup.
+            pass
+
     # Specifying a value for close_fds is unsupported on Windows when using
     # subprocess.PIPE
     if os.name != "nt":
@@ -160,7 +204,8 @@ def call_with_timeout(command, timeout, name, inferior_pid_events):
                                    stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE,
-                                   close_fds=True)
+                                   close_fds=True,
+                                   preexec_fn=create_new_process_group)
     else:
         process = subprocess.Popen(command,
                                    stdin=subprocess.PIPE,
@@ -170,7 +215,14 @@ def call_with_timeout(command, timeout, name, inferior_pid_events):
     if inferior_pid_events:
         inferior_pid_events.put_nowait(('created', inferior_pid))
     output = process.communicate()
+
+    # The inferior should now be entirely wrapped up.
     exit_status = process.returncode
+    if exit_status is None:
+        raise Exception(
+            "no exit status available after the inferior dotest.py "
+            "should have completed")
+
     if inferior_pid_events:
         inferior_pid_events.put_nowait(('destroyed', inferior_pid))
 
@@ -180,6 +232,10 @@ def call_with_timeout(command, timeout, name, inferior_pid_events):
         # only stderr does.
         report_test_pass(name, output[1])
     else:
+        # TODO need to differentiate a failing test from a run that
+        # was broken out of by a SIGTERM/SIGKILL, reporting those as
+        # an error.  If a signal-based completion, need to call that
+        # an error.
         report_test_failure(name, command, output[1])
     return name, exit_status, passes, failures, unexpected_successes
 
@@ -222,17 +278,19 @@ out_q = None
 
 def process_dir_worker_multiprocessing(
         a_output_lock, a_test_counter, a_total_tests, a_test_name_len,
-        a_dotest_options, job_queue, result_queue, inferior_pid_events):
+        a_dotest_options, job_queue, result_queue, inferior_pid_events,
+        worker_index_map):
     """Worker thread main loop when in multiprocessing mode.
     Takes one directory specification at a time and works on it."""
 
     # Shut off interrupt handling in the child process.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     # Setup the global state for the worker process.
     setup_global_variables(
         a_output_lock, a_test_counter, a_total_tests, a_test_name_len,
-        a_dotest_options)
+        a_dotest_options, worker_index_map)
 
     # Keep grabbing entries from the queue until done.
     while not job_queue.empty():
@@ -250,9 +308,7 @@ def process_dir_worker_multiprocessing_pool(args):
     return process_dir(*args)
 
 
-def process_dir_worker_threading(
-        a_test_counter, a_total_tests, a_test_name_len,
-        a_dotest_options, job_queue, result_queue, inferior_pid_events):
+def process_dir_worker_threading(job_queue, result_queue, inferior_pid_events):
     """Worker thread main loop when in threading mode.
 
     This one supports the hand-rolled pooling support.
@@ -389,11 +445,13 @@ def find_test_files_in_dir_tree(dir_root, found_func):
 
 def initialize_global_vars_common(num_threads, test_work_items):
     global total_tests, test_counter, test_name_len
+    
     total_tests = sum([len(item[1]) for item in test_work_items])
     test_counter = multiprocessing.Value('i', 0)
     test_name_len = multiprocessing.Value('i', 0)
-    print >> sys.stderr, "Testing: %d test suites, %d thread%s" % (
-        total_tests, num_threads, (num_threads > 1) * "s")
+    if not (RESULTS_FORMATTER and RESULTS_FORMATTER.is_using_terminal()):
+        print >> sys.stderr, "Testing: %d test suites, %d thread%s" % (
+            total_tests, num_threads, (num_threads > 1) * "s")
     update_progress()
 
 
@@ -402,15 +460,181 @@ def initialize_global_vars_multiprocessing(num_threads, test_work_items):
     # rest of the flat module.
     global output_lock
     output_lock = multiprocessing.RLock()
+
     initialize_global_vars_common(num_threads, test_work_items)
 
 
 def initialize_global_vars_threading(num_threads, test_work_items):
+    """Initializes global variables used in threading mode.
+    @param num_threads specifies the number of workers used.
+    @param test_work_items specifies all the work items
+    that will be processed.
+    """
     # Initialize the global state we'll use to communicate with the
     # rest of the flat module.
     global output_lock
     output_lock = threading.RLock()
+
+    index_lock = threading.RLock()
+    index_map = {}
+
+    def get_worker_index_threading():
+        """Returns a 0-based, thread-unique index for the worker thread."""
+        thread_id = threading.current_thread().ident
+        with index_lock:
+            if thread_id not in index_map:
+                index_map[thread_id] = len(index_map)
+            return index_map[thread_id]
+
+
+    global GET_WORKER_INDEX
+    GET_WORKER_INDEX = get_worker_index_threading
+
     initialize_global_vars_common(num_threads, test_work_items)
+
+
+def ctrl_c_loop(main_op_func, done_func, ctrl_c_handler):
+    """Provides a main loop that is Ctrl-C protected.
+
+    The main loop calls the main_op_func() repeatedly until done_func()
+    returns true.  The ctrl_c_handler() method is called with a single
+    int parameter that contains the number of times the ctrl_c has been
+    hit (starting with 1).  The ctrl_c_handler() should mutate whatever
+    it needs to have the done_func() return True as soon as it is desired
+    to exit the loop.
+    """
+    done = False
+    ctrl_c_count = 0
+
+    while not done:
+        try:
+            # See if we're done.  Start with done check since it is
+            # the first thing executed after a Ctrl-C handler in the
+            # following loop.
+            done = done_func()
+            if not done:
+                # Run the main op once.
+                main_op_func()
+
+        except KeyboardInterrupt:
+            ctrl_c_count += 1
+            ctrl_c_handler(ctrl_c_count)
+
+
+def pump_workers_and_asyncore_map(workers, asyncore_map):
+    """Prunes out completed workers and maintains the asyncore loop.
+
+    The asyncore loop contains the optional socket listener
+    and handlers.  When all workers are complete, this method
+    takes care of stopping the listener.  It also runs the
+    asyncore loop for the given async map for 10 iterations.
+
+    @param workers the list of worker Thread/Process instances.
+
+    @param asyncore_map the asyncore threading-aware map that
+    indicates which channels are in use and still alive.
+    """
+
+    # Check on all the workers, removing them from the workers
+    # list as they complete.
+    dead_workers = []
+    for worker in workers:
+        # This non-blocking join call is what allows us
+        # to still receive keyboard interrupts.
+        worker.join(0.01)
+        if not worker.is_alive():
+            dead_workers.append(worker)
+            # Clear out the completed workers
+    for dead_worker in dead_workers:
+        workers.remove(dead_worker)
+
+    # If there are no more workers and there is a listener,
+    # close the listener.
+    global RESULTS_LISTENER_CHANNEL
+    if len(workers) == 0 and RESULTS_LISTENER_CHANNEL is not None:
+        RESULTS_LISTENER_CHANNEL.close()
+        RESULTS_LISTENER_CHANNEL = None
+
+    # Pump the asyncore map if it isn't empty.
+    if len(asyncore_map) > 0:
+        asyncore.loop(0.1, False, asyncore_map, 10)
+
+
+def handle_ctrl_c(ctrl_c_count, job_queue, workers, inferior_pid_events,
+                  stop_all_inferiors_func):
+    """Performs the appropriate ctrl-c action for non-pool parallel test runners
+
+    @param ctrl_c_count starting with 1, indicates the number of times ctrl-c
+    has been intercepted.  The value is 1 on the first intercept, 2 on the
+    second, etc.
+
+    @param job_queue a Queue object that contains the work still outstanding
+    (i.e. hasn't been assigned to a worker yet).
+
+    @param workers list of Thread or Process workers.
+
+    @param inferior_pid_events specifies a Queue of inferior process
+    construction and destruction events.  Used to build the list of inferior
+    processes that should be killed if we get that far.
+
+    @param stop_all_inferiors_func a callable object that takes the
+    workers and inferior_pid_events parameters (in that order) if a hard
+    stop is to be used on the workers.
+    """
+
+    # Print out which Ctrl-C we're handling.
+    key_name = [
+        "first",
+        "second",
+        "third",
+        "many"]
+
+    if ctrl_c_count < len(key_name):
+        name_index = ctrl_c_count - 1
+    else:
+        name_index = len(key_name) - 1
+    message = "\nHandling {} KeyboardInterrupt".format(key_name[name_index])
+    with output_lock:
+        print message
+
+    if ctrl_c_count == 1:
+        # Remove all outstanding items from the work queue so we stop
+        # doing any more new work.
+        while not job_queue.empty():
+            try:
+                # Just drain it to stop more work from being started.
+                job_queue.get_nowait()
+            except Queue.Empty:
+                pass
+        with output_lock:
+            print "Stopped more work from being started."
+    elif ctrl_c_count == 2:
+        # Try to stop all inferiors, even the ones currently doing work.
+        stop_all_inferiors_func(workers, inferior_pid_events)
+    else:
+        with output_lock:
+            print "All teardown activities kicked off, should finish soon."
+
+
+def workers_and_async_done(workers, async_map):
+    """Returns True if the workers list and asyncore channels are all done.
+
+    @param workers list of workers (threads/processes).  These must adhere
+    to the threading Thread or multiprocessing.Process interface.
+
+    @param async_map the threading-aware asyncore channel map to check
+    for live channels.
+
+    @return False if the workers list exists and has any entries in it, or
+    if the async_map exists and has any entries left in it; otherwise, True.
+    """
+    if workers is not None and len(workers) > 0:
+        # We're not done if we still have workers left.
+        return False
+    if async_map is not None and len(async_map) > 0:
+        return False
+    # We're done.
+    return True
 
 
 def multiprocessing_test_runner(num_threads, test_work_items):
@@ -447,6 +671,10 @@ def multiprocessing_test_runner(num_threads, test_work_items):
     # hold 2 * (num inferior dotest.py processes started) entries.
     inferior_pid_events = multiprocessing.Queue(4096)
 
+    # Worker dictionary allows each worker to figure out its worker index.
+    manager = multiprocessing.Manager()
+    worker_index_map = manager.dict()
+
     # Create workers.  We don't use multiprocessing.Pool due to
     # challenges with handling ^C keyboard interrupts.
     workers = []
@@ -460,50 +688,95 @@ def multiprocessing_test_runner(num_threads, test_work_items):
                   dotest_options,
                   job_queue,
                   result_queue,
-                  inferior_pid_events))
+                  inferior_pid_events,
+                  worker_index_map))
         worker.start()
         workers.append(worker)
 
-    # Wait for all workers to finish, handling ^C as needed.
-    try:
-        for worker in workers:
-            worker.join()
-    except KeyboardInterrupt:
-        # First try to drain the queue of work and let the
-        # running tests complete.
-        while not job_queue.empty():
-            try:
-                # Just drain it to stop more work from being started.
-                job_queue.get_nowait()
-            except Queue.Empty:
-                pass
+    # Main loop: wait for all workers to finish and wait for
+    # the socket handlers to wrap up.
+    ctrl_c_loop(
+        # Main operation of loop
+        lambda: pump_workers_and_asyncore_map(
+            workers, RUNNER_PROCESS_ASYNC_MAP),
 
-        print ('\nFirst KeyboardInterrupt received, stopping '
-               'future work.  Press again to hard-stop existing tests.')
-        try:
-            for worker in workers:
-                worker.join()
-        except KeyboardInterrupt:
-            print ('\nSecond KeyboardInterrupt received, killing '
-                   'all worker process trees.')
-            kill_all_worker_processes(workers, inferior_pid_events)
+        # Return True when we're done with the main loop.
+        lambda: workers_and_async_done(workers, RUNNER_PROCESS_ASYNC_MAP),
 
+        # Indicate what we do when we receive one or more Ctrl-Cs.
+        lambda ctrl_c_count: handle_ctrl_c(
+            ctrl_c_count, job_queue, workers, inferior_pid_events,
+            kill_all_worker_processes))
+
+    # Reap the test results.
     test_results = []
     while not result_queue.empty():
         test_results.append(result_queue.get(block=False))
     return test_results
 
 
+def map_async_run_loop(future, channel_map, listener_channel):
+    """Blocks until the Pool.map_async completes and the channel completes.
+
+    @param future an AsyncResult instance from a Pool.map_async() call.
+
+    @param channel_map the asyncore dispatch channel map that should be pumped.
+    Optional: may be None.
+
+    @param listener_channel the channel representing a listener that should be
+    closed once the map_async results are available.
+
+    @return the results from the async_result instance.
+    """
+    map_results = None
+
+    done = False
+    while not done:
+        # Check if we need to reap the map results.
+        if map_results is None:
+            if future.ready():
+                # Get the results.
+                map_results = future.get()
+
+                # Close the runner process listener channel if we have
+                # one: no more connections will be incoming.
+                if listener_channel is not None:
+                    listener_channel.close()
+
+        # Pump the asyncore loop if we have a listener socket.
+        if channel_map is not None:
+            asyncore.loop(0.01, False, channel_map, 10)
+
+        # Figure out if we're done running.
+        done = map_results is not None
+        if channel_map is not None:
+            # We have a runner process async map.  Check if it
+            # is complete.
+            if len(channel_map) > 0:
+                # We still have an asyncore channel running.  Not done yet.
+                done = False
+
+    return map_results
+
+
 def multiprocessing_test_runner_pool(num_threads, test_work_items):
     # Initialize our global state.
     initialize_global_vars_multiprocessing(num_threads, test_work_items)
+
+    manager = multiprocessing.Manager()
+    worker_index_map = manager.dict()
 
     pool = multiprocessing.Pool(
         num_threads,
         initializer=setup_global_variables,
         initargs=(output_lock, test_counter, total_tests, test_name_len,
-                  dotest_options))
-    return pool.map(process_dir_worker_multiprocessing_pool, test_work_items)
+                  dotest_options, worker_index_map))
+
+    # Start the map operation (async mode).
+    map_future = pool.map_async(
+        process_dir_worker_multiprocessing_pool, test_work_items)
+    return map_async_run_loop(
+        map_future, RUNNER_PROCESS_ASYNC_MAP, RESULTS_LISTENER_CHANNEL)
 
 
 def threading_test_runner(num_threads, test_work_items):
@@ -541,53 +814,28 @@ def threading_test_runner(num_threads, test_work_items):
     for _ in range(num_threads):
         worker = threading.Thread(
             target=process_dir_worker_threading,
-            args=(test_counter,
-                  total_tests,
-                  test_name_len,
-                  dotest_options,
-                  job_queue,
+            args=(job_queue,
                   result_queue,
                   inferior_pid_events))
         worker.start()
         workers.append(worker)
 
-    # Wait for all workers to finish, handling ^C as needed.
-    try:
-        # We do some trickery here to ensure we can catch keyboard
-        # interrupts.
-        while len(workers) > 0:
-            # Make a pass throug the workers, checking for who is done.
-            dead_workers = []
-            for worker in workers:
-                # This non-blocking join call is what allows us
-                # to still receive keyboard interrupts.
-                worker.join(0.01)
-                if not worker.isAlive():
-                    dead_workers.append(worker)
-            # Clear out the completed workers
-            for dead_worker in dead_workers:
-                workers.remove(dead_worker)
+    # Main loop: wait for all workers to finish and wait for
+    # the socket handlers to wrap up.
+    ctrl_c_loop(
+        # Main operation of loop
+        lambda: pump_workers_and_asyncore_map(
+            workers, RUNNER_PROCESS_ASYNC_MAP),
 
-    except KeyboardInterrupt:
-        # First try to drain the queue of work and let the
-        # running tests complete.
-        while not job_queue.empty():
-            try:
-                # Just drain it to stop more work from being started.
-                job_queue.get_nowait()
-            except Queue.Empty:
-                pass
+        # Return True when we're done with the main loop.
+        lambda: workers_and_async_done(workers, RUNNER_PROCESS_ASYNC_MAP),
 
-        print ('\nFirst KeyboardInterrupt received, stopping '
-               'future work.  Press again to hard-stop existing tests.')
-        try:
-            for worker in workers:
-                worker.join()
-        except KeyboardInterrupt:
-            print ('\nSecond KeyboardInterrupt received, killing '
-                   'all worker process trees.')
-            kill_all_worker_threads(workers, inferior_pid_events)
+        # Indicate what we do when we receive one or more Ctrl-Cs.
+        lambda ctrl_c_count: handle_ctrl_c(
+            ctrl_c_count, job_queue, workers, inferior_pid_events,
+            kill_all_worker_threads))
 
+    # Reap the test results.
     test_results = []
     while not result_queue.empty():
         test_results.append(result_queue.get(block=False))
@@ -598,20 +846,53 @@ def threading_test_runner_pool(num_threads, test_work_items):
     # Initialize our global state.
     initialize_global_vars_threading(num_threads, test_work_items)
 
-    pool = multiprocessing.pool.ThreadPool(
-        num_threads
-        # initializer=setup_global_variables,
-        # initargs=(output_lock, test_counter, total_tests, test_name_len,
-        #           dotest_options)
-    )
-    return pool.map(process_dir_worker_threading_pool, test_work_items)
+    pool = multiprocessing.pool.ThreadPool(num_threads)
+    map_future = pool.map_async(
+        process_dir_worker_threading_pool, test_work_items)
+
+    return map_async_run_loop(
+        map_future, RUNNER_PROCESS_ASYNC_MAP, RESULTS_LISTENER_CHANNEL)
+
+
+def asyncore_run_loop(channel_map):
+    try:
+        asyncore.loop(None, False, channel_map)
+    except:
+        # Swallow it, we're seeing:
+        #   error: (9, 'Bad file descriptor')
+        # when the listener channel is closed.  Shouldn't be the case.
+        pass
 
 
 def inprocess_exec_test_runner(test_work_items):
     # Initialize our global state.
     initialize_global_vars_multiprocessing(1, test_work_items)
-    return map(process_dir_mapper_inprocess, test_work_items)
 
+    # We're always worker index 0
+    global GET_WORKER_INDEX
+    GET_WORKER_INDEX = lambda: 0
+
+    # Run the listener and related channel maps in a separate thread.
+    # global RUNNER_PROCESS_ASYNC_MAP
+    global RESULTS_LISTENER_CHANNEL
+    if RESULTS_LISTENER_CHANNEL is not None:
+        socket_thread = threading.Thread(
+            target=lambda: asyncore_run_loop(RUNNER_PROCESS_ASYNC_MAP))
+        socket_thread.start()
+
+    # Do the work.
+    test_results = map(process_dir_mapper_inprocess, test_work_items)
+
+    # If we have a listener channel, shut it down here.
+    if RESULTS_LISTENER_CHANNEL is not None:
+        # Close down the channel.
+        RESULTS_LISTENER_CHANNEL.close()
+        RESULTS_LISTENER_CHANNEL = None
+
+        # Wait for the listener and handlers to complete.
+        socket_thread.join()
+
+    return test_results
 
 def walk_and_invoke(test_directory, test_subdir, dotest_argv,
                     test_runner_func):
@@ -624,6 +905,21 @@ def walk_and_invoke(test_directory, test_subdir, dotest_argv,
     test_subdir - lldb/test/ or a subfolder with the tests we're interested in
                   running
     """
+    # The async_map is important to keep all thread-related asyncore
+    # channels distinct when we call asyncore.loop() later on.
+    global RESULTS_LISTENER_CHANNEL, RUNNER_PROCESS_ASYNC_MAP
+    RUNNER_PROCESS_ASYNC_MAP = {}
+
+    # If we're outputting side-channel test results, create the socket
+    # listener channel and tell the inferior to send results to the
+    # port on which we'll be listening.
+    if RESULTS_FORMATTER is not None:
+        forwarding_func = RESULTS_FORMATTER.handle_event
+        RESULTS_LISTENER_CHANNEL = (
+            dotest_channels.UnpicklingForwardingListenerChannel(
+                RUNNER_PROCESS_ASYNC_MAP, "localhost", 0, forwarding_func))
+        dotest_argv.append("--results-port")
+        dotest_argv.append(str(RESULTS_LISTENER_CHANNEL.address[1]))
 
     # Collect the test files that we'll run.
     test_work_items = []
@@ -654,14 +950,13 @@ def getExpectedTimeouts(platform_name):
     if platform_name is None:
         target = sys.platform
     else:
-        m = re.search('remote-(\w+)', platform_name)
+        m = re.search(r'remote-(\w+)', platform_name)
         target = m.group(1)
 
     expected_timeout = set()
 
     if target.startswith("linux"):
         expected_timeout |= {
-            "TestAttachDenied.py",
             "TestProcessAttach.py",
             "TestConnectRemote.py",
             "TestCreateAfterAttach.py",
@@ -759,20 +1054,149 @@ def get_test_runner_strategies(num_threads):
 
         # threading-pool uses threading for the workers (in-process)
         # and uses the multiprocessing.pool thread-enabled pool.
+        # This does not properly support Ctrl-C.
         "threading-pool":
         (lambda work_items: threading_test_runner_pool(
             num_threads, work_items)),
 
         # serial uses the subprocess-based, single process
         # test runner.  This provides process isolation but
-        # no concurrent test running.
+        # no concurrent test execution.
         "serial":
         inprocess_exec_test_runner
     }
 
 
+def _remove_option(args, option_name, removal_count):
+    """Removes option and related option arguments from args array.
+    @param args the array of command line arguments (in/out)
+    @param option_name the full command line representation of the
+    option that will be removed (including '--' or '-').
+    @param the count of elements to remove.  A value of 1 will remove
+    just the found option, while 2 will remove the option and its first
+    argument.
+    """
+    try:
+        index = args.index(option_name)
+        # Handle the exact match case.
+        del args[index:index+removal_count]
+        return
+    except ValueError:
+        # Thanks to argparse not handling options with known arguments
+        # like other options parsing libraries (see
+        # https://bugs.python.org/issue9334), we need to support the
+        # --results-formatter-options={second-level-arguments} (note
+        # the equal sign to fool the first-level arguments parser into
+        # not treating the second-level arguments as first-level
+        # options). We're certainly at risk of getting this wrong
+        # since now we're forced into the business of trying to figure
+        # out what is an argument (although I think this
+        # implementation will suffice).
+        regex_string = "^" + option_name + "="
+        regex = re.compile(regex_string)
+        for index in range(len(args)):
+            match = regex.match(args[index])
+            if match:
+                del args[index]
+                return
+        print "failed to find regex '{}'".format(regex_string)
+
+    # We didn't find the option but we should have.
+    raise Exception("failed to find option '{}' in args '{}'".format(
+        option_name, args))
+
+
+def adjust_inferior_options(dotest_argv):
+    """Adjusts the commandline args array for inferiors.
+
+    This method adjusts the inferior dotest commandline options based
+    on the parallel test runner's options.  Some of the inferior options
+    will need to change to properly handle aggregation functionality.
+    """
+    global dotest_options
+
+    # If we don't have a session directory, create one.
+    if not dotest_options.s:
+        # no session log directory, we need to add this to prevent
+        # every dotest invocation from creating its own directory
+        import datetime
+        # The windows platforms don't like ':' in the pathname.
+        timestamp_started = datetime.datetime.now().strftime("%F-%H_%M_%S")
+        dotest_argv.append('-s')
+        dotest_argv.append(timestamp_started)
+        dotest_options.s = timestamp_started
+
+    # Adjust inferior results formatter options - if the parallel
+    # test runner is collecting into the user-specified test results,
+    # we'll have inferiors spawn with the --results-port option and
+    # strip the original test runner options.
+    if dotest_options.results_file is not None:
+        _remove_option(dotest_argv, "--results-file", 2)
+    if dotest_options.results_port is not None:
+        _remove_option(dotest_argv, "--results-port", 2)
+    if dotest_options.results_formatter is not None:
+        _remove_option(dotest_argv, "--results-formatter", 2)
+    if dotest_options.results_formatter_options is not None:
+        _remove_option(dotest_argv, "--results-formatter-options", 2)
+
+    # Remove test runner name if present.
+    if dotest_options.test_runner_name is not None:
+        _remove_option(dotest_argv, "--test-runner-name", 2)
+
+
+def is_darwin_version_lower_than(target_version):
+    """Checks that os is Darwin and version is lower than target_version.
+
+    @param target_version the StrictVersion indicating the version
+    we're checking against.
+
+    @return True if the OS is Darwin (OS X) and the version number of
+    the OS is less than target_version; False in all other cases.
+    """
+    if platform.system() != 'Darwin':
+        # Can't be Darwin lower than a certain version.
+        return False
+
+    system_version = distutils.version.StrictVersion(platform.mac_ver()[0])
+    is_lower = cmp(system_version, target_version) < 0
+    print "is_darwin_version_lower_than: {} ({}, {})".format(
+        is_lower, system_version, target_version)
+    return is_lower
+
+
+def default_test_runner_name(num_threads):
+    """Returns the default test runner name for the configuration.
+
+    @param num_threads the number of threads/workers this test runner is
+    supposed to use.
+
+    @return the test runner name that should be used by default when
+    no test runner was explicitly called out on the command line.
+    """
+    if num_threads == 1:
+        # Use the serial runner.
+        test_runner_name = "serial"
+    elif os.name == "nt":
+        # Currently the multiprocessing test runner with ctrl-c
+        # support isn't running correctly on nt.  Use the pool
+        # support without ctrl-c.
+        test_runner_name = "threading-pool"
+    elif is_darwin_version_lower_than(
+            distutils.version.StrictVersion("10.10.0")):
+        # OS X versions before 10.10 appear to have an issue using
+        # the threading test runner.  Fall back to multiprocessing.
+        # Supports Ctrl-C.
+        test_runner_name = "multiprocessing"
+    else:
+        # For everyone else, use the ctrl-c-enabled threading support.
+        # Should use fewer system resources than the multprocessing
+        # variant.
+        test_runner_name = "threading"
+    return test_runner_name
+
+
 def main(print_details_on_success, num_threads, test_subdir,
-         test_runner_name):
+         test_runner_name, results_formatter):
     """Run dotest.py in inferior mode in parallel.
 
     @param print_details_on_success the parsed value of the output-on-success
@@ -793,53 +1217,34 @@ def main(print_details_on_success, num_threads, test_subdir,
     system to choose the most appropriate test runner given desired
     thread count and OS type.
 
+    @param results_formatter if specified, provides the TestResultsFormatter
+    instance that will format and output test result data from the
+    side-channel test results.  When specified, inferior dotest calls
+    will send test results side-channel data over a socket to the parallel
+    test runner, which will forward them on to results_formatter.
     """
+
+    # Do not shut down on sighup.
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     dotest_argv = sys.argv[1:]
 
-    global output_on_success
+    global output_on_success, RESULTS_FORMATTER
     output_on_success = print_details_on_success
+    RESULTS_FORMATTER = results_formatter
 
     # We can't use sys.path[0] to determine the script directory
     # because it doesn't work under a debugger
-    test_directory = os.path.dirname(os.path.realpath(__file__))
-    parser = OptionParser(usage="""\
-Run lldb test suite using a separate process for each test file.
-
-       Each test will run with a time limit of 10 minutes by default.
-
-       Override the default time limit of 10 minutes by setting
-       the environment variable LLDB_TEST_TIMEOUT.
-
-       E.g., export LLDB_TEST_TIMEOUT=10m
-
-       Override the time limit for individual tests by setting
-       the environment variable LLDB_[TEST NAME]_TIMEOUT.
-
-       E.g., export LLDB_TESTCONCURRENTEVENTS_TIMEOUT=2m
-
-       Set to "0" to run without time limit.
-
-       E.g., export LLDB_TEST_TIMEOUT=0
-       or    export LLDB_TESTCONCURRENTEVENTS_TIMEOUT=0
-""")
     parser = dotest_args.create_parser()
     global dotest_options
     dotest_options = dotest_args.parse_args(parser, dotest_argv)
 
-    if not dotest_options.s:
-        # no session log directory, we need to add this to prevent
-        # every dotest invocation from creating its own directory
-        import datetime
-        # The windows platforms don't like ':' in the pathname.
-        timestamp_started = datetime.datetime.now().strftime("%F-%H_%M_%S")
-        dotest_argv.append('-s')
-        dotest_argv.append(timestamp_started)
-        dotest_options.s = timestamp_started
+    adjust_inferior_options(dotest_argv)
 
     session_dir = os.path.join(os.getcwd(), dotest_options.s)
 
     # The root directory was specified on the command line
+    test_directory = os.path.dirname(os.path.realpath(__file__))
     if test_subdir and len(test_subdir) > 0:
         test_subdir = os.path.join(test_directory, test_subdir)
     else:
@@ -850,15 +1255,6 @@ Run lldb test suite using a separate process for each test file.
     for core in cores:
         os.unlink(core)
 
-    if not num_threads:
-        num_threads_str = os.environ.get("LLDB_TEST_THREADS")
-        if num_threads_str:
-            num_threads = int(num_threads_str)
-        else:
-            num_threads = multiprocessing.cpu_count()
-    if num_threads < 1:
-        num_threads = 1
-
     system_info = " ".join(platform.uname())
 
     # Figure out which testrunner strategy we'll use.
@@ -867,24 +1263,13 @@ Run lldb test suite using a separate process for each test file.
     # If the user didn't specify a test runner strategy, determine
     # the default now based on number of threads and OS type.
     if not test_runner_name:
-        if num_threads == 1:
-            # Use the serial runner.
-            test_runner_name = "serial"
-        elif os.name == "nt":
-            # Currently the multiprocessing test runner with ctrl-c
-            # support isn't running correctly on nt.  Use the pool
-            # support without ctrl-c.
-            test_runner_name = "multiprocessing-pool"
-        else:
-            # For everyone else, use the ctrl-c-enabled
-            # multiprocessing support.
-            test_runner_name = "multiprocessing"
+        test_runner_name = default_test_runner_name(num_threads)
 
     if test_runner_name not in runner_strategies_by_name:
-        raise Exception("specified testrunner name '{}' unknown. "
-               "Valid choices: {}".format(
-                   test_runner_name,
-                   runner_strategies_by_name.keys()))
+        raise Exception(
+            "specified testrunner name '{}' unknown. Valid choices: {}".format(
+                test_runner_name,
+                runner_strategies_by_name.keys()))
     test_runner_func = runner_strategies_by_name[test_runner_name]
 
     summary_results = walk_and_invoke(
@@ -892,6 +1277,11 @@ Run lldb test suite using a separate process for each test file.
 
     (timed_out, passed, failed, unexpected_successes, pass_count,
      fail_count) = summary_results
+
+    # The results formatter - if present - is done now.  Tell it to
+    # terminate.
+    if results_formatter is not None:
+        results_formatter.send_terminate_as_needed()
 
     timed_out = set(timed_out)
     num_test_files = len(passed) + len(failed)
