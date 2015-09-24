@@ -25,6 +25,7 @@ PARALLEL_DIRS := ABI/MacOSX-arm ABI/MacOSX-arm64 ABI/MacOSX-i386 ABI/SysV-i386 A
 	LanguageRuntime/ObjC/AppleObjCRuntime \
 	LanguageRuntime/RenderScript/RenderScriptRuntime \
 	Language/CPlusPlus \
+	Language/Go \
 	Language/ObjC \
 	Language/ObjCPlusPlus \
 	DynamicLoader/POSIX-DYLD \
