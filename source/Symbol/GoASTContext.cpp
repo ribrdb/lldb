@@ -1184,6 +1184,9 @@ GoASTContext::GetChildCompilerTypeAtIndex(void *type, ExecutionContext *exe_ctx,
 uint32_t
 GoASTContext::GetIndexOfChildWithName(void *type, const char *name, bool omit_empty_base_classes)
 {
+    if (!type || !GetCompleteType(type))
+        return UINT_MAX;
+
     GoType *t = static_cast<GoType *>(type);
     GoStruct *s = t->GetStruct();
     if (s)
