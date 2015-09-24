@@ -380,6 +380,19 @@ class GoASTContext : public TypeSystem
     GoASTContext(const GoASTContext &) = delete;
     const GoASTContext &operator=(const GoASTContext &) = delete;
 };
-}
 
+class GoASTContextForExpr : public GoASTContext
+{
+  public:
+    GoASTContextForExpr(lldb::TargetSP target)
+        : m_target_wp(target)
+    {
+    }
+    virtual UserExpression *GetUserExpression(const char *expr, const char *expr_prefix, lldb::LanguageType language,
+                                              Expression::ResultType desired_type) override;
+
+  private:
+    lldb::TargetWP m_target_wp;
+};
+}
 #endif /* defined(__lldb__GoASTContext__) */

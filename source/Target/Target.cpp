@@ -43,6 +43,8 @@
 #include "lldb/Interpreter/OptionValues.h"
 #include "lldb/Interpreter/Property.h"
 #include "lldb/Symbol/ClangASTContext.h"
+#include "lldb/Symbol/CompileUnit.h"
+#include "lldb/Symbol/GoASTContext.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Symbol.h"
@@ -1901,6 +1903,14 @@ Target::GetScratchTypeSystemForLanguage (lldb::LanguageType language, bool creat
        || language == eLanguageTypeMipsAssembler // GNU AS and LLVM use it for all assembly code
        || language == eLanguageTypeUnknown)
         return GetScratchClangASTContext(create_on_demand);
+    if (eLanguageTypeGo == language)
+    {
+        if (!m_scratch_go_ast_context_ap && create_on_demand) {
+            m_scratch_go_ast_context_ap.reset(new GoASTContextForExpr(shared_from_this()));
+            m_scratch_go_ast_context_ap->SetAddressByteSize(GetArchitecture().GetAddressByteSize());
+        }
+        return m_scratch_go_ast_context_ap.get();
+    }
     else
         return NULL;
 }
