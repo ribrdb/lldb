@@ -59,7 +59,6 @@ USEDLIBS = lldbAPI.a \
 	lldbPluginCXXItaniumABI.a \
 	lldbPluginAppleObjCRuntime.a \
 	lldbPluginRenderScriptRuntime.a \
-    lldbPluginGoRuntime.a \
 	lldbPluginMemoryHistoryASan.a \
 	lldbPluginCPlusPlusLanguage.a \
 	lldbPluginObjCLanguage.a \
@@ -72,7 +71,6 @@ USEDLIBS = lldbAPI.a \
 	lldbPluginObjectFilePECOFF.a \
 	lldbPluginOSGo.a \
 	lldbPluginOSPython.a \
-    lldbPluginOSGo.a \
 	lldbPluginPlatformGDB.a \
 	lldbPluginProcessElfCore.a \
 	lldbPluginProcessGDBRemote.a \

@@ -2937,18 +2937,37 @@ PluginManager::CreateSettingForJITLoaderPlugin (Debugger &debugger,
                                   properties_sp,
                                   description,
                                   is_global_property);
+}
+
+static const char *kOperatingSystemPluginName("os");
+
+lldb::OptionValuePropertiesSP
+PluginManager::GetSettingForOperatingSystemPlugin(Debugger &debugger, const ConstString &setting_name)
+{
+    lldb::OptionValuePropertiesSP properties_sp;
+    lldb::OptionValuePropertiesSP plugin_type_properties_sp(
+        GetDebuggerPropertyForPlugins(debugger, ConstString(kOperatingSystemPluginName),
+                                      ConstString(), // not creating to so we don't need the description
+                                      false));
+    if (plugin_type_properties_sp)
+        properties_sp = plugin_type_properties_sp->GetSubProperty(nullptr, setting_name);
+    return properties_sp;
+}
+
+bool
+PluginManager::CreateSettingForOperatingSystemPlugin(Debugger &debugger,
+                                                     const lldb::OptionValuePropertiesSP &properties_sp,
+                                                     const ConstString &description, bool is_global_property)
+{
     if (properties_sp)
     {
-        lldb::OptionValuePropertiesSP plugin_type_properties_sp (GetDebuggerPropertyForPlugins (debugger,
-                                                                                                ConstString(kSymbolFilePluginName),
-                                                                                                ConstString("Settings for symbol file plug-ins"),
-                                                                                                true));
+        lldb::OptionValuePropertiesSP plugin_type_properties_sp(
+            GetDebuggerPropertyForPlugins(debugger, ConstString(kOperatingSystemPluginName),
+                                          ConstString("Settings for operating system plug-ins"), true));
         if (plugin_type_properties_sp)
         {
-            plugin_type_properties_sp->AppendProperty (properties_sp->GetName(),
-                                                       description,
-                                                       is_global_property,
-                                                       properties_sp);
+            plugin_type_properties_sp->AppendProperty(properties_sp->GetName(), description, is_global_property,
+                                                      properties_sp);
             return true;
         }
     }

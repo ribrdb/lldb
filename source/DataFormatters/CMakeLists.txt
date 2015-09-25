@@ -4,7 +4,6 @@ add_lldb_library(lldbDataFormatters
   FormatCache.cpp
   FormatClasses.cpp
   FormatManager.cpp
-  GoFormatterFunctions.cpp
   FormattersHelpers.cpp
   LanguageCategory.cpp
   StringPrinter.cpp

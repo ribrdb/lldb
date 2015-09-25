@@ -49,7 +49,6 @@ set( LLDB_USED_LIBS
   lldbPluginAppleObjCRuntime
   lldbPluginRenderScriptRuntime
   lldbPluginCXXItaniumABI
-  lldbPluginLanguageRuntimeGo
   lldbPluginABIMacOSX_arm
   lldbPluginABIMacOSX_arm64
   lldbPluginABIMacOSX_i386
@@ -69,7 +68,6 @@ set( LLDB_USED_LIBS
   lldbPluginObjectFilePECOFF
   lldbPluginOSGo
   lldbPluginOSPython
-  lldbPluginOSGo
   lldbPluginMemoryHistoryASan
   lldbPluginInstrumentationRuntimeAddressSanitizer
   lldbPluginSystemRuntimeMacOSX
