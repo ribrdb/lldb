@@ -201,7 +201,7 @@ class GoStruct : public GoType
     };
 
     GoStruct(int kind, const ConstString &name, int64_t byte_size)
-        : GoType(kind, name)
+        : GoType(kind == 0 ? KIND_STRUCT : kind, name)
         , m_is_complete(false)
         , m_byte_size(byte_size)
     {
@@ -396,6 +396,10 @@ GoASTContext::IsAggregateType(void *type)
         return false;
     if (kind == GoType::KIND_PTR)
         return false;
+    if (kind == GoType::KIND_CHAN)
+        return false;
+    if (kind == GoType::KIND_MAP)
+        return false;
     if (kind == GoType::KIND_STRING)
         return false;
     if (kind == GoType::KIND_UNSAFEPOINTER)
@@ -565,7 +569,8 @@ GoASTContext::IsPointerType(void *type, CompilerType *pointee_type)
         case GoType::KIND_PTR:
         case GoType::KIND_UNSAFEPOINTER:
         case GoType::KIND_CHAN:
-            // TODO: is map a pointer? string? function?
+        case GoType::KIND_MAP:
+            // TODO: is function a pointer?
             return true;
         default:
             return false;
@@ -1046,6 +1051,11 @@ GoASTContext::GetNumChildren(void *type, bool omit_empty_base_classes)
     {
         return array->GetLength();
     }
+    else if (t->IsTypedef())
+    {
+        return t->GetElementType().GetNumChildren(omit_empty_base_classes);
+    }
+
     return GetNumFields(type);
 }
 
