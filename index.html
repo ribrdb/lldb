@@ -14,7 +14,7 @@
 <div class="container">
 
 <h1>Debugging Go Code with LLDB</h1>
-<p><i>Updated Sept 28, 2015</i></p>
+<p><i>Updated Jan 4, 2016</i></p>
 
 <div id="nav"></div>
 
@@ -55,10 +55,10 @@ This applies to the <code>gc</code> toolchain. Besides this overview you might w
 
 <h4 id=ExpressionParsing>Expression Parsing</h4>
 
-<p>LLDB includes a simple go expression parser. 
+<p>LLDB includes a go expression parser. 
 
 <pre>(lldb) p x
-(lldb) expr *(*int32)t
+(lldb) expr *(*int32)(t)
 (lldb) help expr</pre></p>
 
 <h4 id=Interfaces>Interfaces</h4>
@@ -78,7 +78,7 @@ This applies to the <code>gc</code> toolchain. Besides this overview you might w
 
 <p>LLDB treats Goroutines as threads.
 
-<p>(lldb) thread list
+<pre>(lldb) thread list
 (lldb) bt all
 (lldb) thread select 2</pre>
 
